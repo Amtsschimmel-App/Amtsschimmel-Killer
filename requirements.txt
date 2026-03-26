@@ -1,7 +1,6 @@
 streamlit
-openai==0.28
+openai
 Pillow
 pytesseract
-pandas
+pymupdf
 ics
-pdf2image
