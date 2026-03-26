@@ -1,0 +1,7 @@
+streamlit
+openai==0.28
+Pillow
+pytesseract
+pandas
+ics
+pdf2image
