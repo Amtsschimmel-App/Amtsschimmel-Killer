@@ -2,68 +2,85 @@ import streamlit as st
 import openai
 from PIL import Image
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+import pandas as pd
+import re
 
-import fitz
-
+# 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄")
 
 try:
-    st.image("logo.png", width=200)
+    logo = Image.open("logo.png")
+    st.image(logo, width=150)
 except:
-    pass
+    st.info("💡 Tipp: Lade ein 'logo.png' hoch.")
 
 st.title("Amtsschimmel-Killer 📄🚀")
 st.write("Verstehe Behördenbriefe in Sekunden.")
+st.divider()
 
-if "OPENAI_API_KEY" not in st.secrets:
-    st.error("⚠️ API-Key fehlt in .streamlit/secrets.toml!")
-    st.stop()
+# 2. SICHERHEIT
+try:
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
+except:
+    st.error("⚠️ API-Key fehlt!")
 
-client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# 3. STRIPE
+params = st.query_params
+kommt_von_stripe = params.get("payment") == "success"
 
-upload = st.file_uploader("Brief hochladen", type=["png", "jpg", "jpeg", "pdf"])
+with st.sidebar:
+    st.header("✨ Account-Status")
+    if kommt_von_stripe:
+        ist_pro = True
+        st.success("Abo aktiv: PRO-Status! 🎉")
+    else:
+        ist_pro = st.toggle("Pro-Funktionen (Test-Modus)", value=False)
+    if not ist_pro:
+        # HIER DEINEN STRIPE-LINK EINSETZEN
+        st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
+
+# 4. ANALYSE
+upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    text_raw = ""
-    if upload.type == "application/pdf":
-        with fitz.open(stream=upload.read(), filetype="pdf") as doc:
-            for page in doc:
-                text_raw += page.get_text()
-        st.success("PDF wurde eingelesen!")
-    else:
-        image = Image.open(upload)
-        st.image(image, caption="Dein Scan", width=300)
-        with st.spinner("Lese Text aus Bild..."):
-            text_raw = pytesseract.image_to_string(image, lang='deu')
-
+    image = Image.open(upload)
+    st.image(image, caption="Dein Scan", width=300)
+    
     if st.button("Brief analysieren"):
-        if not text_raw.strip():
-            st.warning("Kein Text gefunden!")
-        else:
-            with st.spinner('KI arbeitet...'):
-                try:
-                    # ACHTUNG: Hier darf kein Buchstabe fehlen!
-                    mein_prompt = "Erkläre den Brief einfach, nenne Fristen fett und gib eine Schritt-für-Schritt-Anleitung."
-                    
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": mein_prompt},
-                            {"role": "user", "content": text_raw}
-                        ]
-                    )
-                    st.subheader("Das steht drin:")
-                    st.write(response.choices[0].message.content)
-                except Exception as e:
-                    st.error(f"KI-Fehler: {e}")
-# ... dein vorheriger Code (Ende der Analyse-Logik)
+        with st.spinner('KI analysiert...'):
+            try:
+                text_raw = pytesseract.image_to_string(image, lang='deu')
+                if len(text_raw.strip()) < 10:
+                    st.error("❌ Foto zu unscharf.")
+                else:
+                    system_msg = "Du bist Experte für Behördendeutsch."
+                    user_msg = f"Erkläre einfach. Liste Fristen am Ende so: FRIST: [Aufgabe] | DATUM: [TT.MM.JJJJ]\n\nText: {text_raw}"
 
-st.divider()  # Eine Trennlinie für die Optik
+                    response = openai.ChatCompletion.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}]
+                    )
+                    ergebnis = response.choices.message.content
+                    st.subheader("Einfach erklärt:")
+                    st.info(ergebnis)
+
+                    if ist_pro:
+                        st.divider()
+                        st.subheader("🗓️ Deine Fristen (PRO)")
+                        match = re.search(r"FRIST: (.*?) \| DATUM: (.*?)", ergebnis)
+                        if match:
+                            df = pd.DataFrame({"Aufgabe": [match.group(1)], "Datum": [match.group(2).strip()]})
+                            st.table(df)
+            except Exception as e:
+                st.error(f"Fehler: {e}")
+
+# 5. RECHTLICHES
+st.divider()
 st.markdown("### Rechtliches")
 
-# Der direkte Link zu deiner PDF (Raw-Version für direktes Öffnen)
+# Die 'raw' Adresse ist der Direktschalter zur PDF
 pdf_url = "https://raw.githubusercontent.com"
-st.markdown(f"📄 [Datenschutzerklärung lesen]({pdf_url})")
 
-st.caption("© 2026 Amtsschimmel-Killer | Keine Rechtsberatung")
+st.markdown(f'<a href="{pdf_url}" target="_blank">📄 Datenschutzerklärung direkt öffnen (PDF)</a>', unsafe_allow_html=True)
+
+st.caption("© 2026 Amtsschimmel-Killer | Keine Rechtsberatung. Nutzung auf eigene Gefahr.")
