@@ -7,7 +7,7 @@ import re
 
 # 1. SEITEN-KONFIGURATION (Hier ist das blaue Icon!)
 st.set_page_config(
-    page_title="Amtsschimmel-Killer", 
+    page_title="Amtsschimmel Killer", 
     page_icon="icon_final_blau.png",
     layout="wide"
 )
