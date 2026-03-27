@@ -6,7 +6,7 @@ import pandas as pd
 import re
 
 # 1. SEITEN-KONFIGURATION
-st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="logo_neu.png")
+st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="icon_final_blau.png")
 
 try:
     logo = Image.open("logo.png")
