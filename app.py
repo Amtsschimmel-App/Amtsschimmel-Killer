@@ -37,7 +37,7 @@ with st.sidebar:
         ist_pro = st.toggle("Pro-Funktionen (Test-Modus)", value=False)
     if not ist_pro:
         # HIER DEINEN STRIPE-LINK EINSETZEN (z.B. https://buy.stripe.com)
-        st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
+        st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com/test_5kQ7sMaZHfi85X5gJr8k800)")
 
 # 4. ANALYSE
 upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
