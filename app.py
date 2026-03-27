@@ -57,6 +57,13 @@ if upload:
                     st.write(response.choices[0].message.content)
                 except Exception as e:
                     st.error(f"KI-Fehler: {e}")
+# ... dein vorheriger Code (Ende der Analyse-Logik)
 
-st.divider()
-st.caption("⚠️ Keine Rechtsberatung. Nutzung auf eigene Gefahr.")
+st.divider()  # Eine Trennlinie für die Optik
+st.markdown("### Rechtliches")
+
+# Der direkte Link zu deiner PDF (Raw-Version für direktes Öffnen)
+pdf_url = "https://raw.githubusercontent.com"
+st.markdown(f"📄 [Datenschutzerklärung lesen]({pdf_url})")
+
+st.caption("© 2026 Amtsschimmel-Killer | Keine Rechtsberatung")
