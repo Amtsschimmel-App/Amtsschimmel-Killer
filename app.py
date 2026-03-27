@@ -36,7 +36,7 @@ with st.sidebar:
     else:
         ist_pro = st.toggle("Pro-Funktionen (Test-Modus)", value=False)
     if not ist_pro:
-        # HIER DEINEN PERSÖNLICHEN STRIPE-LINK EINSETZEN (z.B. https://buy.stripe.com)
+        # HIER DEINEN STRIPE-LINK EINSETZEN (z.B. https://buy.stripe.com)
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
 
 # 4. ANALYSE
@@ -78,8 +78,8 @@ if upload:
 st.divider()
 st.markdown("### Rechtliches")
 
-# DER KORRIGIERTE DIREKT-LINK ZUR PDF:
-pdf_url = "https://raw.githubusercontent.com"/Amtsschimmel-App/Amtsschimmel-Killer/main/datenschutz.pdf
+# DER KOMPLETTE LINK ZU DEINER PDF:
+pdf_url = "https://raw.githubusercontent.com/Amtsschimmel-App/Amtsschimmel-Killer/main/datenschutz.pdf"
 
 st.markdown(f'<a href="{pdf_url}" target="_blank">📄 Datenschutzerklärung direkt öffnen (PDF)</a>', unsafe_allow_html=True)
 
