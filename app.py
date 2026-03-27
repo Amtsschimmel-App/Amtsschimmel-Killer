@@ -24,20 +24,18 @@ try:
 except:
     st.error("⚠️ API-Key fehlt!")
 
-# 3. STRIPE
+# 3. STRIPE & PRO-STATUS
 params = st.query_params
-kommt_von_stripe = params.get("payment") == "success"
+ist_pro = params.get("payment") == "success"
 
 with st.sidebar:
     st.header("✨ Account-Status")
-    if kommt_von_stripe:
-        ist_pro = True
+    if ist_pro:
         st.success("Abo aktiv: PRO-Status! 🎉")
+        st.balloons()
     else:
-        ist_pro = st.toggle("Pro-Funktionen (Test-Modus)", value=False)
-    if not ist_pro:
-        # HIER DEINEN STRIPE-LINK EINSETZEN (z.B. https://buy.stripe.com)
-        st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com/4gM9AT1H51Iv7RC0KQ1gs00)")
+        st.info("Basis-Modus")
+        st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
 
 # 4. ANALYSE
 upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
