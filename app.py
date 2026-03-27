@@ -79,7 +79,7 @@ st.divider()
 st.markdown("### Rechtliches")
 
 # DER KOMPLETTE LINK ZU DEINER PDF:
-pdf_url = "https://raw.githubusercontent.com/Amtsschimmel-App/Amtsschimmel-Killer/main/datenschutz.pdf"
+pdf_url = "https://drive.google.com/file/d/102IPPN6Gjwfg7Sovbc7pfo7y2Zq9YBMv/view"
 
 st.markdown(f'<a href="{pdf_url}" target="_blank">📄 Datenschutzerklärung direkt öffnen (PDF)</a>', unsafe_allow_html=True)
 
