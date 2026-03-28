@@ -1,5 +1,5 @@
 import streamlit as st
-import openai
+from openai import OpenAI # Neu: Der neue OpenAI Client
 from PIL import Image
 import pytesseract
 import pandas as pd
@@ -13,12 +13,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# NEU: OpenAI Client initialisieren
+try:
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+except:
+    st.error("⚠️ API-Key fehlt in den Streamlit-Secrets!")
+
 # FUNKTION: PDF ERSTELLEN
 def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    # Ersetzt Zeilenumbrüche und Sonderzeichen für PDF-Kompatibilität
+    # Ersetzt Sonderzeichen für PDF-Kompatibilität
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, txt=clean_text)
     return pdf.output()
@@ -34,12 +40,6 @@ st.title("Amtsschimmel-Killer 📄🚀")
 st.write("Verstehe Behördenbriefe in Sekunden und reagiere sofort.")
 st.divider()
 
-# 2. SICHERHEIT
-try:
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
-except:
-    st.error("⚠️ API-Key fehlt in den Streamlit-Secrets!")
-
 # 3. STRIPE & PRO-STATUS
 params = st.query_params
 ist_pro = params.get("payment") == "success"
@@ -53,7 +53,7 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 0.6 - Tesseract Fix")
+    st.caption("Version 0.7 - OpenAI v1 Migration")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bilddatei)", type=['png', 'jpg', 'jpeg'])
@@ -65,46 +65,31 @@ if upload:
         
         if st.button("Brief analysieren"):
             with st.spinner('KI liest den Brief...'):
-                # Texterkennung mit Fallback
+                # Texterkennung
                 try:
                     text_raw = pytesseract.image_to_string(image, lang='deu')
                 except:
-                    st.warning("⚠️ Deutsches Sprachpaket wird noch geladen... versuche Standard-Modus.")
                     text_raw = pytesseract.image_to_string(image, lang='eng')
                 
                 if len(text_raw.strip()) < 10:
                     st.error("❌ Text nicht lesbar. Bitte Foto schärfer aufnehmen.")
                 else:
-                    prompt = f"""
-                    Du bist 'Amtsschimmel-Killer'. Analysiere diesen Text:
-                    ---
-                    {text_raw}
-                    ---
-                    Erstelle:
-                    1. ERKLÄRUNG: (3 einfache Sätze)
-                    2. ANTWORT-ENTWURF: (Förmliches Schreiben mit Platzhaltern [NAME], [DATUM])
-                    
-                    Format:
-                    ERKLÄRUNG_START
-                    ...
-                    ERKLÄRUNG_ENDE
-                    ANTWORT_START
-                    ...
-                    ANTWORT_ENDE
-                    """
-
-                    response = openai.ChatCompletion.create(
+                    # NEU: OpenAI Chat Completion Aufruf (v1.0+)
+                    response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": prompt}]
+                        messages=[
+                            {"role": "system", "content": "Du bist der 'Amtsschimmel-Killer'. Hilf Bürgern, Behördenbriefe zu verstehen."},
+                            {"role": "user", "content": f"Analysiere diesen Text:\n{text_raw}\n\nFormat:\nERKLÄRUNG_START\n[3 Sätze]\nERKLÄRUNG_ENDE\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE"}
+                        ]
                     )
                     full_res = response.choices[0].message.content
 
                     # --- TEIL 1: BASIS-ERKLÄRUNG ---
                     st.subheader("💡 Was bedeutet das?")
-                    try:
+                    if "ERKLÄRUNG_START" in full_res:
                         erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0]
                         st.info(erklaerung.strip())
-                    except:
+                    else:
                         st.info(full_res)
 
                     # --- TEIL 2: PRO-FUNKTIONEN ---
@@ -112,26 +97,23 @@ if upload:
                         st.divider()
                         st.subheader("🚀 PRO: Dein Aktions-Plan")
                         
-                        try:
-                            # Extraktion des Antwort-Entwurfs
-                            antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
-                            
+                        if "ANTWORT_START" in full_res:
+                            antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0]
                             st.markdown("### 📝 Antwort-Entwurf")
-                            final_text = st.text_area("Hier kannst du den Entwurf anpassen:", value=antwort_text, height=300)
+                            final_text = st.text_area("Hier kannst du den Entwurf anpassen:", value=antwort_text.strip(), height=300)
                             
-                            # PDF Download
                             pdf_data = create_pdf(final_text)
                             st.download_button(
                                 label="📥 Als PDF herunterladen",
                                 data=bytes(pdf_data),
-                                file_name="Antwort_Amtsschimmel_Killer.pdf",
+                                file_name="Antwort_Amtsschimmel.pdf",
                                 mime="application/pdf"
                             )
-                        except:
+                        else:
                             st.warning("Antwort konnte nicht separat erstellt werden.")
                     else:
                         st.divider()
-                        st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe und PDF-Download.")
+                        st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe.")
     except Exception as e:
         st.error(f"Fehler: {e}")
 
