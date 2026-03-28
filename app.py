@@ -15,12 +15,30 @@ from datetime import datetime
 # 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# 2. DESIGN (CSS)
+# 2. DESIGN (Optimierte Sidebar-Buttons mit Untertext)
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }
     .stDownloadButton>button { width: 100%; border-radius: 8px; background-color: #10b981; color: white; }
-    .sidebar-link { text-decoration: none; color: #1e3a8a; font-weight: bold; display: block; padding: 10px; background: #f0f2f6; border-radius: 5px; margin-bottom: 5px; text-align: center; border: 1px solid #d1d5db; }
+    
+    .buy-button {
+        text-decoration: none;
+        display: block;
+        padding: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        transition: all 0.2s;
+        color: #1e3a8a !important;
+    }
+    .buy-button:hover {
+        background: #f1f5f9;
+        border-color: #1e3a8a;
+        transform: translateY(-1px);
+    }
+    .buy-title { font-weight: bold; font-size: 1.1em; display: block; }
+    .buy-subtitle { font-size: 0.85em; color: #64748b; display: block; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,7 +80,6 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_result" not in st.session_state: st.session_state.last_result = ""
 
-# GUTHABEN-CHECK (Robust für Promo-Codes)
 params = st.query_params
 current_sid = params.get("session_id")
 
@@ -82,9 +99,23 @@ with st.sidebar:
     st.metric("Verfügbares Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("💳 Guthaben laden")
-    st.markdown(f'<a href="{LINK_1}" target="_blank" class="sidebar-link">1 Analyse kaufen</a>', unsafe_allow_html=True)
-    st.markdown(f'<a href="{LINK_3}" target="_blank" class="sidebar-link">3 Analysen kaufen</a>', unsafe_allow_html=True)
-    st.markdown(f'<a href="{LINK_10}" target="_blank" class="sidebar-link">10 Analysen kaufen</a>', unsafe_allow_html=True)
+    
+    # Die Buttons mit Beschreibungen (wie bei Stripe)
+    st.markdown(f'''
+        <a href="{LINK_1}" target="_blank" class="buy-button">
+            <span class="buy-title">📄 1 Analyse</span>
+            <span class="buy-subtitle">3,99 € | Einmalzahlung</span>
+        </a>
+        <a href="{LINK_3}" target="_blank" class="buy-button">
+            <span class="buy-title">🚀 Spar-Paket (3 Stück)</span>
+            <span class="buy-subtitle">9,99 € | KEIN ABO</span>
+        </a>
+        <a href="{LINK_10}" target="_blank" class="buy-button">
+            <span class="buy-title">💎 Sorglos-Paket (10 Stück)</span>
+            <span class="buy-subtitle">19,99 € | Beste Wahl</span>
+        </a>
+    ''', unsafe_allow_html=True)
+    
     if params.get("admin") == "ja": st.session_state.credits = 999
 
 # --- 6. HAUPTSEITE ---
@@ -108,12 +139,9 @@ if upload:
     with col_a:
         st.subheader("🧠 Analyse-Ergebnis")
         
-        # WICHTIG: Wenn ein Ergebnis da ist, zeige es an, EGAL wie viele Credits man hat!
         if st.session_state.last_result:
             st.markdown(st.session_state.last_result)
             st.divider()
-            
-            # DOWNLOAD BEREICH
             c1, c2 = st.columns(2)
             with c1:
                 try:
@@ -122,25 +150,24 @@ if upload:
                     pdf.set_font("Helvetica", size=10)
                     pdf_text = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
                     pdf.multi_cell(0, 8, txt=pdf_text)
-                    st.download_button("📩 PDF laden", pdf.output(dest='S').encode('latin-1'), "Amtsschimmel_Antwort.pdf", "application/pdf")
-                except: st.error("PDF-Export Fehler")
+                    st.download_button("📩 PDF laden", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf", "application/pdf")
+                except: st.error("PDF Fehler")
             with c2:
                 try:
                     df = pd.DataFrame([{"Inhalt": st.session_state.last_result}])
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         df.to_excel(writer, index=False)
-                    st.download_button("📊 Excel laden", output.getvalue(), "Amtsschimmel_Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                except: st.error("Excel-Export Fehler")
+                    st.download_button("📊 Excel laden", output.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                except: st.error("Excel Fehler")
             
-            if st.button("🔄 Nächstes Dokument analysieren"):
+            if st.button("🔄 Nächstes Dokument"):
                 st.session_state.last_result = ""
                 st.rerun()
 
-        # Zeige den Button nur, wenn noch kein Ergebnis vorliegt UND Guthaben da ist
         elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI verfasst Antwort (ca. 20-30 Sek)..."):
+                with st.spinner("KI verfasst Antwort..."):
                     try:
                         txt = get_text_hybrid(upload)
                         response = client.chat.completions.create(
@@ -157,6 +184,6 @@ if upload:
                     except Exception as e:
                         st.error(f"KI-Fehler: {e}")
         else:
-            st.warning("💳 Bitte lade dein Guthaben auf, um die Analyse zu starten.")
+            st.warning("💳 Bitte lade dein Guthaben auf.")
 
 st.info("Tipp: Nutze digitale PDFs für die höchste Genauigkeit.")
