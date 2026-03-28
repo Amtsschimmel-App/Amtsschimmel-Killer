@@ -15,12 +15,12 @@ from datetime import datetime
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# 2. DESIGN-FIX (CSS für saubere Buttons & Sidebar)
+# 2. DESIGN-FIX
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }
     .stDownloadButton>button { width: 100%; border-radius: 8px; background-color: #10b981; color: white; }
-    .sidebar-link { text-decoration: none; color: #1e3a8a; font-weight: bold; display: block; padding: 10px; background: #f0f2f6; border-radius: 5px; margin-bottom: 5px; text-align: center; }
+    .sidebar-link { text-decoration: none; color: #1e3a8a; font-weight: bold; display: block; padding: 10px; background: #f0f2f6; border-radius: 5px; margin-bottom: 5px; text-align: center; border: 1px solid #d1d5db; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -32,7 +32,7 @@ try:
     LINK_3 = st.secrets["STRIPE_LINK_3"]
     LINK_10 = st.secrets["STRIPE_LINK_10"]
 except Exception as e:
-    st.error(f"⚠️ Secrets fehlen: {e}")
+    st.error(f"⚠️ Secrets fehlen oder fehlerhaft: {e}")
 
 if shutil.which("tesseract"):
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
@@ -64,8 +64,10 @@ if "last_result" not in st.session_state: st.session_state.last_result = None
 # Automatischer Credit-Check
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
-    st.session_state.credits += int(params.get("credits", 1))
-    st.session_state.processed_sessions.append(params["session_id"])
+    try:
+        st.session_state.credits += int(params.get("credits", 1))
+        st.session_state.processed_sessions.append(params["session_id"])
+    except: pass
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -73,9 +75,9 @@ with st.sidebar:
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("💳 Aufladen")
-    st.markdown(f'<a href="{LINK_1}" class="sidebar-link">🛒 1 Analyse (3,99€)</a>', unsafe_allow_html=True)
-    st.markdown(f'<a href="{LINK_3}" class="sidebar-link">🚀 3er Paket (9,99€)</a>', unsafe_allow_html=True)
-    st.markdown(f'<a href="{LINK_10}" class="sidebar-link">💎 10er Paket (19,99€)</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{LINK_1}" target="_blank" class="sidebar-link">🛒 1 Analyse (3,99€)</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{LINK_3}" target="_blank" class="sidebar-link">🚀 3er Paket (9,99€)</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{LINK_10}" target="_blank" class="sidebar-link">💎 10er Paket (19,99€)</a>', unsafe_allow_html=True)
     if st.query_params.get("admin") == "ja": st.session_state.credits = 999
 
 # --- 6. HAUPTSEITE ---
@@ -84,13 +86,15 @@ st.title("Amtsschimmel-Killer 📄🚀")
 upload = st.file_uploader("Behörden-Dokument hier hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    col_v, col_a = st.columns([1, 1]) # Sauberes 50/50 Layout
+    col_v, col_a = st.columns([1, 1]) 
     
     with col_v:
         st.subheader("📸 Vorschau")
         if upload.type == "application/pdf":
-            img = get_pdf_preview(upload.getvalue())
-            st.image(img, use_container_width=True)
+            try:
+                img_list = get_pdf_preview(upload.getvalue())
+                st.image(img_list[0], use_container_width=True)
+            except: st.error("Vorschau konnte nicht geladen werden.")
         else:
             st.image(upload, use_container_width=True)
 
@@ -98,17 +102,22 @@ if upload:
         st.subheader("🧠 KI-Analyse")
         if st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("Lese Dokument..."):
-                    txt = get_text_hybrid(upload)
-                    res = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "Du bist ein Fachanwalt. Erstelle ein SEHR ausführliches Antwortschreiben (mind. 600 Wörter) mit rechtlichen Begründungen und Paragraphen."},
-                            {"role": "user", "content": f"Analysiere: {txt}"}
-                        ]
-                    )
-                    st.session_state.last_result = res.choices.message.content
-                    st.session_state.credits -= 1
+                with st.spinner("Lese Dokument & erstelle Antwort..."):
+                    try:
+                        txt = get_text_hybrid(upload)
+                        # KORREKTUR: API-Aufruf
+                        res = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "Du bist ein Fachanwalt. Erstelle ein SEHR ausführliches Antwortschreiben (mind. 600 Wörter) mit rechtlichen Begründungen und Paragraphen."},
+                                {"role": "user", "content": f"Analysiere: {txt}"}
+                            ]
+                        )
+                        # KORREKTUR: Datenauslese
+                        st.session_state.last_result = res.choices[0].message.content
+                        st.session_state.credits -= 1
+                    except Exception as e:
+                        st.error(f"KI-Fehler: {e}")
             
             if st.session_state.last_result:
                 st.info("Hier ist dein Entwurf:")
@@ -118,17 +127,23 @@ if upload:
                 st.divider()
                 c1, c2 = st.columns(2)
                 with c1:
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", size=11)
-                    pdf.multi_cell(0, 7, txt=st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1'))
-                    st.download_button("📩 Als PDF", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf")
+                    try:
+                        pdf = FPDF()
+                        pdf.add_page()
+                        pdf.set_font("Arial", size=11)
+                        # Säuberung für PDF
+                        clean_pdf_text = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
+                        pdf.multi_cell(0, 7, txt=clean_pdf_text)
+                        st.download_button("📩 Als PDF", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf", "application/pdf")
+                    except: st.error("PDF-Erstellung fehlgeschlagen.")
                 with c2:
-                    df = pd.DataFrame([{"Inhalt": st.session_state.last_result}])
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        df.to_excel(writer, index=False)
-                    st.download_button("📊 Als Excel", output.getvalue(), "Analyse.xlsx")
+                    try:
+                        df_ex = pd.DataFrame([{"Inhalt": st.session_state.last_result}])
+                        output_ex = io.BytesIO()
+                        # Nutze Standard engine für bessere Kompatibilität
+                        df_ex.to_excel(output_ex, index=False)
+                        st.download_button("📊 Als Excel", output_ex.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    except: st.error("Excel-Erstellung fehlgeschlagen.")
         else:
             st.warning("💳 Bitte lade dein Guthaben in der Sidebar auf.")
 
