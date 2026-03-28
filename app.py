@@ -13,7 +13,7 @@ import stripe
 from datetime import datetime
 from openpyxl.styles import Alignment
 
-# 1. KONFIGURATION (MUSS GANZ OBEN STEHEN)
+# 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
 # 2. DESIGN (CSS) - PREMIUM LOOK & SIDEBAR
@@ -93,13 +93,24 @@ with st.sidebar:
     if is_admin: st.info("🔓 Admin-Zugriff aktiv")
     st.divider()
     st.subheader("💳 Guthaben laden")
+    st.caption("Einmalzahlung • Kein Abo")
+    
+    # Hier sind die detaillierten Paket-Infos
     packages = [
         ("📄 Basis-Check", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"),
         ("🚀 Spar-Paket", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"),
         ("💎 Profi-Paket", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
     ]
+    
     for title, link, count, price in packages:
-        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{title}</b><br><small>{count} | {price}</small></a>', unsafe_allow_html=True)
+        st.markdown(f'''
+            <a href="{link}" target="_blank" class="buy-button">
+                <div style="font-size: 1.1em; font-weight: bold;">{title}</div>
+                <div style="color: #1e3a8a; font-weight: bold; margin-top: 4px;">{price}</div>
+                <div style="color: #64748b; font-size: 0.85em; margin-top: 2px;">{count} | KEIN ABO</div>
+                <div style="color: #94a3b8; font-size: 0.75em;">Einmalzahlung</div>
+            </a>
+        ''', unsafe_allow_html=True)
 
 # --- 6. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -171,9 +182,8 @@ if upload:
                 with st.spinner("KI analysiert das Dokument..."):
                     text = get_text_hybrid(upload)
                     prompt = f"Analysiere diesen Text einer Behörde: {text}. 1. Liste alle Fristen auf. 2. Schreibe einen höflichen, juristisch präzisen Antwortbrief."
-                    # HIER IST DER FIX: .choices[0] hinzugefügt
                     res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                    antwort = res.choices[0].message.content
+                    antwort = res.choices[0].message.content # HIER WAR DER FEHLER - JETZT MIT [0]
                     
                     if "---" in antwort:
                         parts = antwort.split("---")
