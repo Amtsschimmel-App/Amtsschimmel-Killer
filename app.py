@@ -16,44 +16,45 @@ st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="w
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
-    st.error("⚠️ OpenAI API-Key fehlt in den Streamlit Secrets!")
+    st.error("⚠️ OpenAI API-Key fehlt!")
 
-# FUNKTION: PDF ERSTELLEN (Unicode-Safe)
+# FUNKTION: PDF ERSTELLEN (Ultra-Safe Version)
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
     
+    # Logo & Zeitstempel
     try: pdf.image("icon_final_blau.png", x=10, y=8, w=25)
     except: pass
     
-    pdf.set_font("helvetica", size=9)
+    pdf.set_font("Arial", size=9)
     zeit = datetime.now().strftime("%d.%m.%Y %H:%M")
     pdf.cell(0, 10, f"Erstellt am: {zeit}", ln=1, align='R')
     pdf.ln(10)
     
-    pdf.set_font("helvetica", "B", 18)
-    pdf.set_text_color(30, 58, 138)
+    # Titel
+    pdf.set_font("Arial", "B", 18)
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=1, align='C')
     pdf.ln(10)
-    pdf.set_text_color(0, 0, 0)
     
-    sections = [("Zusammenfassung", erk), ("Wichtige Fristen", fri), ("Steuerliche Relevanz", ste), ("Antwort-Entwurf", ant)]
+    sections = [("Zusammenfassung", erk), ("Fristen", fri), ("Steuer", ste), ("Antwort", ant)]
     
     for title, content in sections:
-        pdf.set_font("helvetica", "B", 12)
+        pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
-        pdf.set_font("helvetica", size=11)
         
-        # Encoding-Bereinigung
-        text = str(content)
-        repls = {'€': 'Euro', '„': '"', '“': '"', '–': '-', '—': '-', '…': '...'}
-        for old, new in repls.items():
-            text = text.replace(old, new)
+        pdf.set_font("Arial", size=11)
         
+        # RADIKALER ENCODING-FIX: 
+        # Wir entfernen alle Zeichen, die nicht in Standard-Latein-1 vorkommen
+        text = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+        # Alles was nicht Latin-1 ist, wird durch ein '?' ersetzt
         safe_text = text.encode('latin-1', 'replace').decode('latin-1')
+        
         pdf.multi_cell(0, 8, txt=safe_text)
         pdf.ln(5)
     
+    # Rückgabe als Bytes
     return bytes(pdf.output())
 
 # 3. UI
@@ -82,11 +83,11 @@ if upload:
 
         if full_text and st.button("🚀 Analyse starten"):
             with st.spinner('🧠 KI analysiert...'):
-                prompt = f"Analysiere:\n{full_text}\n\nFormat:\nERKLÄRUNG_START...ERKLÄRUNG_ENDE\nANTWORT_START...ANTWORT_ENDE\nFRISTEN_START...FRISTEN_ENDE\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+                prompt = f"Analysiere:\n{full_text}\n\nFormat: ERKLÄRUNG_START...ERKLÄRUNG_ENDE, ANTWORT_START...ANTWORT_ENDE, FRISTEN_START...FRISTEN_ENDE, STEUER_START...STEUER_ENDE (Trenner |)"
                 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
-                    messages=[{"role": "system", "content": "Antworte streng im Format. Nutze immer 2 Trennstriche (|) pro Steuer-Zeile."},
+                    messages=[{"role": "system", "content": "Antworte präzise."},
                               {"role": "user", "content": prompt}]
                 )
                 raw = response.choices[0].message.content
@@ -102,40 +103,34 @@ if upload:
 
                 if ist_pro:
                     st.divider()
-                    
-                    # ROBUSTE DATEN-AUFBEREITUNG (Fix für den Spalten-Fehler)
                     df_steuer = None
                     if ste:
                         raw_lines = [l.strip() for l in ste.split("\n") if "|" in l]
-                        processed_rows = []
+                        rows = []
                         for line in raw_lines:
                             parts = [p.strip() for p in line.split("|")]
-                            # Falls zu wenig Spalten: Auffüllen. Falls zu viele: Abschneiden.
                             while len(parts) < 3: parts.append("-")
-                            processed_rows.append(parts[:3])
-                        
-                        if processed_rows:
-                            df_steuer = pd.DataFrame(processed_rows, columns=["Betrag", "Kategorie", "Grund"])
+                            rows.append(parts[:3])
+                        if rows: df_steuer = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
 
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
+                    c1, c2 = st.columns(2)
+                    with c1:
                         if df_steuer is not None:
                             st.write("💰 **Steuer-Check**")
-                            st.dataframe(df_steuer, use_container_width=True)
+                            st.dataframe(df_steuer)
                         if fri:
                             st.write("🗓️ **Fristen**")
                             st.info(fri)
 
-                    with col2:
+                    with c2:
                         st.write("📝 **Export**")
                         final_a = st.text_area("Entwurf:", value=ant, height=150)
                         
-                        # PDF
+                        # PDF DOWNLOAD
                         pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
                         st.download_button("📥 PDF Download", data=pdf_bytes, file_name="Analyse.pdf", mime="application/pdf")
                         
-                        # EXCEL (Mit Auto-Width & Design)
+                        # EXCEL DOWNLOAD
                         if df_steuer is not None:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
@@ -151,4 +146,4 @@ if upload:
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("v3.4 - Robust Column Handling")
+st.caption("v3.5 - Ultra Safe Build")
