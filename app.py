@@ -9,7 +9,7 @@ import io
 import re
 from datetime import datetime
 
-# 1. SEITEN-KONFIGURATION
+# 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="wide")
 
 # 2. API INITIALISIERUNG
@@ -18,9 +18,10 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt!")
 
-# FUNKTION: PDF ERSTELLEN (Ultra-Safe Version)
+# FUNKTION: PDF ERSTELLEN (Die "Brechstangen"-Lösung gegen Encoding-Fehler)
 def create_full_pdf(erk, fri, ant, ste):
-    pdf = FPDF()
+    # Wir erzwingen Latin-1 Modus (Standard-PDF)
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     
     # Logo & Zeitstempel
@@ -37,7 +38,7 @@ def create_full_pdf(erk, fri, ant, ste):
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=1, align='C')
     pdf.ln(10)
     
-    sections = [("Zusammenfassung", erk), ("Fristen", fri), ("Steuer", ste), ("Antwort", ant)]
+    sections = [("Zusammenfassung", erk), ("Fristen", fri), ("Steuer-Check", ste), ("Antwort-Entwurf", ant)]
     
     for title, content in sections:
         pdf.set_font("Arial", "B", 12)
@@ -45,16 +46,22 @@ def create_full_pdf(erk, fri, ant, ste):
         
         pdf.set_font("Arial", size=11)
         
-        # RADIKALER ENCODING-FIX: 
-        # Wir entfernen alle Zeichen, die nicht in Standard-Latein-1 vorkommen
-        text = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
-        # Alles was nicht Latin-1 ist, wird durch ein '?' ersetzt
-        safe_text = text.encode('latin-1', 'replace').decode('latin-1')
+        # RADIKALER FIX: Alles was nicht in Latin-1 passt, wird entfernt oder ersetzt
+        text_raw = str(content)
+        repls = {
+            '€': 'Euro', '„': '"', '“': '"', '”': '"', '–': '-', '—': '-', 
+            '…': '...', '•': '*', '’': "'", '‘': "'"
+        }
+        for old, new in repls.items():
+            text_raw = text_raw.replace(old, new)
+        
+        # Der entscheidende Schritt: Wir erzwingen die Kodierung und ignorieren Fehler
+        safe_text = text_raw.encode('latin-1', 'replace').decode('latin-1')
         
         pdf.multi_cell(0, 8, txt=safe_text)
         pdf.ln(5)
     
-    # Rückgabe als Bytes
+    # PDF als Bytes zurückgeben (Stabil für Streamlit & Adobe)
     return bytes(pdf.output())
 
 # 3. UI
@@ -67,7 +74,7 @@ with st.sidebar:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
 
-# 4. ANALYSE
+# 4. ANALYSE-LOGIK
 upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
@@ -83,67 +90,76 @@ if upload:
 
         if full_text and st.button("🚀 Analyse starten"):
             with st.spinner('🧠 KI analysiert...'):
-                prompt = f"Analysiere:\n{full_text}\n\nFormat: ERKLÄRUNG_START...ERKLÄRUNG_ENDE, ANTWORT_START...ANTWORT_ENDE, FRISTEN_START...FRISTEN_ENDE, STEUER_START...STEUER_ENDE (Trenner |)"
+                prompt = f"Analysiere:\n{full_text}\n\nFormat: ERKLÄRUNG_START...ERKLÄRUNG_ENDE, ANTWORT_START...ANTWORT_ENDE, FRISTEN_START...FRISTEN_ENDE, STEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
-                    messages=[{"role": "system", "content": "Antworte präzise."},
+                    messages=[{"role": "system", "content": "Du bist Behörden-Experte. Nutze IMMER das Format Betrag | Kategorie | Grund."},
                               {"role": "user", "content": prompt}]
                 )
-                raw = response.choices[0].message.content
+                raw_res = response.choices[0].message.content
 
                 def ext(s, e, src):
                     m = re.search(f"{s}(.*?){e}", src, re.DOTALL)
                     return m.group(1).strip() if m else ""
 
-                erk, ant, fri, ste = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw), ext("ANTWORT_START", "ANTWORT_ENDE", raw), ext("FRISTEN_START", "FRISTEN_ENDE", raw), ext("STEUER_START", "STEUER_ENDE", raw)
+                erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res)
+                ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw_res)
+                fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw_res)
+                ste = ext("STEUER_START", "STEUER_ENDE", raw_res)
 
                 st.subheader("💡 Ergebnis")
-                st.info(erk if erk else "Dokument analysiert.")
+                st.info(erk if erk else "Dokument erfolgreich verarbeitet.")
 
                 if ist_pro:
                     st.divider()
-                    df_steuer = None
+                    
+                    # ROBUSTE EXCEL-DATEN (Verhindert den "3 columns passed" Fehler)
+                    df_s = None
                     if ste:
                         raw_lines = [l.strip() for l in ste.split("\n") if "|" in l]
-                        rows = []
+                        valid_rows = []
                         for line in raw_lines:
                             parts = [p.strip() for p in line.split("|")]
+                            # Falls KI zu wenig Spalten liefert, füllen wir auf
                             while len(parts) < 3: parts.append("-")
-                            rows.append(parts[:3])
-                        if rows: df_steuer = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
+                            valid_rows.append(parts[:3]) # Nur die ersten 3 Spalten nehmen
+                        
+                        if valid_rows:
+                            df_s = pd.DataFrame(valid_rows, columns=["Betrag", "Kategorie", "Grund"])
 
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if df_steuer is not None:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if df_s is not None:
                             st.write("💰 **Steuer-Check**")
-                            st.dataframe(df_steuer)
+                            st.dataframe(df_s, use_container_width=True)
                         if fri:
                             st.write("🗓️ **Fristen**")
                             st.info(fri)
 
-                    with c2:
+                    with col2:
                         st.write("📝 **Export**")
                         final_a = st.text_area("Entwurf:", value=ant, height=150)
                         
                         # PDF DOWNLOAD
-                        pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
-                        st.download_button("📥 PDF Download", data=pdf_bytes, file_name="Analyse.pdf", mime="application/pdf")
+                        pdf_data = create_full_pdf(erk, fri, final_a, ste)
+                        st.download_button("📥 Analyse als PDF", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf")
                         
                         # EXCEL DOWNLOAD
-                        if df_steuer is not None:
+                        if df_s is not None:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-                                df_steuer.to_excel(wr, index=False, sheet_name='Steuer')
+                                df_s.to_excel(wr, index=False, sheet_name='Steuer')
+                                # Design-Verschönerung
                                 workbook, worksheet = wr.book, wr.sheets['Steuer']
                                 fmt = workbook.add_format({'bold': True, 'bg_color': '#1E3A8A', 'font_color': 'white'})
-                                for i, col in enumerate(df_steuer.columns):
+                                for i, col in enumerate(df_s.columns):
                                     worksheet.write(0, i, col, fmt)
-                                    worksheet.set_column(i, i, max(df_steuer[col].astype(str).map(len).max(), len(col)) + 5)
-                            st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                    worksheet.set_column(i, i, max(df_s[col].astype(str).map(len).max(), len(col)) + 5)
+                            st.download_button("📊 Steuer-Liste (Excel)", data=buf.getvalue(), file_name="Steuer.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 else:
                     st.warning("🔒 PRO-Status erforderlich.")
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("v3.5 - Ultra Safe Build")
+st.caption("v3.6 - Stable Build")
