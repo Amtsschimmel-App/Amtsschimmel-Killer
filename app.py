@@ -11,8 +11,8 @@ import os
 from datetime import datetime
 import shutil
 import stripe
-import numpy as np  # NEU für Bildanalyse
-import cv2          # NEU für Bildanalyse
+import numpy as np
+import cv2
 
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
@@ -22,31 +22,26 @@ try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     stripe.api_key = st.secrets["STRIPE_API_KEY"]
 except Exception:
-    st.error("⚠️ API-Keys fehlen in den Secrets!")
+    st.error("⚠️ API-Keys fehlen in den Secrets! Bitte unter Settings -> Secrets eintragen.")
 
 # TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
-# --- NEU: HILFSFUNKTION FÜR BILDQUALITÄT ---
+# --- HILFSFUNKTIONEN ---
 def check_image_quality(image):
-    """Prüft Helligkeit und Schärfe des Bildes."""
+    """Prüft Helligkeit und Schärfe des Bildes (OpenCV)."""
     img_array = np.array(image.convert('L'))
-    
-    # Helligkeit (0=Schwarz, 255=Weiß)
     brightness = np.mean(img_array)
-    if brightness < 40:
-        return False, "Bild ist zu dunkel (kaum lesbar)."
-    
-    # Schärfe (Laplace-Varianz)
     laplacian_var = cv2.Laplacian(img_array, cv2.CV_64F).var()
-    if laplacian_var < 80:
-        return False, "Bild ist zu unscharf (verwackelt)."
     
+    if brightness < 40:
+        return False, "Bild ist zu dunkel."
+    if laplacian_var < 70:
+        return False, "Bild ist zu unscharf."
     return True, "OK"
 
-# --- WEITERE HILFSFUNKTIONEN (PDF etc.) ---
 def remove_emojis(text):
     if not text: return ""
     return text.encode('latin-1', 'ignore').decode('latin-1')
@@ -80,11 +75,16 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
         
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. ZAHLUNGSPRÜFUNG ---
+# --- 3. ZAHLUNGSPRÜFUNG & ADMIN-MODUS ---
+# URL-Parameter abfragen
 session_id = st.query_params.get("session_id")
+is_admin = st.query_params.get("admin") == "ja" # Erlaubt kostenlosen Test via ?admin=ja
 ist_pro = False
 
-if session_id:
+if is_admin:
+    ist_pro = True
+    st.sidebar.success("🛠️ Testmodus aktiv")
+elif session_id:
     try:
         checkout_session = stripe.checkout.Session.retrieve(session_id)
         if checkout_session.payment_status == "paid":
@@ -104,7 +104,13 @@ with st.sidebar:
         st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
-        st.markdown(f'''<a href="https://buy.stripe.com/7sYbJ171p4UH4Fq1OU1gs01" target="_blank"><button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">👉 JETZT PRO FREISCHALTEN</button></a>''', unsafe_allow_html=True)
+        st.markdown(f'''
+            <a href="https://buy.stripe.com" target="_blank">
+                <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
+                    👉 JETZT PRO FREISCHALTEN
+                </button>
+            </a>
+        ''', unsafe_allow_html=True)
    
     st.divider()
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
@@ -116,17 +122,18 @@ upload = st.file_uploader("Behördenbrief hochladen", type=['png', 'jpg', 'jpeg'
 
 if upload:
     col_img, col_ana = st.columns(2)
+    current_img = None
     
     with col_img:
         st.subheader("📸 Dokument")
         if upload.type == "application/pdf":
             try:
-                pages_prev = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                st.image(pages_prev[0], use_container_width=True)
-                current_img = pages_prev[0]
+                # Vorschau der ersten Seite
+                preview_pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
+                current_img = preview_pages[0]
+                st.image(current_img, use_container_width=True)
             except: 
-                st.info("Analyse bereit.")
-                current_img = None
+                st.info("PDF bereit zur Analyse.")
         else:
             current_img = Image.open(upload)
             st.image(current_img, use_container_width=True)
@@ -134,30 +141,27 @@ if upload:
     with col_ana:
         st.subheader("🧠 KI-Analyse")
         
-        # --- NEU: VORAB-CHECK BEVOR DER BUTTON GEKLICKT WIRD ---
-        image_valid = True
+        # Qualitäts-Vorabcheck (nur bei Bildern)
         if current_img:
             is_ok, msg = check_image_quality(current_img)
             if not is_ok:
-                st.warning(f"⚠️ Hinweis zur Bildqualität: {msg}")
-                image_valid = False # Wir lassen den Button zu, warnen aber.
+                st.warning(f"⚠️ {msg} Die Analyse könnte fehlerhaft sein.")
 
         if st.button("🚀 Analyse starten", use_container_width=True):
             with st.status("Verarbeite...", expanded=True) as status:
-                
-                # 1. OCR PHASE
+                # OCR PHASE
                 if upload.type == "application/pdf":
                     pages = convert_from_bytes(upload.getvalue(), dpi=150)
                     full_text = "".join([pytesseract.image_to_string(p, lang='deu') for p in pages])
                 else:
                     full_text = pytesseract.image_to_string(current_img, lang='deu')
 
-                # --- NEU: LEER-CHECK ---
-                if len(full_text.strip()) < 10:
+                # LEER-CHECK
+                if len(full_text.strip()) < 15:
                     status.update(label="❌ Fehler: Kein Text erkannt", state="error")
-                    st.error("Ich konnte keinen Text im Dokument finden. Bitte lade ein schärferes Foto hoch.")
+                    st.error("Ich konnte keinen Text finden. Bitte lade ein schärferes Dokument hoch.")
                 else:
-                    # 2. KI PHASE
+                    # KI PROMPT
                     prompt = f"""Analysiere den Text: {full_text}
                     FORMAT:
                     BEHOERDE: [Name]
@@ -174,10 +178,9 @@ if upload:
                                   {"role": "user", "content": prompt}]
                     )
                     
-                    # KOSTEN-UPDATE (Verfeinert)
-                    aktuelle_kosten = (res.usage.total_tokens / 1000) * 0.00015
-                    st.session_state.kosten += aktuelle_kosten
-                    
+                    # KOSTEN-ZÄHLER
+                    last_cost = (res.usage.total_tokens / 1000) * 0.00015
+                    st.session_state.kosten += last_cost
                     raw = res.choices[0].message.content
 
                     def ext(tag, src):
@@ -187,7 +190,7 @@ if upload:
                     meta = {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)}
                     erk, fri, fehler, ant, ste = ext("ERKLÄRUNG", raw), ext("FRISTEN", raw), ext("FORMFEHLER", raw), ext("ANTWORT", raw), ext("STEUER", raw)
                     
-                    status.update(label=f"✅ Fertig! (Kosten dieser Analyse: ${aktuelle_kosten:.5f})", state="complete")
+                    status.update(label=f"✅ Fertig! (Kosten: ${last_cost:.5f})", state="complete")
 
                     st.header(meta['behoerde'])
                     with st.expander("💡 Was will die Behörde?", expanded=True):
@@ -207,4 +210,4 @@ if upload:
                         st.info("🔓 Schalte PRO frei für den Antwortbrief & PDF-Download.")
 
 st.divider()
-st.caption("Keine Rechtsberatung. v10.8 - Added Image Validation & Token Tracking")
+st.caption("Keine Rechtsberatung. v10.8 - Admin-Mode & Quality-Check")
