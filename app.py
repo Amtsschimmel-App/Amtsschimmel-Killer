@@ -3,7 +3,8 @@ import openai
 from PIL import Image
 import pytesseract
 import pandas as pd
-import re
+from fpdf import FPDF # Neu für Stufe 2
+import io
 
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(
@@ -11,6 +12,16 @@ st.set_page_config(
     page_icon="icon_final_blau.png",
     layout="wide"
 )
+
+# FUNKTION: PDF ERSTELLEN (Neu für Stufe 2)
+def create_pdf(text):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    # Ersetzt Zeilenumbrüche für PDF-Kompatibilität
+    multi_line_text = text.encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 10, txt=multi_line_text)
+    return pdf.output()
 
 # LOGO ANZEIGEN
 try:
@@ -37,13 +48,12 @@ with st.sidebar:
     st.header("✨ Account-Status")
     if ist_pro:
         st.success("Abo aktiv: PRO-Status! 🎉")
-        st.balloons()
     else:
         st.info("Basis-Modus")
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 0.3 - Stufe 1 Aktiv")
+    st.caption("Version 0.4 - Stufe 2: PDF Export")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
@@ -53,32 +63,28 @@ if upload:
     st.image(image, caption="Dein Scan", width=300)
     
     if st.button("Brief analysieren"):
-        with st.spinner('Amtsschimmel wird gezähmt...'):
+        with st.spinner('KI arbeitet...'):
             try:
-                # Texterkennung via OCR
                 text_raw = pytesseract.image_to_string(image, lang='deu')
                 
                 if len(text_raw.strip()) < 10:
-                    st.error("❌ Foto zu unscharf oder kein Text erkannt.")
+                    st.error("❌ Text nicht lesbar.")
                 else:
-                    # KOMBINIERTER PROMPT (Erklärung + Antwort-Entwurf)
                     prompt = f"""
-                    Du bist 'Amtsschimmel-Killer'. Analysiere diesen Text:
+                    Du bist 'Amtsschimmel-Killer'. Analysiere:
                     ---
                     {text_raw}
                     ---
-                    Erstelle folgende Sektionen, getrennt durch Trennzeichen:
-                    1. ERKLÄRUNG: (3 einfache Sätze für Laien)
-                    2. ANTWORT-ENTWURF: (Verfasse ein förmliches Antwortschreiben an die Behörde. 
-                       Nutze Platzhalter wie [DEIN NAME], [DATUM], [AKTENZEICHEN] etc.)
+                    Erstelle:
+                    1. ERKLÄRUNG: (3 einfache Sätze)
+                    2. ANTWORT-ENTWURF: (Förmliches Schreiben mit Platzhaltern [NAME], [DATUM])
                     
-                    Gib die Daten strikt so aus:
+                    Format:
                     ERKLÄRUNG_START
-                    [Hier die Erklärung]
+                    ...
                     ERKLÄRUNG_ENDE
-                    
                     ANTWORT_START
-                    [Hier der Briefentwurf]
+                    ...
                     ANTWORT_ENDE
                     """
 
@@ -88,41 +94,45 @@ if upload:
                     )
                     full_res = response.choices[0].message.content
 
-                    # --- TEIL 1: BASIS-ERKLÄRUNG (Für alle) ---
+                    # --- TEIL 1: BASIS-ERKLÄRUNG ---
                     st.subheader("💡 Was bedeutet das?")
                     try:
                         erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0]
                         st.info(erklaerung.strip())
                     except:
-                        st.write(full_res) # Fallback, falls Split fehlschlägt
+                        st.info(full_res)
 
-                    # --- TEIL 2: PRO-FUNKTIONEN (Antwort-Entwurf) ---
+                    # --- TEIL 2: PRO-FUNKTIONEN ---
                     if ist_pro:
                         st.divider()
                         st.subheader("🚀 PRO: Dein Aktions-Plan")
                         
                         try:
-                            antwort = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0]
-                            st.markdown("### 📝 Antwort-Entwurf (Copy & Paste)")
-                            st.text_area("Markiere und kopiere den Text für dein Schreiben:", 
-                                         value=antwort.strip(), 
-                                         height=400)
-                            st.caption("⚠️ Hinweis: Dies ist ein Entwurf. Bitte ergänze deine persönlichen Daten.")
+                            antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
                             
-                            st.info("💡 In Kürze verfügbar: Button 'Als PDF speichern' (Stufe 2).")
+                            # Textarea zur Ansicht
+                            st.markdown("### 📝 Antwort-Entwurf")
+                            final_text = st.text_area("Bearbeite den Text hier, falls nötig:", value=antwort_text, height=300)
+                            
+                            # PDF GENERIEREN BUTTON (Stufe 2)
+                            pdf_data = create_pdf(final_text)
+                            st.download_button(
+                                label="📥 Als PDF herunterladen",
+                                data=pdf_data,
+                                file_name="Antwort_Amtsschimmel_Killer.pdf",
+                                mime="application/pdf"
+                            )
+                            st.caption("Tipp: Das PDF kannst du direkt ausdrucken oder per E-Mail versenden.")
+                            
                         except:
-                            st.warning("Antwort-Entwurf konnte nicht separat extrahiert werden.")
+                            st.warning("Antwort konnte nicht erstellt werden.")
                     else:
-                        st.divider()
-                        st.warning("🔒 Antwort-Entwürfe und Fristen-Checks sind PRO-Features.")
-                        st.info("Schalte PRO frei, um direkt einen fertigen Antwort-Entwurf zu erhalten.")
+                        st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe und PDF-Download.")
 
             except Exception as e:
-                st.error(f"Fehler bei der Analyse: {e}")
+                st.error(f"Fehler: {e}")
 
 # 5. RECHTLICHES
 st.divider()
 st.markdown("### Rechtliches")
-pdf_url = "https://drive.google.com" # Dein Link
-st.markdown(f'<a href="{pdf_url}" target="_blank">📄 Datenschutzerklärung (PDF)</a>', unsafe_allow_html=True)
-st.caption("© 2026 Amtsschimmel-Killer | Keine Rechtsberatung. Nutzung auf eigene Gefahr.")
+st.caption("© 2026 Amtsschimmel-Killer | Keine Rechtsberatung.")
