@@ -3,7 +3,7 @@ import openai
 from PIL import Image
 import pytesseract
 import pandas as pd
-from fpdf import FPDF # Neu für Stufe 2
+from fpdf import FPDF
 import io
 
 # 1. SEITEN-KONFIGURATION
@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# FUNKTION: PDF ERSTELLEN (Neu für Stufe 2)
+# FUNKTION: PDF ERSTELLEN
 def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
@@ -34,7 +34,7 @@ st.title("Amtsschimmel-Killer 📄🚀")
 st.write("Verstehe Behördenbriefe in Sekunden und reagiere sofort.")
 st.divider()
 
-# 2. SICHERHEIT (OpenAI Key)
+# 2. SICHERHEIT
 try:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 except:
@@ -47,31 +47,34 @@ ist_pro = params.get("payment") == "success"
 with st.sidebar:
     st.header("✨ Account-Status")
     if ist_pro:
-        st.success("Abo aktiv: PRO-Status! 🎉")
+        st.success("PRO-Status aktiv! 🎉")
     else:
         st.info("Basis-Modus")
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 0.4 - Stufe 2: PDF Export")
+    st.caption("Version 0.5 - Bugfix PDF-Upload")
 
 # 4. BRIEF-ANALYSE
-upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+# HINWEIS: Wir beschränken uns hier erst einmal auf Bilder, um den PIL-Fehler zu vermeiden
+upload = st.file_uploader("Brief hochladen (Bilddatei)", type=['png', 'jpg', 'jpeg'])
 
 if upload:
-    image = Image.open(upload)
-    st.image(image, caption="Dein Scan", width=300)
-    
-    if st.button("Brief analysieren"):
-        with st.spinner('KI arbeitet...'):
-            try:
+    try:
+        # Sicherstellen, dass es ein Bild ist
+        image = Image.open(upload)
+        st.image(image, caption="Dein Scan", width=300)
+        
+        if st.button("Brief analysieren"):
+            with st.spinner('KI arbeitet...'):
+                # Texterkennung
                 text_raw = pytesseract.image_to_string(image, lang='deu')
                 
                 if len(text_raw.strip()) < 10:
-                    st.error("❌ Text nicht lesbar.")
+                    st.error("❌ Text nicht lesbar. Bitte Foto schärfer aufnehmen.")
                 else:
                     prompt = f"""
-                    Du bist 'Amtsschimmel-Killer'. Analysiere:
+                    Du bist 'Amtsschimmel-Killer'. Analysiere diesen Text:
                     ---
                     {text_raw}
                     ---
@@ -81,10 +84,10 @@ if upload:
                     
                     Format:
                     ERKLÄRUNG_START
-                    ...
+                    [Text]
                     ERKLÄRUNG_ENDE
                     ANTWORT_START
-                    ...
+                    [Text]
                     ANTWORT_ENDE
                     """
 
@@ -96,10 +99,10 @@ if upload:
 
                     # --- TEIL 1: BASIS-ERKLÄRUNG ---
                     st.subheader("💡 Was bedeutet das?")
-                    try:
+                    if "ERKLÄRUNG_START" in full_res:
                         erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0]
                         st.info(erklaerung.strip())
-                    except:
+                    else:
                         st.info(full_res)
 
                     # --- TEIL 2: PRO-FUNKTIONEN ---
@@ -107,14 +110,14 @@ if upload:
                         st.divider()
                         st.subheader("🚀 PRO: Dein Aktions-Plan")
                         
-                        try:
+                        if "ANTWORT_START" in full_res:
                             antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
                             
-                            # Textarea zur Ansicht
                             st.markdown("### 📝 Antwort-Entwurf")
-                            final_text = st.text_area("Bearbeite den Text hier, falls nötig:", value=antwort_text, height=300)
+                            # Textarea zum Bearbeiten
+                            final_text = st.text_area("Hier kannst du den Entwurf anpassen:", value=antwort_text, height=300)
                             
-                            # PDF GENERIEREN BUTTON (Stufe 2)
+                            # PDF Download
                             pdf_data = create_pdf(final_text)
                             st.download_button(
                                 label="📥 Als PDF herunterladen",
@@ -122,15 +125,13 @@ if upload:
                                 file_name="Antwort_Amtsschimmel_Killer.pdf",
                                 mime="application/pdf"
                             )
-                            st.caption("Tipp: Das PDF kannst du direkt ausdrucken oder per E-Mail versenden.")
-                            
-                        except:
-                            st.warning("Antwort konnte nicht erstellt werden.")
+                        else:
+                            st.warning("Antwort konnte nicht separat erstellt werden.")
                     else:
+                        st.divider()
                         st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe und PDF-Download.")
-
-            except Exception as e:
-                st.error(f"Fehler: {e}")
+    except Exception as e:
+        st.error(f"Fehler beim Laden des Bildes: {e}")
 
 # 5. RECHTLICHES
 st.divider()
