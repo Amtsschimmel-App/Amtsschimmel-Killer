@@ -20,10 +20,12 @@ try:
 except:
     st.error("⚠️ API-Key fehlt in den Streamlit-Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Jetzt mit besserer Struktur für den Export)
+# FUNKTION: PDF ERSTELLEN (Kombiniert Erklärung & Antwort)
 def create_pdf_output(erklaerung, antwort_text):
     pdf = FPDF()
     pdf.add_page()
+    
+    # Titel
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True)
     pdf.ln(5)
@@ -32,9 +34,8 @@ def create_pdf_output(erklaerung, antwort_text):
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "1. Einfache Erklaerung:", ln=True)
     pdf.set_font("Helvetica", size=11)
-    # Text-Säuberung
-    clean_erklaerung = erklaerung.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
-    pdf.multi_cell(0, 8, txt=clean_erklaerung.encode('latin-1', 'replace').decode('latin-1'))
+    clean_erk = erklaerung.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+    pdf.multi_cell(0, 8, txt=clean_erk.encode('latin-1', 'replace').decode('latin-1'))
     
     pdf.ln(10)
     
@@ -42,8 +43,8 @@ def create_pdf_output(erklaerung, antwort_text):
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "2. Antwort-Entwurf:", ln=True)
     pdf.set_font("Helvetica", size=11)
-    clean_antwort = antwort_text.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
-    pdf.multi_cell(0, 8, txt=clean_antwort.encode('latin-1', 'replace').decode('latin-1'))
+    clean_ant = antwort_text.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+    pdf.multi_cell(0, 8, txt=clean_ant.encode('latin-1', 'replace').decode('latin-1'))
     
     return bytes(pdf.output())
 
@@ -71,7 +72,7 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 1.7 - Enhanced PDF Export")
+    st.caption("Version 1.8 - Syntax Fix & PDF Export")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bild oder PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
@@ -94,23 +95,21 @@ if upload:
 
         if full_document_text and st.button("Gesamtes Dokument analysieren"):
             with st.spinner('KI analysiert den gesamten Text...'):
+                # REPARIERTER PROMPT
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE"}
                     ]
                 )
                 
-                full_res = response['choices']['message']['content']
+                full_res = response['choices'][0]['message']['content']
 
-                # --- EXTRAKTION ---
-                final_erklaerung = ""
+                # --- EXTRAKTION & ANZEIGE ---
+                erklaerung = ""
                 if "ERKLÄRUNG_START" in full_res:
-                    final_erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip()
-                
-                # --- ANZEIGE: ERKLÄRUNG ---
-                st.subheader("💡 Analyse-Ergebnis")
-                if final_erklaerung:
-                    st.info(final_erklaerung)
+                    erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip()
+                    st.subheader("💡 Analyse-Ergebnis")
+                    st.info(erklaerung)
 
                 # --- PRO-BEREICH ---
                 if ist_pro:
@@ -125,31 +124,30 @@ if upload:
                                 if lines:
                                     df = pd.DataFrame(lines, columns=["Aufgabe", "Datum"])
                                     st.table(df)
+                                else:
+                                    st.write("Keine Fristen gefunden.")
                             except:
-                                st.write("Keine Fristen gefunden.")
+                                st.write("Fristen konnten nicht extrahiert werden.")
 
                     # 📝 ANTWORT-ENTWURF & PDF
                     with st.expander("📝 Dein Aktions-Plan (PDF Export)", expanded=True):
                         if "ANTWORT_START" in full_res:
                             antwort_raw = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
-                            
-                            # Nutzer kann hier den Antwort-Text bearbeiten
                             final_antwort = st.text_area("Vervollständige den Entwurf:", value=antwort_raw, height=300)
                             
-                            # Generiere PDF aus BEIDEN Teilen
-                            pdf_bytes = create_pdf_output(final_erklaerung, final_antwort)
-                            
+                            # PDF Download
+                            pdf_bytes = create_pdf_output(erklaerung, final_antwort)
                             st.download_button(
-                                label="📥 Komplette Analyse als PDF herunterladen",
+                                label="📥 Komplette Analyse als PDF speichern",
                                 data=pdf_bytes,
                                 file_name="Amtsschimmel_Killer_Analyse.pdf",
                                 mime="application/pdf"
                             )
                 else:
-                    st.warning("🔒 PRO freischalten für Antwort-Entwürfe und PDF-Export.")
+                    st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe.")
 
     except Exception as e:
-        st.error(f"Fehler bei der Verarbeitung: {e}")
+        st.error(f"Fehler: {e}")
 
 # 5. RECHTLICHES
 st.divider()
