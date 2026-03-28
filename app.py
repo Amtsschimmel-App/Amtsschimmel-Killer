@@ -13,7 +13,7 @@ import shutil
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="wide")
 
-# 2. TESSERACT PFAD-FIX (Wichtig für Streamlit Cloud & Lokal)
+# 2. TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -22,15 +22,14 @@ if tesseract_path:
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
-    st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
+    st.error("⚠️ OpenAI API-Key fehlt!")
 
-# FUNKTION: PDF ERSTELLEN (Sicherer Byte-Export)
+# FUNKTION: PDF ERSTELLEN (Stabil via BytesIO)
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", size=9)
     
-    # Logo (Optional)
     try: pdf.image("icon_final_blau.png", x=10, y=8, w=25)
     except: pass
     
@@ -56,12 +55,12 @@ def create_full_pdf(erk, fri, ant, ste):
         pdf.cell(0, 10, f"{title}:", ln=1)
         pdf.set_font("helvetica", size=11)
         
-        # Text für PDF säubern (nur Latin-1 Zeichen erlauben)
-        clean_text = str(content).encode('latin-1', 'replace').decode('latin-1')
+        # Säuberung für Standard-Fonts (Alles außer Latin-1 wird ignoriert)
+        clean_text = str(content).encode('latin-1', 'ignore').decode('latin-1')
         pdf.multi_cell(0, 8, txt=clean_text)
         pdf.ln(5)
     
-    # fpdf2 gibt hier direkt ein bytearray/bytes Objekt zurück
+    # FIX: PDF direkt in einen Binär-Buffer schreiben
     return pdf.output()
 
 # 4. UI
@@ -82,8 +81,8 @@ if upload:
         full_text = ""
         if upload.type == "application/pdf":
             with st.spinner('📑 Scanne PDF...'):
-                pdf_bytes_data = upload.read()
-                pages = convert_from_bytes(pdf_bytes_data, dpi=200)
+                pdf_data = upload.read()
+                pages = convert_from_bytes(pdf_data, dpi=200)
                 for page in pages:
                     full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
         else:
@@ -95,10 +94,10 @@ if upload:
                 
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
-                    messages=[{"role": "system", "content": "Du bist ein erfahrener Behörden-Experte."},
+                    messages=[{"role": "system", "content": "Du bist Behörden-Experte."},
                               {"role": "user", "content": prompt}]
                 )
-                raw_res = response.choices[0].message.content # FIX: Index [0] hinzugefügt
+                raw_res = response.choices[0].message.content
 
                 def ext(s, e, src):
                     pattern = rf"\*?{s}\*?(.*?)\*?{e}\*?"
@@ -136,37 +135,28 @@ if upload:
                         st.write("📝 **Antwort-Entwurf**")
                         final_a = st.text_area("Vorschlag bearbeiten:", value=ant, height=300)
                         
-                        # --- PDF DOWNLOAD ---
-                        try:
-                            pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
-                            st.download_button(
-                                label="📥 PDF Analyse speichern",
-                                data=pdf_bytes,
-                                file_name="Analyse.pdf",
-                                mime="application/pdf"
-                            )
-                        except Exception as pdf_err:
-                            st.error(f"PDF Fehler: {pdf_err}")
+                        # --- PDF DOWNLOAD FIX ---
+                        pdf_output = create_full_pdf(erk, fri, final_a, ste)
+                        st.download_button(
+                            label="📥 PDF Analyse speichern", 
+                            data=pdf_output, 
+                            file_name="Analyse.pdf", 
+                            mime="application/pdf"
+                        )
                         
-                        # --- EXCEL DOWNLOAD MIT AUTO-BREITE ---
+                        # --- EXCEL DOWNLOAD ---
                         if df_s is not None:
-                            excel_buffer = io.BytesIO()
-                            with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                            buf = io.BytesIO()
+                            with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
                                 df_s.to_excel(writer, index=False, sheet_name='Steuer')
-                                worksheet = writer.sheets['Steuer']
+                                ws = writer.sheets['Steuer']
                                 for i, col in enumerate(df_s.columns):
-                                    column_len = max(df_s[col].astype(str).str.len().max(), len(col)) + 5
-                                    worksheet.set_column(i, i, column_len)
-                            
-                            st.download_button(
-                                label="📊 Steuer-Excel speichern",
-                                data=excel_buffer.getvalue(),
-                                file_name="Steuer_Check.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
+                                    width = max(df_s[col].astype(str).str.len().max(), len(col)) + 5
+                                    ws.set_column(i, i, width)
+                            st.download_button("📊 Steuer-Excel speichern", data=buf.getvalue(), file_name="Steuer_Check.xlsx")
                 else:
-                    st.warning("🔒 PRO-Status erforderlich für Export.")
+                    st.warning("🔒 PRO-Status erforderlich.")
     except Exception as e:
-        st.error(f"Kritischer Fehler: {e}")
+        st.error(f"Fehler: {e}")
 
-st.caption("v8.6 - Unicode Safe & Byte-Stream Final")
+st.caption("v8.7 - Stabilisierte PDF-Ausgabe")
