@@ -4,3 +4,4 @@ Pillow
 pytesseract
 pymupdf
 ics
+fpdf2
