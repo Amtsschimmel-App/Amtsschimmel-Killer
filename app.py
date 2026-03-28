@@ -41,7 +41,9 @@ if shutil.which("tesseract"):
 
 @st.cache_data
 def get_pdf_preview(file_bytes):
-    return convert_from_bytes(file_bytes, dpi=72, first_page=1, last_page=1)
+    # Gibt nur das erste Bild der Liste zurück
+    images = convert_from_bytes(file_bytes, dpi=72, first_page=1, last_page=1)
+    return images[0] if images else None
 
 def get_text_hybrid(uploaded_file):
     text = ""
@@ -63,8 +65,10 @@ if "last_result" not in st.session_state: st.session_state.last_result = ""
 
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
-    st.session_state.credits += int(params.get("credits", 1))
-    st.session_state.processed_sessions.append(params["session_id"])
+    try:
+        st.session_state.credits += int(params.get("credits", 1))
+        st.session_state.processed_sessions.append(params["session_id"])
+    except: pass
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -90,7 +94,7 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 img_preview = get_pdf_preview(upload.getvalue())
-                st.image(img_preview, use_container_width=True)
+                if img_preview: st.image(img_preview, use_container_width=True)
             except: st.error("Vorschau-Fehler")
         else:
             st.image(upload, use_container_width=True)
@@ -102,14 +106,18 @@ if upload:
                 with st.spinner("Extrahiere Daten & Fristen..."):
                     try:
                         txt = get_text_hybrid(upload)
-                        # SAUBERER API AUFRUF
+                        # ABSOLUT SICHERER API AUFRUF
+                        prompt_system = "Du bist ein Fachanwalt. Liste zuerst alle Fristen fett auf. Erstelle dann ein EXTREM ausführliches Antwortschreiben (mind. 600 Wörter)."
+                        prompt_user = f"Analysiere diesen Text: {txt}"
+                        
                         response = client.chat.completions.create(
                             model="gpt-4o",
-                            messages=,
+                            messages=[{"role": "system", "content": prompt_system}, {"role": "user", "content": prompt_user}],
                             temperature=0.3
                         )
                         st.session_state.last_result = response.choices.message.content
                         st.session_state.credits -= 1
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Fehler bei der KI: {e}")
             
@@ -128,7 +136,7 @@ if upload:
                         safe_pdf_text = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
                         pdf.multi_cell(0, 8, txt=safe_pdf_text)
                         st.download_button("📩 Als PDF", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf", "application/pdf")
-                    except: st.error("PDF-Fehler")
+                    except: st.error("PDF-Download konnte nicht erstellt werden.")
                 
                 with c2:
                     try:
@@ -137,7 +145,7 @@ if upload:
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             df.to_excel(writer, index=False)
                         st.download_button("📊 Als Excel", output.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    except: st.error("Excel-Fehler")
+                    except: st.error("Excel-Download konnte nicht erstellt werden.")
         else:
             st.warning("💳 Bitte lade Guthaben auf.")
 
