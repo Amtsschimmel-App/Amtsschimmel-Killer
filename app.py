@@ -2,7 +2,7 @@ import streamlit as st
 from openai import OpenAI
 import pytesseract
 from PIL import Image
-from fpdf import FPDF # In requirements.txt muss 'fpdf2' stehen!
+from fpdf import FPDF # WICHTIG: In requirements.txt muss 'fpdf2' stehen!
 import pdfplumber
 from pdf2image import convert_from_bytes
 import pandas as pd
@@ -58,7 +58,7 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_result" not in st.session_state: st.session_state.last_result = ""
 
-# Zahlungs-Check
+# Zahlungs-Check via URL
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
@@ -106,32 +106,53 @@ if upload:
         st.subheader("🧠 Analyse-Ergebnis")
         
         if st.session_state.last_result:
+            # TEXT ANZEIGEN
             st.markdown(st.session_state.last_result)
             st.divider()
             
             # DOWNLOAD BEREICH
             c1, c2 = st.columns(2)
+            
+            # PDF GENERIERUNG
             with c1:
                 try:
-                    # PDF Erstellung mit Fix für Sonderzeichen
                     pdf = FPDF()
                     pdf.add_page()
-                    pdf.set_font("helvetica", size=12)
-                    # Ersetze € durch Euro und nutze latin-1 Encoding für Kompatibilität
-                    clean_text = st.session_state.last_result.replace("€", "Euro").replace("–", "-")
+                    pdf.set_font("helvetica", size=11)
+                    # FIX: Euro-Symbol und Sonderzeichen bereinigen
+                    clean_text = st.session_state.last_result.replace("€", "Euro").replace("–", "-").replace("„", '"').replace("“", '"')
+                    # FIX: latin-1 encoding sicherstellen
                     pdf.multi_cell(0, 10, txt=clean_text.encode('latin-1', 'replace').decode('latin-1'))
-                    pdf_bytes = pdf.output()
-                    st.download_button("📩 PDF laden", pdf_bytes, "Amtsschimmel_Antwort.pdf", "application/pdf")
-                except Exception as e: st.error(f"PDF-Fehler: {e}")
+                    
+                    # FIX: bytearray zu bytes konvertieren
+                    pdf_bytes = bytes(pdf.output()) 
+                    
+                    st.download_button(
+                        label="📩 PDF laden",
+                        data=pdf_bytes,
+                        file_name="Amtsschimmel_Antwort.pdf",
+                        mime="application/pdf"
+                    )
+                except Exception as e: 
+                    st.error(f"PDF-Fehler: {e}")
             
+            # EXCEL GENERIERUNG
             with c2:
                 try:
                     df = pd.DataFrame([{"Analyse": st.session_state.last_result, "Datum": datetime.now().strftime("%d.%m.%Y %H:%M")}])
                     excel_buffer = io.BytesIO()
+                    # engine='openpyxl' ist wichtig
                     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                         df.to_excel(writer, index=False)
-                    st.download_button("📊 Excel laden", excel_buffer.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                except Exception as e: st.error(f"Excel-Fehler: {e}")
+                    
+                    st.download_button(
+                        label="📊 Excel laden",
+                        data=excel_buffer.getvalue(),
+                        file_name="Amtsschimmel_Analyse.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                except Exception as e: 
+                    st.error(f"Excel-Fehler: {e}")
             
             if st.button("🔄 Nächstes Dokument"):
                 st.session_state.last_result = ""
@@ -139,21 +160,22 @@ if upload:
 
         elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI analysiert das Dokument..."):
+                with st.spinner("KI erstellt Analyse & Antwortschreiben..."):
                     try:
                         extracted = get_text_hybrid(upload)
                         res = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[
-                                {"role": "system", "content": "Du bist ein erfahrener Fachanwalt. Dein Ziel ist es, dem Nutzer zu helfen, Behördenschreiben abzuwehren oder korrekt zu beantworten. \n1. Liste zuerst alle Fristen fett auf. \n2. Erstelle dann ein formelles Antwortschreiben. \nWICHTIG: Das Antwortschreiben MUSS mit einer fetten Überschrift beginnen (z.B. **BETREFF: Antwortschreiben zu [Aktenzeichen]**). Schreib mindestens 600 Wörter."},
-                                {"role": "user", "content": f"Analysiere dieses Dokument und verfasse das Antwortschreiben: {extracted}"}
+                                {"role": "system", "content": "Du bist ein Fachanwalt. \n\nSTRUKTUR DER ANTWORT:\n1. Zuerst: Eine Liste aller FRISTEN in fett.\n2. Dann: Ein formelles ANTWORTSCHREIBEN.\n\nDAS ANTWORTSCHREIBEN MUSS MIT EINER ÜBERSCHRIFT BEGINNEN, Z.B.:\n'**BETREFF: ANTWORTSCHREIBEN ZUM SCHREIBEN VOM [DATUM] / AZ: [NUMMER]**'\n\nSchreibe sehr ausführlich (min. 600 Wörter), juristisch fundiert und höflich aber bestimmt."},
+                                {"role": "user", "content": f"Hier ist der Text des Dokuments: {extracted}"}
                             ]
                         )
                         st.session_state.last_result = res.choices[0].message.content
                         st.session_state.credits -= 1
                         st.rerun()
-                    except Exception as e: st.error(f"KI-Fehler: {e}")
+                    except Exception as e: 
+                        st.error(f"KI-Fehler: {e}")
         else:
             st.warning("💳 Bitte lade dein Guthaben in der Sidebar auf.")
 
-st.info("Hinweis: Diese Analyse ersetzt keine Rechtsberatung.")
+st.info("Hinweis: Diese KI-Analyse ersetzt keine individuelle Rechtsberatung.")
