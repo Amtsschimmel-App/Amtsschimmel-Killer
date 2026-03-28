@@ -1,1 +1,5 @@
-openai
+openai==0.28
+fpdf2
+Pillow
+pytesseract
+pandas
