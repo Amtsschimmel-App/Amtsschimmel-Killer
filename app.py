@@ -17,7 +17,7 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN
+# FUNKTION: PDF ERSTELLEN (Stabilisiert für Adobe Acrobat)
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
@@ -36,15 +36,16 @@ def create_full_pdf(erk, fri, ant, ste):
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=True)
         pdf.set_font("helvetica", size=11)
-        safe_text = str(content).replace('€', 'Euro')
+        # Sonderzeichen-Fix für Standard-Fonts
+        safe_text = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
         pdf.multi_cell(0, 8, txt=safe_text)
         pdf.ln(5)
     
-    # Sicherstellen, dass Bytes zurückgegeben werden
-    try:
-        return pdf.output()
-    except:
-        return pdf.output(dest='S').encode('latin-1')
+    # STABILER OUTPUT: Wir nutzen einen BytesIO Buffer
+    pdf_output = pdf.output()
+    if isinstance(pdf_output, bytes):
+        return pdf_output
+    return str(pdf_output).encode('latin-1', errors='replace')
 
 # 3. UI
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -73,7 +74,7 @@ if upload:
 
         if full_text and st.button("🚀 Analyse starten"):
             with st.spinner('🧠 KI analysiert...'):
-                prompt = f"Analysiere:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+                prompt = f"Analysiere:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n\nERKLÄRUNG_ENDE\n\nANTWORT_START\n\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -86,10 +87,7 @@ if upload:
                     m = re.search(f"{s}(.*?){e}", src, re.DOTALL)
                     return m.group(1).strip() if m else ""
 
-                erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw)
-                ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw)
-                fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw)
-                ste = ext("STEUER_START", "STEUER_ENDE", raw)
+                erk, ant, fri, ste = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw), ext("ANTWORT_START", "ANTWORT_ENDE", raw), ext("FRISTEN_START", "FRISTEN_ENDE", raw), ext("STEUER_START", "STEUER_ENDE", raw)
 
                 st.subheader("💡 Ergebnis")
                 st.info(erk if erk else "Analyse fertig.")
@@ -115,33 +113,23 @@ if upload:
                         final_a = st.text_area("Entwurf:", value=ant, height=150)
                         
                         # PDF DOWNLOAD
-                        try:
-                            pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
-                            st.download_button("📥 PDF", data=pdf_bytes, file_name="Analyse.pdf", mime="application/pdf")
-                        except Exception as pdf_err:
-                            st.error(f"PDF-Fehler: {pdf_err}")
+                        pdf_data = create_full_pdf(erk, fri, final_a, ste)
+                        st.download_button("📥 PDF Download", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf")
                         
-                        # EXCEL DOWNLOAD (Mit automatischer Spaltenbreite)
+                        # EXCEL DOWNLOAD
                         if df_s is not None:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-                                df_s.to_excel(wr, index=False, sheet_name='Steuer_Check')
-                                worksheet = wr.sheets['Steuer_Check']
-                                
-                                # AUTO-WIDTH LOGIK
+                                df_s.to_excel(wr, index=False, sheet_name='Steuer')
+                                # Spaltenbreite automatisch anpassen
+                                worksheet = wr.sheets['Steuer']
                                 for i, col in enumerate(df_s.columns):
-                                    # Länge der Daten in der Spalte berechnen
-                                    column_len = df_s[col].astype(str).map(len).max()
-                                    # Länge des Headers berücksichtigen
-                                    column_len = max(column_len, len(col)) + 2
-                                    # Breite im Excel-Sheet setzen
-                                    worksheet.set_column(i, i, column_len)
-                            
-                            st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer_Export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                    width = max(df_s[col].astype(str).map(len).max(), len(col)) + 2
+                                    worksheet.set_column(i, i, width)
+                            st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 else:
                     st.warning("🔒 PRO-Status erforderlich.")
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.divider()
-st.caption("HINWEIS: Keine Rechts- oder Steuerberatung.")
+st.caption("Keine Rechtsberatung.")
