@@ -22,7 +22,7 @@ try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     stripe.api_key = st.secrets["STRIPE_API_KEY"]
 except Exception:
-    st.error("⚠️ API-Keys fehlen in den Secrets! Bitte im Streamlit Dashboard eintragen.")
+    st.error("⚠️ API-Keys fehlen in den Secrets!")
 
 # TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
@@ -31,7 +31,6 @@ if tesseract_path:
 
 # --- HILFSFUNKTIONEN ---
 def check_image_quality(image):
-    """Prüft Bildqualität mittels OpenCV."""
     img_array = np.array(image.convert('L'))
     brightness = np.mean(img_array)
     laplacian_var = cv2.Laplacian(img_array, cv2.CV_64F).var()
@@ -51,7 +50,7 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=1, align='C')
     pdf.ln(10)
     sections = [
-        ("Behoerde", meta.get('behoerde', '-')),
+        ("Behörde", meta.get('behoerde', '-')),
         ("Aktenzeichen", meta.get('az', '-')),
         ("Zusammenfassung", erk),
         ("Fristen & Termine", fri),
@@ -70,11 +69,24 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
     return pdf.output(dest='S').encode('latin-1')
 
 def create_excel(data_dict):
-    """Erstellt eine Excel-Datei im Speicher."""
+    """Erstellt Excel mit automatischer Spaltenbreite und Textumbruch."""
     df = pd.DataFrame([data_dict])
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Analyse')
+        workbook  = writer.book
+        worksheet = writer.sheets['Analyse']
+        
+        # Format für Textumbruch
+        wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'top'})
+        
+        # Spaltenbreiten automatisch setzen
+        for i, col in enumerate(df.columns):
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+            # Begrenzung der Breite auf max 60 Zeichen, damit es nicht zu riesig wird
+            width = min(column_len, 60)
+            worksheet.set_column(i, i, width, wrap_format)
+            
     return output.getvalue()
 
 # --- 3. ZAHLUNGSPRÜFUNG & ADMIN-LOGIK ---
@@ -126,7 +138,7 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 pages_prev = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                current_img = pages_prev[0]
+                current_img = pages_prev[0] if isinstance(pages_prev, list) else pages_prev
                 st.image(current_img, use_container_width=True)
             except: st.info("PDF zur Analyse bereit.")
         else:
@@ -147,12 +159,21 @@ if upload:
                     status.update(label="❌ Fehler: Kein Text", state="error")
                     st.error("Text unleserlich.")
                 else:
-                    prompt = f"""Analysiere: {full_text}
-                    FORMAT: BEHOERDE: [Name] | AZ: [Nummer] | ERKLÄRUNG: [Sinn] | FRISTEN: [Datum] | FORMFEHLER: [Check] | ANTWORT: [Entwurf] | STEUER: [Info]"""
+                    # VERBESSERTER PROMPT FÜR AUSFÜHRLICHE ENTWÜRFE
+                    prompt = f"""Analysiere diesen Behördentext gründlich: {full_text}
+                    
+                    Erstelle eine detaillierte Analyse im folgenden Format:
+                    BEHOERDE: [Name der Behörde]
+                    AZ: [Aktenzeichen/Referenznummer]
+                    ERKLÄRUNG: [Was genau wird gefordert? Erkläre es einfach für einen Laien in ca. 3-4 Sätzen.]
+                    FRISTEN: [Wann ist die Deadline? Was passiert bei Versäumnis?]
+                    FORMFEHLER: [Suche nach fehlenden Unterschriften, fehlenden Rechtsbehelfsbelehrungen oder unklaren Fristangaben.]
+                    ANTWORT: [Erstelle einen VOLLSTÄNDIGEN, förmlichen Antwortbrief oder Widerspruch. Nutze Platzhalter wie [Name], [Datum], [Ort]. Der Text muss fundiert, höflich und juristisch präzise klingen. Mindestens 2-3 Absätze!]
+                    STEUER: [Falls relevant: Steuerbetrag und Zahlungsziel.]"""
                     
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Behörden-Experte."}, {"role": "user", "content": prompt}]
+                        messages=[{"role": "system", "content": "Du bist ein erfahrener Experte für deutsches Verwaltungsrecht und Behördenkorrespondenz."}, {"role": "user", "content": prompt}]
                     )
                     
                     st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
@@ -168,29 +189,40 @@ if upload:
                     status.update(label="✅ Fertig!", state="complete")
                     
                     st.header(meta['behoerde'])
-                    with st.expander("💡 Analyse", expanded=True):
+                    with st.expander("💡 Was will die Behörde von mir?", expanded=True):
                         st.write(erk)
-                    st.warning(f"📅 Fristen: {fri}")
+                    
+                    if "Keine" not in fehler and "nicht gefunden" not in fehler.lower():
+                        st.error(f"🚨 **Potenzieller Formfehler entdeckt:** {fehler}")
+                    
+                    st.warning(f"📅 **Wichtige Fristen:** {fri}")
 
                     if ist_pro:
-                        st.subheader("📥 Downloads & Pro-Features")
+                        st.subheader("📥 Deine Profi-Dokumente")
+                        
+                        # Textbereich für den Antwortbrief (Nutzer kann ihn hier noch bearbeiten)
+                        final_a = st.text_area("Vorschau & Bearbeitung des Antwortbriefs:", value=ant, height=300)
+                        
                         col_pdf, col_xls = st.columns(2)
                         
                         # PDF Download
-                        final_a = st.text_area("Entwurf anpassen:", value=ant, height=200)
                         pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
-                        col_pdf.download_button("📥 PDF laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
+                        col_pdf.download_button("📥 PDF-Gutachten laden", data=pdf_data, file_name=f"Analyse_{meta['behoerde']}.pdf", use_container_width=True)
                         
                         # Excel Download
                         excel_data = create_excel({
-                            "Datum": datetime.now().strftime("%d.%m.%Y"),
+                            "Datum der Analyse": datetime.now().strftime("%d.%m.%Y"),
                             "Behörde": meta['behoerde'],
                             "Aktenzeichen": meta['az'],
+                            "Zusammenfassung": erk,
                             "Fristen": fri,
+                            "Formfehler": fehler,
                             "Steuer-Info": ste,
-                            "Zusammenfassung": erk
+                            "Antwortentwurf": final_a
                         })
-                        col_xls.download_button("📊 Excel laden", data=excel_data, file_name="Amtsschimmel_Daten.xlsx", use_container_width=True)
+                        col_xls.download_button("📊 Excel-Tabelle laden", data=excel_data, file_name=f"Daten_{meta['behoerde']}.xlsx", use_container_width=True)
+                    else:
+                        st.info("🔓 Schalte PRO frei, um den ausführlichen Antwortbrief und die Excel-Auswertung zu erhalten.")
 
 st.divider()
-st.caption("v11.1 - Excel Export & Admin Mode Fix")
+st.caption("v11.2 - Profi-Briefe & Auto-Excel Layout")
