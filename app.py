@@ -1,9 +1,8 @@
 import streamlit as st
-import openai  # Wir nutzen hier wieder die klassische Schreibweise
+import openai
 from PIL import Image
 import pytesseract
-import pandas as pd
-from fpdf import FPDF
+from fpdf import FPDF # Nutzt fpdf2
 import io
 
 # 1. SEITEN-KONFIGURATION
@@ -13,20 +12,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. SICHERHEIT (OpenAI Key aus den Streamlit Secrets)
+# 2. SICHERHEIT (Legacy Mode openai==0.28)
 try:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 except:
     st.error("⚠️ API-Key fehlt in den Streamlit-Secrets!")
 
-# FUNKTION: PDF ERSTELLEN
+# FUNKTION: PDF ERSTELLEN (Optimiert für Stufe 2)
 def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    # Sonderzeichen-Fix für PDF
-    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+    # Wir nutzen 'Helvetica' (Standard), da Arial manchmal Probleme macht
+    pdf.set_font("Helvetica", size=12)
+    
+    # Text für PDF säubern (Umlaute-Fix)
+    clean_text = text.replace('€', 'Euro').replace('„', '"').replace('“', '"')
+    
+    # Multi_cell schreibt den Text mit Zeilenumbruch
     pdf.multi_cell(0, 10, txt=clean_text)
+    
+    # PDF in den Speicher schreiben und als Bytes zurückgeben
     return pdf.output()
 
 # LOGO ANZEIGEN
@@ -53,7 +58,7 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 0.8 - Stable Legacy Mode")
+    st.caption("Version 0.9 - PDF Export Aktiv")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bilddatei)", type=['png', 'jpg', 'jpeg'])
@@ -65,7 +70,7 @@ if upload:
         
         if st.button("Brief analysieren"):
             with st.spinner('Amtsschimmel wird gezähmt...'):
-                # Texterkennung (OCR)
+                # Texterkennung
                 try:
                     text_raw = pytesseract.image_to_string(image, lang='deu')
                 except:
@@ -74,7 +79,7 @@ if upload:
                 if len(text_raw.strip()) < 10:
                     st.error("❌ Text nicht lesbar. Bitte Foto schärfer aufnehmen.")
                 else:
-                    # Klassischer OpenAI Aufruf für Version 0.28
+                    # OpenAI Aufruf
                     response = openai.ChatCompletion.create(
                         model="gpt-3.5-turbo",
                         messages=[
@@ -90,30 +95,35 @@ if upload:
                         erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0]
                         st.info(erklaerung.strip())
                     else:
-                        st.info(full_res)
+                        st.info("Hier ist die Analyse deines Briefes:")
+                        st.write(full_res)
 
-                    # --- TEIL 2: PRO-FUNKTIONEN ---
+                    # --- TEIL 2: PRO-FUNKTIONEN (Antwort & PDF) ---
                     if ist_pro:
                         st.divider()
                         st.subheader("🚀 PRO: Dein Aktions-Plan")
                         
                         if "ANTWORT_START" in full_res:
                             antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
-                            st.markdown("### 📝 Antwort-Entwurf")
-                            final_text = st.text_area("Hier kannst du den Entwurf anpassen:", value=antwort_text, height=300)
                             
-                            pdf_data = create_pdf(final_text)
+                            st.markdown("### 📝 Antwort-Entwurf")
+                            # Der Nutzer kann den Text hier noch anpassen
+                            final_text = st.text_area("Bearbeite den Entwurf (z.B. Name ergänzen):", value=antwort_text, height=300)
+                            
+                            # PDF Download Button
+                            pdf_output = create_pdf(final_text)
                             st.download_button(
                                 label="📥 Als PDF herunterladen",
-                                data=bytes(pdf_data),
-                                file_name="Antwort_Amtsschimmel.pdf",
+                                data=pdf_output,
+                                file_name="Antwort_Amtsschimmel_Killer.pdf",
                                 mime="application/pdf"
                             )
                         else:
-                            st.warning("Antwort konnte nicht separat erstellt werden.")
+                            st.warning("Antwort-Entwurf konnte nicht generiert werden.")
                     else:
                         st.divider()
-                        st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe.")
+                        st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe und PDF-Download.")
+
     except Exception as e:
         st.error(f"Fehler: {e}")
 
