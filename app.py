@@ -20,18 +20,30 @@ try:
 except:
     st.error("⚠️ API-Key fehlt in den Streamlit-Secrets!")
 
-# VERBESSERTE FUNKTION: PDF ERSTELLEN (Unterstützt jetzt mehr Text/Seiten)
-def create_pdf_output(text):
+# FUNKTION: PDF ERSTELLEN (Jetzt mit besserer Struktur für den Export)
+def create_pdf_output(erklaerung, antwort_text):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", size=12)
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True)
+    pdf.ln(5)
     
-    # Sonderzeichen-Bereinigung
-    clean_text = text.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+    # Sektion 1: Erklärung
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, "1. Einfache Erklaerung:", ln=True)
+    pdf.set_font("Helvetica", size=11)
+    # Text-Säuberung
+    clean_erklaerung = erklaerung.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+    pdf.multi_cell(0, 8, txt=clean_erklaerung.encode('latin-1', 'replace').decode('latin-1'))
     
-    # Text mit automatischem Zeilenumbruch hinzufügen
-    # Falls der Text sehr lang ist, erstellt fpdf automatisch neue Seiten
-    pdf.multi_cell(0, 10, txt=clean_text.encode('latin-1', 'replace').decode('latin-1'))
+    pdf.ln(10)
+    
+    # Sektion 2: Antwort-Entwurf
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, "2. Antwort-Entwurf:", ln=True)
+    pdf.set_font("Helvetica", size=11)
+    clean_antwort = antwort_text.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+    pdf.multi_cell(0, 8, txt=clean_antwort.encode('latin-1', 'replace').decode('latin-1'))
     
     return bytes(pdf.output())
 
@@ -59,7 +71,7 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 1.6 - Full Multi-Page Support")
+    st.caption("Version 1.7 - Enhanced PDF Export")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bild oder PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
@@ -70,16 +82,12 @@ if upload:
         
         if upload.type == "application/pdf":
             with st.spinner('Lese alle PDF-Seiten ein...'):
-                # Alle Seiten in Bilder umwandeln
                 pdf_pages = convert_from_bytes(upload.read())
                 st.info(f"📄 Dokument mit {len(pdf_pages)} Seiten erkannt.")
-                
-                # Jede Seite einzeln per OCR auslesen
                 for i, page in enumerate(pdf_pages):
                     page_text = pytesseract.image_to_string(page, lang='deu')
                     full_document_text += f"\n--- SEITE {i+1} ---\n{page_text}"
         else:
-            # Einzelbild-Verarbeitung
             image = Image.open(upload)
             st.image(image, caption="Dein Scan", width=300)
             full_document_text = pytesseract.image_to_string(image, lang='deu')
@@ -94,12 +102,15 @@ if upload:
                 
                 full_res = response['choices']['message']['content']
 
+                # --- EXTRAKTION ---
+                final_erklaerung = ""
+                if "ERKLÄRUNG_START" in full_res:
+                    final_erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip()
+                
                 # --- ANZEIGE: ERKLÄRUNG ---
                 st.subheader("💡 Analyse-Ergebnis")
-                if "ERKLÄRUNG_START" in full_res:
-                    parts = full_res.split("ERKLÄRUNG_START")
-                    content = parts[1].split("ERKLÄRUNG_ENDE")
-                    st.info(content[0].strip())
+                if final_erklaerung:
+                    st.info(final_erklaerung)
 
                 # --- PRO-BEREICH ---
                 if ist_pro:
@@ -109,35 +120,33 @@ if upload:
                     with st.expander("🗓️ Erkannte Fristen", expanded=True):
                         if "FRISTEN_START" in full_res:
                             try:
-                                f_parts = full_res.split("FRISTEN_START")
-                                f_content = f_parts[1].split("FRISTEN_ENDE")[0].strip()
+                                f_content = full_res.split("FRISTEN_START")[1].split("FRISTEN_ENDE")[0].strip()
                                 lines = [line.split("|") for line in f_content.split("\n") if "|" in line]
                                 if lines:
                                     df = pd.DataFrame(lines, columns=["Aufgabe", "Datum"])
                                     st.table(df)
-                                else:
-                                    st.write("Keine Fristen gefunden.")
                             except:
-                                st.write("Fristen konnten nicht extrahiert werden.")
+                                st.write("Keine Fristen gefunden.")
 
-                    # 📝 ANTWORT-ENTWURF (Wird als PDF zum Download angeboten)
-                    with st.expander("📝 Dein Antwort-Entwurf (PDF Export)", expanded=True):
+                    # 📝 ANTWORT-ENTWURF & PDF
+                    with st.expander("📝 Dein Aktions-Plan (PDF Export)", expanded=True):
                         if "ANTWORT_START" in full_res:
-                            a_parts = full_res.split("ANTWORT_START")
-                            antwort_text = a_parts[1].split("ANTWORT_ENDE")[0].strip()
+                            antwort_raw = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
                             
-                            final_text = st.text_area("Vervollständige den Entwurf hier:", value=antwort_text, height=300)
+                            # Nutzer kann hier den Antwort-Text bearbeiten
+                            final_antwort = st.text_area("Vervollständige den Entwurf:", value=antwort_raw, height=300)
                             
-                            # Hier wird das PDF generiert
-                            pdf_bytes = create_pdf_output(final_text)
+                            # Generiere PDF aus BEIDEN Teilen
+                            pdf_bytes = create_pdf_output(final_erklaerung, final_antwort)
+                            
                             st.download_button(
-                                label="📥 Antwort-Schreiben als PDF herunterladen",
+                                label="📥 Komplette Analyse als PDF herunterladen",
                                 data=pdf_bytes,
-                                file_name="Amtsschimmel_Antwort.pdf",
+                                file_name="Amtsschimmel_Killer_Analyse.pdf",
                                 mime="application/pdf"
                             )
                 else:
-                    st.warning("🔒 PRO freischalten für Antwort-Entwürfe und Fristen-Checks.")
+                    st.warning("🔒 PRO freischalten für Antwort-Entwürfe und PDF-Export.")
 
     except Exception as e:
         st.error(f"Fehler bei der Verarbeitung: {e}")
