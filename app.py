@@ -18,8 +18,9 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt!")
 
-# FUNKTION: PDF ERSTELLEN (Ultra-Safe gegen Encoding-Fehler)
+# FUNKTION: PDF ERSTELLEN (UTF-8 Safe & Adobe-kompatibel)
 def create_full_pdf(erk, fri, ant, ste):
+    # Wir nutzen fpdf2 im Unicode-Modus (Standard bei fpdf2)
     pdf = FPDF()
     pdf.add_page()
     
@@ -27,15 +28,17 @@ def create_full_pdf(erk, fri, ant, ste):
     try: pdf.image("icon_final_blau.png", x=10, y=8, w=25)
     except: pass
     
-    pdf.set_font("Arial", size=9)
+    pdf.set_font("helvetica", size=9)
     zeit = datetime.now().strftime("%d.%m.%Y %H:%M")
     pdf.cell(0, 10, f"Erstellt am: {zeit}", ln=1, align='R')
     pdf.ln(10)
     
     # Titel
-    pdf.set_font("Arial", "B", 18)
+    pdf.set_font("helvetica", "B", 18)
+    pdf.set_text_color(30, 58, 138)
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=1, align='C')
     pdf.ln(10)
+    pdf.set_text_color(0, 0, 0)
     
     sections = [
         ("Zusammenfassung", erk),
@@ -45,23 +48,19 @@ def create_full_pdf(erk, fri, ant, ste):
     ]
     
     for title, content in sections:
-        pdf.set_font("Arial", "B", 12)
+        pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
         
-        pdf.set_font("Arial", size=11)
+        pdf.set_font("helvetica", size=11)
+        # RADIKALER FIX: Wir entfernen nur das Euro-Zeichen (wird oft nicht unterstützt)
+        # Ansonsten lassen wir den String als reines UTF-8 stehen.
+        safe_text = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"')
         
-        # --- DER RADIKALE FIX FÜR "STRING ARGUMENT WITHOUT ENCODING" ---
-        # 1. Wir säubern den Text von allen Zeichen, die PDF-Standardfonts nicht können
-        t = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-').replace('—', '-')
-        
-        # 2. Wir erzwingen die Umwandlung in latin-1 und ersetzen Unbekanntes durch '?'
-        # Das verhindert den Absturz der Bibliothek sicher.
-        safe_text = t.encode('latin-1', 'replace').decode('latin-1')
-        
+        # WICHTIG: multi_cell in fpdf2 verarbeitet Python-Strings direkt als UTF-8
         pdf.multi_cell(0, 8, txt=safe_text)
         pdf.ln(5)
     
-    # Output als reine Bytes (Wichtig für Adobe & Streamlit)
+    # Output als Bytes für den Download-Button
     return bytes(pdf.output())
 
 # 3. UI
@@ -103,25 +102,27 @@ if upload:
                     m = re.search(f"{s}(.*?){e}", src, re.DOTALL)
                     return m.group(1).strip() if m else ""
 
-                erk, ant, fri, ste = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res), ext("ANTWORT_START", "ANTWORT_ENDE", raw_res), ext("FRISTEN_START", "FRISTEN_ENDE", raw_res), ext("STEUER_START", "STEUER_ENDE", raw_res)
+                erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res)
+                ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw_res)
+                fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw_res)
+                ste = ext("STEUER_START", "STEUER_ENDE", raw_res)
 
                 st.subheader("💡 Ergebnis")
-                st.info(erk if erk else "Dokument erfolgreich verarbeitet.")
+                st.info(erk if erk else "Dokument erkannt.")
 
                 if ist_pro:
                     st.divider()
                     
-                    # ROBUSTE EXCEL-DATEN (Fix für den Spalten-Fehler)
+                    # ROBUSTE EXCEL-DATEN (Fix für Spalten-Fehler)
                     df_s = None
                     if ste:
                         raw_lines = [l.strip() for l in ste.split("\n") if "|" in l]
-                        valid_rows = []
+                        rows = []
                         for line in raw_lines:
                             parts = [p.strip() for p in line.split("|")]
                             while len(parts) < 3: parts.append("-")
-                            valid_rows.append(parts[:3])
-                        if valid_rows:
-                            df_s = pd.DataFrame(valid_rows, columns=["Betrag", "Kategorie", "Grund"])
+                            rows.append(parts[:3])
+                        if rows: df_s = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
 
                     col1, col2 = st.columns(2)
                     with col1:
@@ -129,13 +130,13 @@ if upload:
                         if df_s is not None: st.dataframe(df_s, use_container_width=True)
                         else: st.write("Keine Beträge erkannt.")
                         
-                        st.subheader("🗓️ Wichtige Fristen")
+                        st.subheader("🗓️ Fristen")
                         if fri: st.info(fri)
                         else: st.write("Keine Fristen gefunden.")
 
                     with col2:
-                        st.subheader("📝 Export & Antwort")
-                        final_a = st.text_area("Entwurf anpassen:", value=ant, height=150)
+                        st.subheader("📝 Export")
+                        final_a = st.text_area("Entwurf:", value=ant, height=150)
                         
                         # PDF DOWNLOAD
                         pdf_data = create_full_pdf(erk, fri, final_a, ste)
@@ -155,6 +156,6 @@ if upload:
                 else:
                     st.warning("🔒 PRO-Status erforderlich.")
     except Exception as e:
-        st.error(f"Systemfehler: {e}")
+        st.error(f"Fehler: {e}")
 
-st.caption("v5.1 - Stable Build")
+st.caption("v5.2 - UTF-8 Stable Build")
