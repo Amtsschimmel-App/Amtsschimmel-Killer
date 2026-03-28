@@ -16,22 +16,21 @@ st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="w
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
-    st.error("⚠️ OpenAI API-Key fehlt in den Streamlit Secrets!")
+    st.error("⚠️ OpenAI API-Key fehlt!")
 
-# FUNKTION: TEXT REINIGEN (Der wichtigste Teil gegen den PDF-Fehler)
-def clean_for_pdf(text):
-    if not text:
-        return "Kein Text vorhanden."
-    # Bekannte Störenfriede ersetzen
-    repls = {
-        '€': 'Euro', '„': '"', '“': '"', '”': '"', '‘': "'", '’': "'",
-        '–': '-', '—': '-', '…': '...', '•': '*', '·': '*'
+# FUNKTION: PDF-TEXT REINIGEN (Verhindert den Encoding-Fehler)
+def safe_pdf_text(text):
+    if not text: return ""
+    # Ersetze Zeichen, die fpdf2 ohne spezielle Fonts nicht kann
+    replacements = {
+        '€': 'Euro', '„': '"', '“': '"', '”': '"', '–': '-', '—': '-', 
+        '…': '...', '•': '*', '’': "'", '‘': "'"
     }
     t = str(text)
-    for old, new in repls.items():
+    for old, new in replacements.items():
         t = t.replace(old, new)
-    # ALLES entfernen, was nicht in Latin-1 (Standard-PDF) passt
-    return t.encode('latin-1', 'ignore').decode('latin-1')
+    # Entferne alle verbleibenden Non-Latin-1 Zeichen (Crash-Schutz)
+    return t.encode('latin-1', 'replace').decode('latin-1')
 
 # FUNKTION: PDF ERSTELLEN
 def create_full_pdf(erk, fri, ant, ste):
@@ -54,13 +53,21 @@ def create_full_pdf(erk, fri, ant, ste):
     pdf.ln(10)
     pdf.set_text_color(0, 0, 0)
     
-    for title, content in [("Zusammenfassung", erk), ("Fristen", fri), ("Steuer", ste), ("Antwort", ant)]:
+    sections = [
+        ("Zusammenfassung", erk),
+        ("Wichtige Fristen", fri),
+        ("Steuerliche Relevanz", ste),
+        ("Antwort-Entwurf", ant)
+    ]
+    
+    for title, content in sections:
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
         pdf.set_font("helvetica", size=11)
-        # Radikale Reinigung vor dem Schreiben
-        safe_text = clean_for_pdf(content)
-        pdf.multi_cell(0, 8, txt=safe_text)
+        
+        # HIER PASSIERT DIE REINIGUNG
+        safe_content = safe_pdf_text(content)
+        pdf.multi_cell(0, 8, txt=safe_content)
         pdf.ln(5)
     
     return bytes(pdf.output())
@@ -76,7 +83,7 @@ with st.sidebar:
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
 
 # 4. ANALYSE-LOGIK
-upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+upload = st.file_uploader("Dokument hochladen (PDF, JPG, PNG)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     try:
@@ -91,11 +98,11 @@ if upload:
 
         if full_text and st.button("🚀 Analyse starten"):
             with st.spinner('🧠 KI analysiert...'):
-                prompt = f"Analysiere diesen Text:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Fristen]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+                prompt = f"Analysiere:\n{full_text}\n\nFormat: ERKLÄRUNG_START...ERKLÄRUNG_ENDE, ANTWORT_START...ANTWORT_ENDE, FRISTEN_START...FRISTEN_ENDE, STEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
-                    messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte IMMER in den Tags."},
+                    messages=[{"role": "system", "content": "Du bist Behörden-Experte. Trenne Steuerdaten mit |."},
                               {"role": "user", "content": prompt}]
                 )
                 raw_res = response.choices[0].message.content
@@ -104,40 +111,42 @@ if upload:
                     m = re.search(f"{s}(.*?){e}", src, re.DOTALL)
                     return m.group(1).strip() if m else ""
 
-                # Extraktion mit Fallback-Text
-                erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res) or "Keine Zusammenfassung gefunden."
-                ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw_res) or "Kein Entwurf generiert."
-                fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw_res) or "Keine Fristen gefunden."
+                erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res)
+                ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw_res)
+                fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw_res)
                 ste = ext("STEUER_START", "STEUER_ENDE", raw_res)
 
-                st.subheader("💡 Analyse")
-                st.info(erk)
+                st.subheader("💡 Ergebnis")
+                st.info(erk if erk else "Analyse erfolgreich.")
 
                 if ist_pro:
                     st.divider()
                     
-                    # Excel-Daten vorbereiten
+                    # ROBUSTE EXCEL-DATEN
                     df_s = None
                     if ste:
                         raw_lines = [l.strip() for l in ste.split("\n") if "|" in l]
-                        rows = [line.split("|") for line in raw_lines]
-                        if rows:
-                            rows = [r + ["-"] * (3 - len(r)) for r in rows]
-                            df_s = pd.DataFrame([r[:3] for r in rows], columns=["Betrag", "Kategorie", "Grund"])
+                        valid_rows = []
+                        for line in raw_lines:
+                            parts = [p.strip() for p in line.split("|")]
+                            while len(parts) < 3: parts.append("-")
+                            valid_rows.append(parts[:3])
+                        if valid_rows:
+                            df_s = pd.DataFrame(valid_rows, columns=["Betrag", "Kategorie", "Grund"])
 
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.write("💰 **Steuer-Check**")
+                        st.subheader("💰 Steuer-Check")
                         if df_s is not None: st.dataframe(df_s, use_container_width=True)
-                        else: st.write("Nichts gefunden.")
+                        else: st.write("Nichts erkannt.")
                         
-                        st.write("🗓️ **Wichtige Fristen**")
-                        st.info(fri)
+                        st.subheader("🗓️ Wichtige Fristen")
+                        if fri: st.info(fri)
+                        else: st.write("Keine Fristen.")
 
                     with col2:
-                        st.write("📝 **Export**")
-                        # HIER WIRD DER TEXT ANGEZEIGT
-                        final_a = st.text_area("Entwurf anpassen:", value=ant, height=250)
+                        st.subheader("📝 Export & Antwort")
+                        final_a = st.text_area("Entwurf anpassen:", value=ant, height=200)
                         
                         # PDF DOWNLOAD
                         pdf_data = create_full_pdf(erk, fri, final_a, ste)
@@ -154,4 +163,4 @@ if upload:
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("v6.0 - Anti-Crash Build")
+st.caption("v6.1 - Stable PDF Build")
