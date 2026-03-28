@@ -41,7 +41,7 @@ if shutil.which("tesseract"):
 
 @st.cache_data
 def get_pdf_preview(file_bytes):
-    # Gibt nur das erste Bild der Liste zurück
+    # Gibt das erste Bild der Liste zurück
     images = convert_from_bytes(file_bytes, dpi=72, first_page=1, last_page=1)
     return images[0] if images else None
 
@@ -106,18 +106,15 @@ if upload:
                 with st.spinner("Extrahiere Daten & Fristen..."):
                     try:
                         txt = get_text_hybrid(upload)
-                        # ABSOLUT SICHERER API AUFRUF
-                        prompt_system = "Du bist ein Fachanwalt. Liste zuerst alle Fristen fett auf. Erstelle dann ein EXTREM ausführliches Antwortschreiben (mind. 600 Wörter)."
-                        prompt_user = f"Analysiere diesen Text: {txt}"
-                        
+                        # KORREKTER API AUFRUF FÜR OPENAI >= 1.0.0
                         response = client.chat.completions.create(
                             model="gpt-4o",
-                            messages=[{"role": "system", "content": prompt_system}, {"role": "user", "content": prompt_user}],
+                            messages=,
                             temperature=0.3
                         )
-                        st.session_state.last_result = response.choices.message.content
+                        # ABSOLUT SICHERER ZUGRIFF
+                        st.session_state.last_result = response.choices[0].message.content
                         st.session_state.credits -= 1
-                        st.rerun()
                     except Exception as e:
                         st.error(f"Fehler bei der KI: {e}")
             
@@ -136,7 +133,7 @@ if upload:
                         safe_pdf_text = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
                         pdf.multi_cell(0, 8, txt=safe_pdf_text)
                         st.download_button("📩 Als PDF", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf", "application/pdf")
-                    except: st.error("PDF-Download konnte nicht erstellt werden.")
+                    except: st.error("PDF-Download-Fehler")
                 
                 with c2:
                     try:
@@ -145,7 +142,7 @@ if upload:
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             df.to_excel(writer, index=False)
                         st.download_button("📊 Als Excel", output.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    except: st.error("Excel-Download konnte nicht erstellt werden.")
+                    except: st.error("Excel-Download-Fehler")
         else:
             st.warning("💳 Bitte lade Guthaben auf.")
 
