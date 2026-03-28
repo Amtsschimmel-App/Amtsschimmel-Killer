@@ -26,7 +26,7 @@ try:
     LINK_3 = st.secrets["STRIPE_LINK_3"]
     LINK_10 = st.secrets["STRIPE_LINK_10"]
 except Exception:
-    st.error("⚠️ Secrets fehlen (API-Keys oder Stripe-Links)!")
+    st.error("⚠️ Secrets fehlen (API-Keys oder Stripe-Links in der Cloud prüfen)!")
 
 # TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
@@ -62,7 +62,7 @@ def create_excel(data_dict):
             worksheet.set_column(i, i, 50, wrap)
     return output.getvalue()
 
-# --- 3. CREDITS & MULTI-PAKET LOGIK ---
+# --- 3. CREDITS & ZAHLUNGSPRÜFUNG ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "verified_sessions" not in st.session_state: st.session_state.verified_sessions = []
 
@@ -84,7 +84,13 @@ if is_admin: st.session_state.credits = 999
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.title("📄 Amtsschimmel-Killer")
+    # Logo-Fix: Einfacherer Ladeweg
+    logo_file = "icon_final_blau.png"
+    if os.path.exists(logo_file):
+        st.image(logo_file, width=150)
+    else:
+        st.title("📄 Amtsschimmel-Killer")
+    
     st.header("Dein Guthaben")
     st.metric("Verfügbare Analysen", st.session_state.credits)
     
@@ -94,11 +100,11 @@ with st.sidebar:
                 <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:1px solid #d1d5db; padding:8px; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
             </div>
-            <div style="background: #10b981; padding: 10px; border-radius: 8px;">
+            <div style="background: #10b981; padding: 10px; border-radius: 8px; box-shadow: 0 4px 10px rgba(16,185,129,0.2);">
                 <a href="{LINK_3}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
             </div>
-            <div style="background: #1e3a8a; padding: 10px; border-radius: 8px;">
+            <div style="background: #1e3a8a; padding: 10px; border-radius: 8px; box-shadow: 0 4px 10px rgba(30,58,138,0.2);">
                 <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:8px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
             </div>
@@ -144,9 +150,11 @@ if upload:
                     full_text = pytesseract.image_to_string(current_img, lang='deu') if current_img else ""
                     if len(full_text.strip()) < 15:
                         status.update(label="❌ Fehler: Text unleserlich", state="error")
+                        st.error("Bitte lade ein schärferes Foto hoch!")
                     else:
-                        prompt = f"Analysiere detailliert: {full_text}. BEHOERDE, AZ, ERKLÄRUNG, FRISTEN, FORMFEHLER, ANTWORT (ausführlich), STEUER."
+                        prompt = f"Analysiere detailliert: {full_text}. BEHOERDE, AZ, ERKLÄRUNG (laienverständlich), FRISTEN, FORMFEHLER, ANTWORT (ausführlicher Brief), STEUER."
                         res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": "Verwaltungsrechtler."}, {"role": "user", "content": prompt}])
+                        
                         if not is_admin: st.session_state.credits -= 1
                         st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
                         raw = res.choices[0].message.content
@@ -173,4 +181,4 @@ if upload:
             st.error("Bitte wähle ein Paket links aus, um Guthaben aufzuladen.")
 
 st.divider()
-st.caption("v13.1 - Dynamic Links via Secrets")
+st.caption("v13.2 - Stable Logo & Dynamic Links")
