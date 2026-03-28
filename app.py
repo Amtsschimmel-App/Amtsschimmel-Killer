@@ -13,7 +13,7 @@ import shutil
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="wide")
 
-# 2. TESSERACT PFAD-FIX (Wichtig für Cloud & Lokal)
+# 2. TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -24,7 +24,7 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Fix für Adobe Acrobat)
+# FUNKTION: PDF ERSTELLEN (Absolut sichere Binär-Methode)
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
@@ -54,12 +54,16 @@ def create_full_pdf(erk, fri, ant, ste):
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
         pdf.set_font("helvetica", size=11)
-        clean_text = str(content).replace('„', '"').replace('“', '"').replace('€', 'Euro')
+        # Säuberung für Standard-Fonts (latin-1 Bereich)
+        clean_text = str(content).encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 8, txt=clean_text)
         pdf.ln(5)
     
-    # Rückgabe als echte Bytes für stabilen Download
-    return pdf.output()
+    # FIX: PDF in einen Byte-Buffer schreiben
+    pdf_output = pdf.output()
+    if isinstance(pdf_output, str):
+        return pdf_output.encode('latin-1')
+    return pdf_output
 
 # 4. UI
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -79,8 +83,8 @@ if upload:
         full_text = ""
         if upload.type == "application/pdf":
             with st.spinner('📑 Scanne PDF...'):
-                pdf_data = upload.read()
-                pages = convert_from_bytes(pdf_data, dpi=200)
+                pdf_bytes_input = upload.read()
+                pages = convert_from_bytes(pdf_bytes_input, dpi=200)
                 for page in pages:
                     full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
         else:
@@ -133,9 +137,14 @@ if upload:
                         st.write("📝 **Antwort-Entwurf**")
                         final_a = st.text_area("Vorschlag bearbeiten:", value=ant, height=300)
                         
-                        # PDF DOWNLOAD FIX
-                        pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
-                        st.download_button("📥 PDF Analyse speichern", data=pdf_bytes, file_name="Analyse.pdf", mime="application/pdf")
+                        # PDF DOWNLOAD - Jetzt stabil
+                        final_pdf_data = create_full_pdf(erk, fri, final_a, ste)
+                        st.download_button(
+                            label="📥 PDF Analyse speichern", 
+                            data=final_pdf_data, 
+                            file_name="Analyse.pdf", 
+                            mime="application/pdf"
+                        )
                         
                         # EXCEL DOWNLOAD MIT AUTOMATISCHER SPALTENBREITE
                         if df_s is not None:
@@ -143,7 +152,6 @@ if upload:
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
                                 df_s.to_excel(writer, index=False, sheet_name='Steuer')
                                 worksheet = writer.sheets['Steuer']
-                                # Automatische Spaltenbreite berechnen
                                 for i, col in enumerate(df_s.columns):
                                     column_len = max(df_s[col].astype(str).str.len().max(), len(col)) + 2
                                     worksheet.set_column(i, i, column_len)
@@ -154,4 +162,4 @@ if upload:
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("v8.3 - Fixed PDF Corrupt & Auto-Excel Width")
+st.caption("v8.4 - Binary PDF Fix & Auto-Excel Width")
