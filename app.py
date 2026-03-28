@@ -17,7 +17,6 @@ st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="w
 
 # 2. API INITIALISIERUNG
 try:
-    # Holt die Keys automatisch aus deinen Streamlit Secrets
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     stripe.api_key = st.secrets["STRIPE_API_KEY"]
 except Exception:
@@ -68,7 +67,6 @@ ist_pro = False
 
 if session_id:
     try:
-        # Wir fragen Stripe direkt: "Wurde diese ID wirklich bezahlt?"
         checkout_session = stripe.checkout.Session.retrieve(session_id)
         if checkout_session.payment_status == "paid":
             ist_pro = True
@@ -87,15 +85,14 @@ with st.sidebar:
         st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
-        # DEIN PERSÖNLICHER BEZAHL-LINK
-        # ÄNDERE DIESE ZEILE IN DEINER app.py:
-st.markdown(f'''
-    <a href="https://buy.stripe.com" target="_blank">
-        <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
-            👉 JETZT PRO FREISCHALTEN
-        </button>
-    </a>
-''', unsafe_allow_html=True)
+        # KORREKTE EINRÜCKUNG DES BUTTONS
+        st.markdown(f'''
+            <a href="https://buy.stripe.com" target="_blank">
+                <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
+                    👉 JETZT PRO FREISCHALTEN
+                </button>
+            </a>
+        ''', unsafe_allow_html=True)
    
     st.divider()
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
@@ -129,7 +126,7 @@ if upload:
                 else:
                     full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
 
-                # PROMPT MIT KILLER-FEATURE (Formfehler-Check)
+                # KI PROMPT
                 prompt = f"""Analysiere den Text: {full_text}
                 FORMAT:
                 BEHOERDE: [Name]
@@ -158,12 +155,10 @@ if upload:
                 
                 status.update(label="✅ Fertig!", state="complete")
 
-                # ERGEBNIS-ANZEIGE
                 st.header(meta['behoerde'])
                 with st.expander("💡 Was will die Behörde?", expanded=True):
                     st.write(erk)
                 
-                # Killer-Feature Warnung
                 if "Keine" not in fehler and "nicht gefunden" not in fehler.lower():
                     st.error(f"🚨 **FORMFEHLER-WARNUNG:** {fehler}")
                 
@@ -178,4 +173,4 @@ if upload:
                     st.info("🔓 Schalte PRO frei für den Antwortbrief & PDF-Download.")
 
 st.divider()
-st.caption("Keine Rechtsberatung. v10.5 - Secure Edition")
+st.caption("Keine Rechtsberatung. v10.6 - Secure Fixed")
