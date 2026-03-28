@@ -62,7 +62,6 @@ def create_excel(data_dict):
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "verified_sessions" not in st.session_state: st.session_state.verified_sessions = []
 
-# Parameter aus der URL lesen (Stripe Rückkehr)
 session_id = st.query_params.get("session_id")
 pack_type = st.query_params.get("pack") 
 is_admin = st.query_params.get("admin") == "ja"
@@ -75,7 +74,7 @@ if session_id and session_id not in st.session_state.verified_sessions:
             st.session_state.credits += amount
             st.session_state.verified_sessions.append(session_id)
             st.toast(f"✨ {amount} Analysen freigeschaltet!", icon="✅")
-    except: st.sidebar.error("Zahlungsfehler bei der Verifizierung.")
+    except: st.sidebar.error("Fehler bei der Verifizierung.")
 
 if is_admin: st.session_state.credits = 999
 
@@ -87,32 +86,37 @@ with st.sidebar:
     st.header("Dein Guthaben")
     st.metric("Verfügbare Analysen", st.session_state.credits)
     
-    if st.session_state.credits <= 0 and not is_admin:
-        st.subheader("💳 Guthaben aufladen")
-        st.markdown(f'''
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="background: #f9fafb; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-                    <a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" target="_blank" style="text-decoration:none;">
-                        <button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:none; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button>
-                    </a>
-                    <p style="margin:0; font-size:11px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
-                </div>
-                
-                <div style="background: #10b981; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    <a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" target="_blank" style="text-decoration:none;">
-                        <button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button>
-                    </a>
-                    <p style="margin:0; font-size:11px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
-                </div>
-                
-                <div style="background: #303a8a; padding: 10px; border-radius: 8px;">
-                    <a href="https://buy.stripe.com/28EcN50D1bj52xi8di1gs04" target="_blank" style="text-decoration:none;">
-                        <button style="width:100%; border-radius:5px; background:#303a8a; color:white; border:none; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button>
-                    </a>
-                    <p style="margin:0; font-size:11px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
-                </div>
+    # HTML-Code für die Stripe-Buttons
+    stripe_buttons_html = f'''
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="background: #f9fafb; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
+                <a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" target="_blank" style="text-decoration:none;">
+                    <button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:none; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button>
+                </a>
+                <p style="margin:0; font-size:11px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
             </div>
-        ''', unsafe_allow_html=True)
+            <div style="background: #10b981; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" target="_blank" style="text-decoration:none;">
+                    <button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button>
+                </a>
+                <p style="margin:0; font-size:11px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
+            </div>
+            <div style="background: #303a8a; padding: 10px; border-radius: 8px;">
+                <a href="https://buy.stripe.com/28EcN50D1bj52xi8di1gs04" target="_blank" style="text-decoration:none;">
+                    <button style="width:100%; border-radius:5px; background:#303a8a; color:white; border:none; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button>
+                </a>
+                <p style="margin:0; font-size:11px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
+            </div>
+        </div>
+    '''
+
+    # Logik: Wer sieht welche Buttons?
+    if is_admin:
+        with st.expander("🛠️ Admin: Stripe-Links testen"):
+            st.markdown(stripe_buttons_html, unsafe_allow_html=True)
+    elif st.session_state.credits <= 0:
+        st.subheader("💳 Guthaben aufladen")
+        st.markdown(stripe_buttons_html, unsafe_allow_html=True)
     
     st.divider()
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
@@ -132,9 +136,9 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                current_img = pages[0] if isinstance(pages, list) else pages
+                current_img = pages
                 st.image(current_img, use_container_width=True)
-            except: st.info("PDF bereit zur Analyse.")
+            except: st.info("PDF bereit.")
         else:
             current_img = Image.open(upload)
             st.image(current_img, use_container_width=True)
@@ -144,28 +148,17 @@ if upload:
         if st.session_state.credits > 0:
             if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
                 with st.status("Dokument wird analysiert...", expanded=True) as status:
-                    # OCR
                     full_text = pytesseract.image_to_string(current_img, lang='deu') if current_img else ""
-                    
                     if len(full_text.strip()) < 15:
-                        status.update(label="❌ Fehler: Kein Text erkannt", state="error")
-                        st.error("Text unleserlich. Bitte lade ein schärferes Foto hoch!")
+                        status.update(label="❌ Fehler: Kein Text", state="error")
+                        st.error("Text unleserlich. Bitte schärferes Foto hochladen!")
                     else:
-                        # KI Prompt mit Fokus auf Ausführlichkeit
-                        prompt = f"""Analysiere detailliert: {full_text}. 
-                        Gib mir: BEHOERDE, AZ, ERKLÄRUNG (laienverständlich), FRISTEN (exakt), 
-                        FORMFEHLER (Unterschrift/Rechtsbehelf), 
-                        ANTWORT (ausführlicher, rechtssicherer Briefentwurf mit Platzhaltern), STEUER."""
+                        prompt = f"Analysiere detailliert: {full_text}. BEHOERDE, AZ, ERKLÄRUNG, FRISTEN, FORMFEHLER, ANTWORT (ausführlicher Brief), STEUER."
+                        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": "Verwaltungsrechtler."}, {"role": "user", "content": prompt}])
                         
-                        res = client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=[{"role": "system", "content": "Verwaltungsrecht-Experte."}, {"role": "user", "content": prompt}]
-                        )
-                        
-                        # Credits & Kosten
                         if not is_admin: st.session_state.credits -= 1
                         st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
-                        raw = res.choices[0].message.content
+                        raw = res.choices.message.content
 
                         def ext(tag, src):
                             m = re.search(rf"{tag}:(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
@@ -174,19 +167,19 @@ if upload:
                         meta = {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)}
                         erk, fri, fehler, ant, ste = ext("ERKLÄRUNG", raw), ext("FRISTEN", raw), ext("FORMFEHLER", raw), ext("ANTWORT", raw), ext("STEUER", raw)
                         
-                        status.update(label="✅ Analyse erfolgreich!", state="complete")
+                        status.update(label="✅ Analyse abgeschlossen!", state="complete")
                         st.header(meta['behoerde'])
-                        with st.expander("💡 Was will die Behörde?", expanded=True): st.write(erk)
-                        st.warning(f"📅 Wichtige Fristen: {fri}")
+                        with st.expander("💡 Zusammenfassung", expanded=True): st.write(erk)
+                        st.warning(f"📅 Fristen: {fri}")
                         
-                        final_a = st.text_area("Anpassbarer Antwortentwurf:", value=ant, height=300)
+                        final_a = st.text_area("Vorschau Antwortentwurf:", value=ant, height=250)
                         pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
                         excel_data = create_excel({"Behörde": meta['behoerde'], "AZ": meta['az'], "Frist": fri, "Antwort": final_a})
                         
                         st.download_button("📥 PDF-Gutachten laden", data=pdf_data, file_name=f"Analyse_{meta['behoerde']}.pdf", use_container_width=True)
-                        st.download_button("📊 Excel-Tabelle laden", data=excel_data, file_name="Amtsschimmel_Daten.xlsx", use_container_width=True)
+                        st.download_button("📊 Excel-Daten laden", data=excel_data, file_name="Amtsschimmel_Daten.xlsx", use_container_width=True)
         else:
-            st.error("Bitte wähle links ein Paket aus, um die Analyse zu starten.")
+            st.error("Bitte wähle ein Paket links aus, um Guthaben aufzuladen.")
 
 st.divider()
-st.caption("v12.8 - Multi-Credit Store & Document Focus")
+st.caption("v12.9 - Admin & User Sidebar Fix")
