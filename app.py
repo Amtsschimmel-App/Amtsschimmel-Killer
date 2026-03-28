@@ -21,22 +21,14 @@ st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; }
     .stDownloadButton>button { width: 100%; border-radius: 10px; background-color: #10b981; color: white; font-weight: bold; }
-    .buy-button { text-decoration: none; display: block; padding: 12px; background: #ffffff; border: 2px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; color: #1e3a8a !important; text-align: center; transition: 0.3s; }
-    .buy-button:hover { border-color: #1e3a8a; background: #f8fafc; }
-    .buy-title { font-weight: bold; font-size: 1.1em; display: block; margin-bottom: 2px; }
-    .buy-subtitle { font-size: 0.85em; color: #64748b; display: block; font-weight: normal; }
+    .buy-button { text-decoration: none; display: block; padding: 12px; background: #ffffff; border: 2px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; color: #1e3a8a !important; text-align: center; }
+    .frist-box { background-color: #fef9c3; border-left: 5px solid #facc15; padding: 15px; border-radius: 5px; color: #854d0e; margin-bottom: 20px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 # 3. API INITIALISIERUNG
-try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    stripe.api_key = st.secrets["STRIPE_API_KEY"]
-    LINK_1 = st.secrets["STRIPE_LINK_1"]
-    LINK_3 = st.secrets["STRIPE_LINK_3"]
-    LINK_10 = st.secrets["STRIPE_LINK_10"]
-except Exception as e:
-    st.error(f"⚠️ Konfigurationsfehler: {e}")
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+stripe.api_key = st.secrets["STRIPE_API_KEY"]
 
 if shutil.which("tesseract"):
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
@@ -58,7 +50,8 @@ def get_text_hybrid(uploaded_file):
 # --- 4. SESSION STATE ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
-if "last_result" not in st.session_state: st.session_state.last_result = ""
+if "last_fristen" not in st.session_state: st.session_state.last_fristen = ""
+if "last_brief" not in st.session_state: st.session_state.last_brief = ""
 
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
@@ -68,7 +61,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
             to_add = int(params.get("pack", 1))
             st.session_state.credits += to_add
             st.session_state.processed_sessions.append(params["session_id"])
-            st.toast(f"✅ {to_add} Analyse(n) freigeschaltet!", icon="✨")
+            st.toast(f"✅ {to_add} Analyse(n) freigeschaltet!")
             st.query_params.clear()
     except: pass
 
@@ -77,90 +70,111 @@ with st.sidebar:
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("💳 Guthaben laden")
-    st.caption("Einmalzahlung • Kein Abo")
-    
-    links = [("📄 Einzel-Analyse", LINK_1, "3,99 € | KEIN ABO"),
-             ("🚀 Spar-Paket (3 Scans)", LINK_3, "9,99 € | KEIN ABO"),
-             ("💎 Sorglos-Paket (10 Scans)", LINK_10, "19,99 € | KEIN ABO")]
-             
-    for title, link, sub in links:
-        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><span class="buy-title">{title}</span><span class="buy-subtitle">{sub}</span></a>', unsafe_allow_html=True)
-    
+    packages = [("📄 1 Analyse", st.secrets["STRIPE_LINK_1"], "3,99 € | KEIN ABO"),
+                ("🚀 Spar-Paket (3)", st.secrets["STRIPE_LINK_3"], "9,99 € | KEIN ABO"),
+                ("💎 Sorglos-Paket (10)", st.secrets["STRIPE_LINK_10"], "19,99 € | KEIN ABO")]
+    for title, link, sub in packages:
+        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{title}</b><br><small>{sub}</small></a>', unsafe_allow_html=True)
     if params.get("admin") == "ja": st.session_state.credits = 999
 
 # --- 6. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
-
-upload = st.file_uploader("Behörden-Dokument hier hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+upload = st.file_uploader("Dokument hochladen (PDF oder Bild)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     col_v, col_a = st.columns([1, 1.5])
     with col_v:
-        st.subheader("📸 Vorschau")
         if upload.type == "application/pdf":
             try:
-                images = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
-                st.image(images, use_container_width=True)
-            except: st.info("Vorschau wird generiert...")
+                imgs = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
+                st.image(imgs, use_container_width=True)
+            except: st.info("PDF-Vorschau wird generiert...")
         else:
             st.image(upload, use_container_width=True)
 
     with col_a:
-        st.subheader("🧠 Analyse-Ergebnis")
-        
-        if st.session_state.last_result:
-            st.markdown(st.session_state.last_result)
+        if st.session_state.last_brief:
+            # 1. Fristen-Box in der Übersicht
+            st.subheader("⚠️ Wichtige Fristen")
+            st.markdown(f'<div class="frist-box">{st.session_state.last_fristen}</div>', unsafe_allow_html=True)
+            
+            # 2. Brief in der Übersicht
+            st.subheader("📝 Entwurf Antwortschreiben")
+            st.markdown(st.session_state.last_brief)
             st.divider()
             
             c1, c2 = st.columns(2)
+            
+            # --- PDF DOWNLOAD (Inklusive Fristen & Brief) ---
             with c1:
                 try:
                     pdf = FPDF()
                     pdf.add_page()
+                    # Fristen im PDF fett/hervorgehoben
+                    pdf.set_font("helvetica", style="B", size=14)
+                    pdf.cell(0, 10, txt="WICHTIGE FRISTEN", ln=True)
                     pdf.set_font("helvetica", size=11)
-                    clean_text = st.session_state.last_result.replace("€", "Euro").replace("–", "-").replace("„", '"').replace("“", '"').replace("✅", "OK")
-                    pdf.multi_cell(0, 8, txt=clean_text.encode('latin-1', 'replace').decode('latin-1'))
-                    st.download_button("📩 PDF laden", bytes(pdf.output()), "Antwortschreiben.pdf", "application/pdf")
+                    clean_fristen = st.session_state.last_fristen.replace("€", "Euro").replace("–", "-").replace("✅", "OK")
+                    pdf.multi_cell(0, 8, txt=clean_fristen.encode('latin-1', 'replace').decode('latin-1'))
+                    
+                    pdf.ln(10) # Abstand
+                    
+                    # Brief im PDF
+                    pdf.set_font("helvetica", style="B", size=14)
+                    pdf.cell(0, 10, txt="ANTWORTSCHREIBEN", ln=True)
+                    pdf.set_font("helvetica", size=11)
+                    clean_brief = st.session_state.last_brief.replace("€", "Euro").replace("–", "-")
+                    pdf.multi_cell(0, 8, txt=clean_brief.encode('latin-1', 'replace').decode('latin-1'))
+                    
+                    st.download_button("📩 PDF herunterladen", bytes(pdf.output()), "Amtsschimmel_Antwort.pdf", "application/pdf")
                 except Exception as e: st.error(f"PDF-Fehler: {e}")
             
+            # --- EXCEL DOWNLOAD ---
             with c2:
                 try:
-                    df = pd.DataFrame([{"Analyse": st.session_state.last_result, "Datum": datetime.now().strftime("%d.%m.%Y")}])
-                    excel_buffer = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        df.to_excel(writer, index=False, sheet_name='Ergebnis')
-                        worksheet = writer.sheets['Ergebnis']
-                        # Breite der Spalte A auf 120 setzen
-                        worksheet.column_dimensions['A'].width = 120
-                        # Zeilenumbruch für alle Zellen in Spalte A aktivieren
-                        for row in worksheet.iter_rows(min_row=2, max_col=1):
+                    aktuelles_datum = datetime.now().strftime("%d.%m.%Y")
+                    df = pd.DataFrame([
+                        {"Datum": aktuelles_datum, "Bereich": "FRISTEN", "Inhalt": st.session_state.last_fristen},
+                        {"Datum": aktuelles_datum, "Bereich": "BRIEF", "Inhalt": st.session_state.last_brief}
+                    ])
+                    excel_buf = io.BytesIO()
+                    with pd.ExcelWriter(excel_buf, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False, sheet_name='Analyse')
+                        ws = writer.sheets['Analyse']
+                        ws.column_dimensions['A'].width = 15
+                        ws.column_dimensions['B'].width = 15
+                        ws.column_dimensions['C'].width = 110
+                        for row in ws.iter_rows(min_row=2, max_col=3):
                             for cell in row:
                                 cell.alignment = Alignment(wrap_text=True, vertical='top')
-                    
-                    st.download_button("📊 Excel laden", excel_buffer.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    st.download_button("📊 Excel herunterladen", excel_buf.getvalue(), "Amtsschimmel_Analyse.xlsx")
                 except Exception as e: st.error(f"Excel-Fehler: {e}")
             
             if st.button("🔄 Nächstes Dokument"):
-                st.session_state.last_result = ""
-                st.rerun()
+                st.session_state.last_fristen = ""; st.session_state.last_brief = ""; st.rerun()
 
         elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI arbeitet..."):
+                with st.spinner("Anwalt-KI analysiert Fristen und schreibt Antwort..."):
                     try:
                         extracted = get_text_hybrid(upload)
                         res = client.chat.completions.create(
                             model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": "Du bist Fachanwalt. 1. Fristen fett auflisten. 2. Formelles Antwortschreiben (600+ Wörter) mit fetter Betreffzeile."},
-                                {"role": "user", "content": f"Text: {extracted}"}
-                            ]
+                            messages=[{"role": "system", "content": "Du bist ein Fachanwalt. Trenne deine Antwort STRENG wie folgt:\nFRISTEN: [Hier alle Fristen fett auflisten]\nTRENNER\nBRIEF: [Hier das Antwortschreiben mit Betreffzeile, min. 600 Wörter]"},
+                                      {"role": "user", "content": extracted}]
                         )
-                        st.session_state.last_result = res.choices[0].message.content
+                        raw = res.choices[0].message.content
+                        if "TRENNER" in raw:
+                            parts = raw.split("TRENNER")
+                            st.session_state.last_fristen = parts[0].replace("FRISTEN:", "").strip()
+                            st.session_state.last_brief = parts[1].replace("BRIEF:", "").strip()
+                        else:
+                            st.session_state.last_brief = raw
+                            st.session_state.last_fristen = "Siehe Briefinhalt."
                         st.session_state.credits -= 1
                         st.rerun()
                     except Exception as e: st.error(f"KI-Fehler: {e}")
         else:
-            st.warning("💳 Bitte Guthaben laden (KEIN ABO).")
+            st.warning("💳 Bitte lade dein Guthaben in der Sidebar auf (KEIN ABO).")
 
 st.info("Hinweis: KI-basierte Analyse. Keine Rechtsberatung.")
