@@ -23,12 +23,11 @@ if tesseract_path:
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
-    st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
+    st.error("⚠️ OpenAI API-Key fehlt!")
 
-# HILFSFUNKTION: Emojis entfernen (verhindert Latin-1 Fehler im PDF)
+# HILFSFUNKTION: Emojis entfernen (für PDF-Stabilität)
 def remove_emojis(text):
-    if not text:
-        return ""
+    if not text: return ""
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
 # FUNKTION: PDF ERSTELLEN
@@ -37,7 +36,6 @@ def create_full_pdf(erk, fri, ant, ste, meta):
     pdf.add_page()
     pdf.set_font("Arial", size=10)
     
-    # --- HEADER ---
     logo_path = "icon_final_blau.png"
     header_y = 20
     if os.path.exists(logo_path):
@@ -46,49 +44,35 @@ def create_full_pdf(erk, fri, ant, ste, meta):
             header_y = 35 
         except: pass
 
-    # Zeitstempel
     pdf.set_font("Arial", size=8)
     pdf.set_xy(150, 10)
     zeit = datetime.now().strftime("%d.%m.%Y %H:%M")
     pdf.cell(50, 10, f"Erstellt am: {zeit}", ln=1, align='R')
 
-    # Behörden-Infos
     pdf.set_xy(10, header_y)
     pdf.set_font("Arial", "B", 10)
     pdf.set_text_color(50, 50, 50)
-    behoerde = remove_emojis(meta.get('behoerde', '-'))
-    az = remove_emojis(meta.get('az', '-'))
-    pdf.cell(0, 6, f"Behoerde: {behoerde}", ln=1)
-    pdf.cell(0, 6, f"Referenz/AZ: {az}", ln=1)
+    pdf.cell(0, 6, f"Behoerde: {remove_emojis(meta.get('behoerde', '-'))}", ln=1)
+    pdf.cell(0, 6, f"Referenz/AZ: {remove_emojis(meta.get('az', '-'))}", ln=1)
     
-    # Trennlinie
     pdf.set_draw_color(30, 58, 138)
     pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
     pdf.ln(10)
 
-    # --- TITEL ---
     pdf.set_font("Arial", "B", 16)
     pdf.set_text_color(30, 58, 138)
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=1, align='C')
     pdf.ln(5)
     pdf.set_text_color(0, 0, 0)
 
-    # --- SEKTIONEN ---
-    sections = [
-        ("Zusammenfassung", erk),
-        ("Fristen und Termine", fri),
-        ("Steuer-Informationen", ste),
-        ("Antwort-Vorschlag", ant)
-    ]
-
+    sections = [("Zusammenfassung", erk), ("Fristen", fri), ("Steuer", ste), ("Antwort", ant)]
     for title, content in sections:
         pdf.set_font("Arial", "B", 11)
         pdf.set_fill_color(240, 240, 245)
         pdf.cell(0, 8, title, ln=1, fill=True)
         pdf.set_font("Arial", size=10)
-        clean_content = remove_emojis(content)
         pdf.ln(2)
-        pdf.multi_cell(0, 6, txt=clean_content)
+        pdf.multi_cell(0, 6, txt=remove_emojis(content))
         pdf.ln(6)
 
     return pdf.output(dest='S').encode('latin-1')
@@ -98,36 +82,35 @@ st.title("Amtsschimmel-Killer 📄🚀")
 ist_pro = st.query_params.get("payment") == "success"
 
 with st.sidebar:
+    st.image("icon_final_blau.png", width=100) if os.path.exists("icon_final_blau.png") else None
     st.header("Menü")
     if ist_pro: st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
     st.divider()
-    st.caption("v9.4 - Column Fix & Stability")
+    st.caption("v9.5 - Dashboard-Design Update")
 
 # 5. HAUPT-LOGIK
-upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+upload = st.file_uploader("Behördenbrief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    # FIX: columns benötigt eine Zahl (2)
     col_img, col_ana = st.columns(2)
     
     with col_img:
         st.subheader("📸 Dokument")
         if upload.type == "application/pdf":
-            # Vorschau der ersten Seite
             preview = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
             st.image(preview, use_container_width=True)
         else:
             st.image(upload, use_container_width=True)
 
     with col_ana:
-        st.subheader("🧠 Analyse")
-        if st.button("🚀 Jetzt analysieren", use_container_width=True):
+        st.subheader("🧠 Analyse-Dashboard")
+        if st.button("🚀 Vollanalyse starten", use_container_width=True):
             with st.status("Verarbeite Dokument...", expanded=True) as status:
                 try:
-                    status.write("📑 Text wird extrahiert...")
+                    status.write("📑 Text-Extraktion...")
                     full_text = ""
                     if upload.type == "application/pdf":
                         pages = convert_from_bytes(upload.getvalue(), dpi=150)
@@ -136,41 +119,49 @@ if upload:
                     else:
                         full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
                     
-                    status.write("🤖 KI-Analyse läuft...")
-                    prompt = f"Analysiere diesen Text:\n{full_text}\n\nBEHOERDE: [Name]\nAKTENZEICHEN: [Nummer]\nBETREFF: [Thema]\n\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Daten]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+                    status.write("🤖 KI-Analyse...")
+                    prompt = f"Analysiere:\n{full_text}\n\nBEHOERDE: [Name]\nAKTENZEICHEN: [Nummer]\nBETREFF: [Thema]\n\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Datum/Frist]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                     
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte ohne Emojis."}, 
                                   {"role": "user", "content": prompt}]
                     )
-                    raw = res.choices[0].message.content # Sicherere Extraktion
+                    raw = res.choices[0].message.content
 
                     def ext(s, e, src):
                         m = re.search(rf"{s}(.*?){e}", src, re.DOTALL | re.IGNORECASE)
                         return m.group(1).strip() if m else ""
 
-                    meta = {"behoerde": ext("BEHOERDE:", "\n", raw), "az": ext("AKTENZEICHEN:", "\n", raw)}
-                    erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw)
-                    ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw)
-                    fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw)
-                    ste = ext("STEUER_START", "STEUER_ENDE", raw)
+                    meta = {"behoerde": ext("BEHOERDE:", "\n", raw), "az": ext("AKTENZEICHEN:", "\n", raw), "betreff": ext("BETREFF:", "\n", raw)}
+                    erk, ant, fri, ste = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw), ext("ANTWORT_START", "ANTWORT_ENDE", raw), ext("FRISTEN_START", "FRISTEN_ENDE", raw), ext("STEUER_START", "STEUER_ENDE", raw)
                     
-                    status.update(label="✅ Analyse abgeschlossen!", state="complete", expanded=False)
+                    status.update(label="✅ Fertig!", state="complete", expanded=False)
 
-                    st.info(f"**{meta['behoerde']}** (AZ: {meta['az']})")
-                    with st.expander("📝 Was bedeutet das?", expanded=True): 
-                        st.write(erk if erk else "Keine Zusammenfassung verfügbar.")
+                    # --- DASHBOARD LAYOUT ---
+                    st.header(meta['behoerde'] if meta['behoerde'] else "Behörde erkannt")
+                    
+                    m1, m2 = st.columns(2)
+                    m1.metric("Aktenzeichen", meta['az'][:20] + "..." if len(meta['az']) > 20 else meta['az'])
+                    # Frist-Extraktion für Metric (nur Datum suchen)
+                    frist_clean = re.search(r"(\d{2}\.\d{2}\.\d{4})", fri)
+                    m2.metric("Nächste Frist", frist_clean.group(1) if frist_clean else "Nicht gefunden")
+
+                    st.markdown(f"**Betreff:** {meta['betreff']}")
+                    
+                    with st.container(border=True):
+                        st.subheader("💡 Was ist zu tun?")
+                        st.write(erk)
 
                     if ist_pro:
                         st.divider()
-                        st.warning(f"🗓️ **Fristen:** {fri if fri else 'Keine gefunden'}")
-                        final_a = st.text_area("✍️ Antwort bearbeiten:", value=ant, height=200)
+                        st.subheader("✍️ Briefentwurf")
+                        final_a = st.text_area("Vorschlag (kann editiert werden):", value=ant, height=250)
                         
                         c1, c2 = st.columns(2)
                         with c1:
                             pdf_data = create_full_pdf(erk, fri, final_a, ste, meta)
-                            st.download_button("📥 PDF Analyse", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf", use_container_width=True)
+                            st.download_button("📥 PDF Gutachten", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf", use_container_width=True)
                         with c2:
                             if ste:
                                 buf = io.BytesIO()
@@ -183,6 +174,8 @@ if upload:
                                         ws = wr.sheets['Steuer']
                                         for i, col in enumerate(df.columns):
                                             ws.set_column(i, i, max(df[col].astype(str).str.len().max(), len(col)) + 5)
-                                st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
+                                st.download_button("📊 Steuer-Export (Excel)", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
+                    else:
+                        st.warning("🔒 PRO freischalten für Antwort-Entwurf & Export.")
                 except Exception as e:
                     st.error(f"Fehler: {e}")
