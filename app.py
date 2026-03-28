@@ -124,99 +124,132 @@ with st.sidebar:
     stripe_html = f'''
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <div style="background: #f9fafb; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-                <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:1px solid #d1d5db; padding:8px; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
+                <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:none; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
+                <p style="margin:0; font-size:10px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
             </div>
-            <div style="background: #10b981; padding: 10px; border-radius: 8px;">
+            <div style="background: #10b981; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 <a href="{LINK_3}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button></a>
+                <p style="margin:0; font-size:10px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
+            </div>
+            <div style="background: #1e3a8a; padding: 10px; border-radius: 8px;">
+                <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
+                <p style="margin:0; font-size:10px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
             </div>
         </div>
     '''
+    
     if is_admin:
         with st.expander("🛠️ Admin-Links"): st.markdown(stripe_html, unsafe_allow_html=True)
     elif st.session_state.credits <= 0:
         st.subheader("💳 Guthaben aufladen")
         st.markdown(stripe_html, unsafe_allow_html=True)
 
+    st.divider()
+    if "kosten" not in st.session_state: st.session_state.kosten = 0.0
+    if is_admin:
+        with st.expander("📊 Admin-Statistik"):
+            st.metric("OpenAI API-Kosten", f"${st.session_state.kosten:.4f}")
+
 # --- 5. HAUPT-LOGIK ---
 st.title("Amtsschimmel-Killer 📄🚀")
-upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
-if upload and "last_file" in st.session_state and st.session_state.last_file != upload.name:
-    st.session_state.analyse_ergebnis = None
-if upload: st.session_state.last_file = upload.name
+# Tabs für bessere Übersicht
+tab1, tab2 = st.tabs(["🚀 Analyse-Tool", "📸 Tipps für perfekte Scans"])
 
-if upload:
-    col_img, col_ana = st.columns(2)
-    current_img = None
-    with col_img:
-        st.subheader("📸 Dokument")
-        if upload.type == "application/pdf":
-            try:
-                pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                current_img = pages if isinstance(pages, list) else pages[0]
+with tab1:
+    upload = st.file_uploader("Behörden-Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+
+    if upload and "last_file" in st.session_state and st.session_state.last_file != upload.name:
+        st.session_state.analyse_ergebnis = None
+    if upload: st.session_state.last_file = upload.name
+
+    if upload:
+        col_img, col_ana = st.columns(2)
+        current_img = None
+        with col_img:
+            st.subheader("📸 Vorschau")
+            if upload.type == "application/pdf":
+                try:
+                    pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
+                    current_img = pages if isinstance(pages, list) else pages
+                    st.image(current_img, use_container_width=True)
+                except: st.info("PDF bereit zur Analyse.")
+            else:
+                current_img = Image.open(upload)
                 st.image(current_img, use_container_width=True)
-            except: st.info("PDF bereit.")
-        else:
-            current_img = Image.open(upload)
-            st.image(current_img, use_container_width=True)
 
-    with col_ana:
-        st.subheader("🧠 KI-Analyse")
-        
-        if st.session_state.analyse_ergebnis is None:
-            if st.session_state.credits > 0:
-                if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
-                    with st.status("Verarbeite Dokument...", expanded=True) as status:
-                        txt = pytesseract.image_to_string(current_img, lang='deu')
-                        
-                        prompt = f"""Analysiere dieses Dokument STRENG in diesem Format:
-                        BEHOERDE: [Name/Absender]
-                        AZ: [Aktenzeichen/Referenz]
-                        ZUSAMMENFASSUNG: [Ausführliche Erklärung in mind. 5 Sätzen.]
-                        FRISTEN: [Konkrete Daten und Folgen.]
-                        FORMFEHLER: [Rechtliche Mängel.]
-                        ANTWORTENTWURF: und [Datum] als Platzhalter.]
-                        STEUER: [Infos zu Beträgen]
-                        Text: {txt}"""
-                        
-                        res = client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=[{"role": "system", "content": "Du bist ein erfahrener Jurist für Behördenkorrespondenz."}, {"role": "user", "content": prompt}]
-                        )
-                        
-                        raw = res.choices.message.content
-                        if not is_admin: st.session_state.credits -= 1
-                        
-                        def ext(tag, src):
-                            m = re.search(rf"{tag}:?\s*(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
-                            return clean_text(m.group(1)) if m else "Nicht gefunden"
+        with col_ana:
+            st.subheader("🧠 KI-Ergebnis")
+            
+            if st.session_state.analyse_ergebnis is None:
+                if st.session_state.credits > 0:
+                    if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
+                        with st.status("Analysiere...", expanded=True) as status:
+                            txt = pytesseract.image_to_string(current_img, lang='deu')
+                            
+                            prompt = f"""Analysiere STRENG in diesem Format:
+                            BEHOERDE: [Name/Absender]
+                            AZ: [Aktenzeichen/Referenz]
+                            ZUSAMMENFASSUNG: [Ausführliche Erklärung, mind. 5 Sätze.]
+                            FRISTEN: [Konkrete Daten & Folgen.]
+                            FORMFEHLER: [Mängel suchen.]
+                            ANTWORTENTWURF: [Förmlicher Brief, mind. 300 Wörter. Nutze [Name]/[Datum].]
+                            STEUER: [Infos zu Beträgen]
+                            Text: {txt}"""
+                            
+                            res = client.chat.completions.create(
+                                model="gpt-4o-mini",
+                                messages=[{"role": "system", "content": "Du bist Jurist."}, {"role": "user", "content": prompt}]
+                            )
+                            
+                            raw = res.choices.message.content
+                            if not is_admin: st.session_state.credits -= 1
+                            
+                            def ext(tag, src):
+                                m = re.search(rf"{tag}:?\s*(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
+                                return clean_text(m.group(1)) if m else "Nicht gefunden"
 
-                        st.session_state.analyse_ergebnis = {
-                            "meta": {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)},
-                            "erk": ext("ZUSAMMENFASSUNG", raw),
-                            "fri": ext("FRISTEN", raw),
-                            "fehler": ext("FORMFEHLER", raw),
-                            "ant": ext("ANTWORTENTWURF", raw),
-                            "ste": ext("STEUER", raw)
-                        }
-                        status.update(label="✅ Analyse abgeschlossen!", state="complete")
-                        st.rerun()
-            else: st.error("Bitte Guthaben aufladen.")
+                            st.session_state.analyse_ergebnis = {
+                                "meta": {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)},
+                                "erk": ext("ZUSAMMENFASSUNG", raw),
+                                "fri": ext("FRISTEN", raw),
+                                "fehler": ext("FORMFEHLER", raw),
+                                "ant": ext("ANTWORTENTWURF", raw),
+                                "ste": ext("STEUER", raw)
+                            }
+                            status.update(label="✅ Analyse abgeschlossen!", state="complete")
+                            st.rerun()
+                else: st.error("Bitte lade dein Guthaben in der Sidebar auf.")
 
-        if st.session_state.analyse_ergebnis:
-            res = st.session_state.analyse_ergebnis
-            st.header(res['meta']['behoerde'])
-            with st.expander("💡 Zusammenfassung", expanded=True): st.write(res['erk'])
-            st.warning(f"📅 Fristen: {res['fri']}")
-            
-            final_a = st.text_area("Vorschau Antwortentwurf:", value=res['ant'], height=450)
-            
-            p_data = create_full_pdf(res['erk'], res['fri'], final_a, res['ste'], res['meta'], res['fehler'])
-            e_data = create_excel({"Absender": res['meta']['behoerde'], "Referenz": res['meta']['az'], "Zusammenfassung": res['erk'], "Fristen": res['fri'], "Brief-Entwurf": final_a})
-            
-            c1, c2 = st.columns(2)
-            c1.download_button("📥 PDF laden", data=p_data, file_name=f"Analyse_{res['meta']['behoerde']}.pdf", use_container_width=True)
-            c2.download_button("📊 Excel laden", data=e_data, file_name=f"Daten_{res['meta']['behoerde']}.xlsx", use_container_width=True)
+            if st.session_state.analyse_ergebnis:
+                res = st.session_state.analyse_ergebnis
+                st.header(res['meta']['behoerde'])
+                with st.expander("💡 Was will das Amt?", expanded=True): st.write(res['erk'])
+                st.warning(f"📅 Wichtige Fristen: {res['fri']}")
+                
+                final_a = st.text_area("Vorschau Antwortentwurf (bearbeitbar):", value=res['ant'], height=450)
+                
+                p_data = create_full_pdf(res['erk'], res['fri'], final_a, res['ste'], res['meta'], res['fehler'])
+                e_data = create_excel({"Absender": res['meta']['behoerde'], "Referenz": res['meta']['az'], "Zusammenfassung": res['erk'], "Fristen": res['fri'], "Antwort": final_a})
+                
+                c1, c2 = st.columns(2)
+                c1.download_button("📥 PDF-Gutachten laden", data=p_data, file_name=f"Analyse_{res['meta']['behoerde']}.pdf", use_container_width=True)
+                c2.download_button("📊 Excel-Tabelle laden", data=e_data, file_name=f"Daten_{res['meta']['behoerde']}.xlsx", use_container_width=True)
+
+with tab2:
+    st.header("📸 So gelingt der perfekte Scan")
+    st.write("Um die besten Ergebnisse zu erzielen, beachte bitte diese Tipps beim Fotografieren:")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("✅ Do's")
+        st.write("* **Viel Licht:** Fotografiere bei Tageslicht oder unter einer hellen Lampe.")
+        st.write("* **Flach hinlegen:** Glätte das Papier, um Schatten in Knicken zu vermeiden.")
+        st.write("* **Parallel halten:** Halte das Handy direkt über das Dokument (nicht schräg).")
+    with col2:
+        st.subheader("❌ Don'ts")
+        st.write("* **Verschwommen:** Achte darauf, dass die Kamera fokussiert hat.")
+        st.write("* **Schatten:** Dein Handy sollte keinen Schatten auf den Text werfen.")
+        st.write("* **Hintergrund:** Vermeide unruhige Hintergründe; ein einfarbiger Tisch ist ideal.")
 
 st.divider()
-st.caption("v15.0 - Branded PDF & High-Volume Legal Drafting")
+st.caption("v16.0 - Premium Branding & All-in-One Analysis Suite")
