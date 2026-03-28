@@ -24,7 +24,7 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Absolut sichere Binär-Methode)
+# FUNKTION: PDF ERSTELLEN (Ultra-Stabile Bytes-Methode)
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
@@ -54,16 +54,16 @@ def create_full_pdf(erk, fri, ant, ste):
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
         pdf.set_font("helvetica", size=11)
-        # Säuberung für Standard-Fonts (latin-1 Bereich)
-        clean_text = str(content).encode('latin-1', 'replace').decode('latin-1')
+        
+        # Radikale Säuberung für PDF-Kompatibilität
+        t = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('”', '"').replace('–', '-')
+        clean_text = t.encode('latin-1', 'ignore').decode('latin-1')
+        
         pdf.multi_cell(0, 8, txt=clean_text)
         pdf.ln(5)
     
-    # FIX: PDF in einen Byte-Buffer schreiben
-    pdf_output = pdf.output()
-    if isinstance(pdf_output, str):
-        return pdf_output.encode('latin-1')
-    return pdf_output
+    # DER FIX: Direkt in Byte-Stream schreiben
+    return pdf.output()
 
 # 4. UI
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -83,8 +83,8 @@ if upload:
         full_text = ""
         if upload.type == "application/pdf":
             with st.spinner('📑 Scanne PDF...'):
-                pdf_bytes_input = upload.read()
-                pages = convert_from_bytes(pdf_bytes_input, dpi=200)
+                pdf_bytes_in = upload.read()
+                pages = convert_from_bytes(pdf_bytes_in, dpi=200)
                 for page in pages:
                     full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
         else:
@@ -137,29 +137,28 @@ if upload:
                         st.write("📝 **Antwort-Entwurf**")
                         final_a = st.text_area("Vorschlag bearbeiten:", value=ant, height=300)
                         
-                        # PDF DOWNLOAD - Jetzt stabil
-                        final_pdf_data = create_full_pdf(erk, fri, final_a, ste)
+                        # DOWNLOAD PDF
+                        pdf_data = create_full_pdf(erk, fri, final_a, ste)
                         st.download_button(
                             label="📥 PDF Analyse speichern", 
-                            data=final_pdf_data, 
+                            data=bytes(pdf_data), # Explizit in echte Bytes casten
                             file_name="Analyse.pdf", 
                             mime="application/pdf"
                         )
                         
-                        # EXCEL DOWNLOAD MIT AUTOMATISCHER SPALTENBREITE
+                        # DOWNLOAD EXCEL
                         if df_s is not None:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
                                 df_s.to_excel(writer, index=False, sheet_name='Steuer')
-                                worksheet = writer.sheets['Steuer']
+                                ws = writer.sheets['Steuer']
                                 for i, col in enumerate(df_s.columns):
-                                    column_len = max(df_s[col].astype(str).str.len().max(), len(col)) + 2
-                                    worksheet.set_column(i, i, column_len)
-                            
+                                    width = max(df_s[col].astype(str).str.len().max(), len(col)) + 5
+                                    ws.set_column(i, i, width)
                             st.download_button("📊 Steuer-Excel speichern", data=buf.getvalue(), file_name="Steuer_Check.xlsx")
                 else:
                     st.warning("🔒 PRO-Status erforderlich für Export.")
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("v8.4 - Binary PDF Fix & Auto-Excel Width")
+st.caption("v8.5 - Final PDF Byte-Stream Fix")
