@@ -25,14 +25,12 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Die "Adobe-Sicher"-Variante)
+# FUNKTION: PDF ERSTELLEN (Stabilisierte Version)
 def create_full_pdf(erk, fri, ant, ste):
-    # Wir nutzen hier die klassische FPDF Klasse für maximale Kompatibilität
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=10)
     
-    # Logo-Check: Nur wenn Datei existiert
     logo_path = "icon_final_blau.png"
     if os.path.exists(logo_path):
         try: pdf.image(logo_path, x=10, y=8, w=25)
@@ -59,109 +57,120 @@ def create_full_pdf(erk, fri, ant, ste):
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
         pdf.set_font("Arial", size=11)
-        
-        # Rigorose Säuberung für Adobe Acrobat (nur Latin-1)
-        text_raw = str(content if content else "Nicht verfügbar")
-        text_clean = text_raw.encode('latin-1', 'replace').decode('latin-1')
-        
+        text_clean = str(content if content else "-").encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 7, txt=text_clean)
         pdf.ln(4)
     
-    # WICHTIG: Das 'S' gibt einen String zurück, den wir sauber encodieren
     return pdf.output(dest='S').encode('latin-1')
 
-# 4. UI
+# 4. UI DESIGN & SIDEBAR
 st.title("Amtsschimmel-Killer 📄🚀")
 ist_pro = st.query_params.get("payment") == "success"
 
 with st.sidebar:
-    if ist_pro: st.success("✨ PRO-Modus aktiv")
+    st.header("Einstellungen")
+    if ist_pro: 
+        st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
+    
+    st.divider()
+    st.subheader("Anleitung")
+    st.write("1. Behördenbrief hochladen")
+    st.write("2. 'Analyse starten' klicken")
+    st.write("3. Briefentwurf & Fristen prüfen")
+    st.caption("v9.0 - UX & Visual Update")
 
-# 5. ANALYSE-LOGIK
-upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+# 5. HAUPT-LOGIK
+upload = st.file_uploader("Dokument hochladen (Bild oder PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    try:
-        full_text = ""
+    # Vorbereitung der Ansicht (Zwei Spalten)
+    col_img, col_ana = st.columns([1, 1])
+    
+    with col_img:
+        st.subheader("📸 Dein Dokument")
         if upload.type == "application/pdf":
-            with st.spinner('📑 Scanne PDF...'):
-                pdf_input = upload.read()
-                pages = convert_from_bytes(pdf_input, dpi=150) # DPI reduziert für Speed
-                for page in pages:
-                    full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
+            # Erste Seite des PDFs als Vorschau zeigen
+            pdf_preview_bytes = upload.getvalue()
+            preview_images = convert_from_bytes(pdf_preview_bytes, first_page=1, last_page=1, dpi=100)
+            st.image(preview_images[0], use_container_width=True, caption="Vorschau Seite 1")
         else:
-            full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
+            st.image(upload, use_container_width=True, caption="Hochgeladenes Bild")
 
-        if full_text and st.button("🚀 Vollanalyse starten"):
-            with st.spinner('🧠 KI analysiert Dokument...'):
-                prompt = f"Analysiere diesen Text:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Termine]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
-                
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "system", "content": "Du bist Behörden-Experte."},
-                              {"role": "user", "content": prompt}]
-                )
-                raw_res = response.choices[0].message.content
+    with col_ana:
+        st.subheader("🧠 KI-Analyse")
+        if st.button("🚀 Vollanalyse starten", use_container_width=True):
+            # Fortschritts-Status (Neu!)
+            with st.status("Verarbeite Dokument...", expanded=True) as status:
+                try:
+                    # Schritt 1: OCR
+                    status.write("📑 Extrahiere Text aus Dokument...")
+                    full_text = ""
+                    if upload.type == "application/pdf":
+                        pages = convert_from_bytes(upload.getvalue(), dpi=150)
+                        for page in pages:
+                            full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
+                    else:
+                        full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
+                    
+                    if not full_text.strip():
+                        st.error("Kein Text erkannt. Bitte Bildqualität prüfen!")
+                        st.stop()
 
-                def ext(s, e, src):
-                    pattern = rf"\*?{s}\*?(.*?)\*?{e}\*?"
-                    m = re.search(pattern, src, re.DOTALL | re.IGNORECASE)
-                    return m.group(1).strip() if m else ""
+                    # Schritt 2: KI Analyse
+                    status.write("🤖 KI analysiert Behördendeutsch...")
+                    prompt = f"Analysiere diesen Text:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Termine]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "system", "content": "Du bist Behörden-Experte."},
+                                  {"role": "user", "content": prompt}]
+                    )
+                    raw_res = response.choices[0].message.content
 
-                erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res)
-                ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw_res)
-                fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw_res)
-                ste = ext("STEUER_START", "STEUER_ENDE", raw_res)
+                    def ext(s, e, src):
+                        pattern = rf"\*?{s}\*?(.*?)\*?{e}\*?"
+                        m = re.search(pattern, src, re.DOTALL | re.IGNORECASE)
+                        return m.group(1).strip() if m else ""
 
-                st.subheader("💡 Analyse")
-                st.info(erk if erk else "Keine Analyse möglich.")
+                    erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res)
+                    ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw_res)
+                    fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw_res)
+                    ste = ext("STEUER_START", "STEUER_ENDE", raw_res)
+                    
+                    status.update(label="✅ Analyse abgeschlossen!", state="complete", expanded=False)
 
-                if ist_pro:
-                    st.divider()
-                    df_s = None
-                    if ste:
-                        raw_lines = [l.strip() for l in ste.split("\n") if "|" in l]
-                        rows = [line.split("|") for line in raw_lines]
-                        if rows:
-                            rows = [r + ["-"] * (3 - len(r)) for r in rows]
-                            df_s = pd.DataFrame([r[:3] for r in rows], columns=["Betrag", "Kategorie", "Grund"])
+                    # AUSGABE DER ERGEBNISSE
+                    st.success("Analyse bereit")
+                    with st.expander("📝 Zusammenfassung & Erklärung", expanded=True):
+                        st.write(erk if erk else "Inhalt konnte nicht gedeutet werden.")
 
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.write("🗓️ **Wichtige Fristen**")
-                        st.warning(fri if fri else "Keine Fristen gefunden.")
-                        if df_s is not None:
-                            st.write("💰 **Steuer-Check**")
-                            st.dataframe(df_s, use_container_width=True)
+                    if ist_pro:
+                        st.divider()
+                        st.warning(f"🗓️ **Fristen:** {fri if fri else 'Keine Fristen gefunden.'}")
                         
-                    with c2:
-                        st.write("📝 **Antwort-Entwurf**")
-                        final_a = st.text_area("Vorschlag bearbeiten:", value=ant, height=300)
+                        st.write("📝 **Vorgeschlagene Antwort:**")
+                        final_a = st.text_area("Hier bearbeiten:", value=ant, height=250)
                         
-                        # PDF DOWNLOAD - Die stabilste Methode
-                        pdf_data = create_full_pdf(erk, fri, final_a, ste)
-                        st.download_button(
-                            label="📥 PDF Analyse speichern", 
-                            data=pdf_data, 
-                            file_name="Analyse_Amtsschimmel.pdf", 
-                            mime="application/pdf"
-                        )
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            pdf_data = create_full_pdf(erk, fri, final_a, ste)
+                            st.download_button("📥 PDF Analyse speichern", data=pdf_data, file_name="Amtsschimmel_Killer.pdf", mime="application/pdf", use_container_width=True)
+                        with c2:
+                            if ste:
+                                buf = io.BytesIO()
+                                with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
+                                    # Einfaches DF-Handling für den Export
+                                    raw_lines = [l.strip() for l in ste.split("\n") if "|" in l]
+                                    rows = [line.split("|") for line in raw_lines]
+                                    if rows:
+                                        df_s = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
+                                        df_s.to_excel(wr, index=False, sheet_name='Steuer')
+                                st.download_button("📊 Excel-Export", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
+                    else:
+                        st.info("🔒 Pro-Modus erforderlich für Briefentwurf und Export.")
                         
-                        if df_s is not None:
-                            buf = io.BytesIO()
-                            with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-                                df_s.to_excel(writer, index=False, sheet_name='Steuer')
-                                ws = writer.sheets['Steuer']
-                                for i, col in enumerate(df_s.columns):
-                                    w = max(df_s[col].astype(str).str.len().max(), len(col)) + 5
-                                    ws.set_column(i, i, w)
-                            st.download_button("📊 Steuer-Excel speichern", data=buf.getvalue(), file_name="Steuer.xlsx")
-                else:
-                    st.warning("🔒 PRO-Status erforderlich.")
-    except Exception as e:
-        st.error(f"Fehler: {e}")
-
-st.caption("v8.8 - Ultra-Stable PDF Byte-Stream")
+                except Exception as e:
+                    st.error(f"Fehler während der Verarbeitung: {e}")
