@@ -21,7 +21,6 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }
     .stDownloadButton>button { width: 100%; border-radius: 8px; background-color: #10b981; color: white; }
     .buy-button { text-decoration: none; display: block; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; transition: all 0.2s; color: #1e3a8a !important; text-align: center; }
-    .buy-button:hover { background: #f1f5f9; border-color: #1e3a8a; transform: translateY(-1px); }
     .buy-title { font-weight: bold; font-size: 1.1em; display: block; }
     .buy-subtitle { font-size: 0.85em; color: #64748b; display: block; font-weight: 500; }
     </style>
@@ -43,8 +42,10 @@ if shutil.which("tesseract"):
 # --- HILFSFUNKTIONEN ---
 @st.cache_data
 def get_pdf_preview(file_bytes):
-    images = convert_from_bytes(file_bytes, dpi=72, first_page=1, last_page=1)
-    return images[0] if images else None
+    try:
+        images = convert_from_bytes(file_bytes, dpi=72, first_page=1, last_page=1)
+        return images[0] if images else None
+    except: return None
 
 def get_text_hybrid(uploaded_file):
     text = ""
@@ -66,7 +67,6 @@ if "last_result" not in st.session_state: st.session_state.last_result = ""
 
 params = st.query_params
 current_sid = params.get("session_id")
-
 if current_sid and current_sid not in st.session_state.processed_sessions:
     try:
         session = stripe.checkout.Session.retrieve(current_sid)
@@ -121,33 +121,40 @@ if upload:
             st.divider()
             c1, c2 = st.columns(2)
             with c1:
+                # PDF FIX: Direkte Erzeugung und Speicherung in Buffer
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_font("Helvetica", size=10)
                 txt_safe = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
                 pdf.multi_cell(0, 8, txt=txt_safe)
-                st.download_button("📩 PDF", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf", "application/pdf")
+                # Korrekter Export für Streamlit Download Button
+                pdf_output = pdf.output(dest='S')
+                if isinstance(pdf_output, str): pdf_output = pdf_output.encode('latin-1')
+                st.download_button("📩 PDF laden", pdf_output, "Antwort.pdf", "application/pdf")
             with c2:
-                df = pd.DataFrame([{"Inhalt": st.session_state.last_result}])
+                # EXCEL FIX: Sicherstellen, dass openpyxl genutzt wird
+                df = pd.DataFrame([{"Datum": datetime.now().strftime("%d.%m.%Y"), "Inhalt": st.session_state.last_result}])
                 out = io.BytesIO()
-                with pd.ExcelWriter(out, engine='openpyxl') as w: df.to_excel(w, index=False)
-                st.download_button("📊 Excel", out.getvalue(), "Analyse.xlsx")
+                with pd.ExcelWriter(out, engine='openpyxl') as w: 
+                    df.to_excel(w, index=False)
+                st.download_button("📊 Excel laden", out.getvalue(), "Analyse.xlsx")
+            
             if st.button("🔄 Neue Analyse"):
                 st.session_state.last_result = ""
                 st.rerun()
+                
         elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI verfasst Antwort..."):
+                with st.spinner("KI verfasst Antwort & sucht Fristen..."):
                     try:
                         txt = get_text_hybrid(upload)
                         response = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[
-                                {"role": "system", "content": "Du bist Fachanwalt. Liste Fristen fett auf und schreibe ein langes Antwortschreiben (600+ Wörter)."},
-                                {"role": "user", "content": f"Analysiere: {txt}"}
+                                {"role": "system", "content": "Du bist ein erfahrener Fachanwalt. DEINE AUFGABE: 1. Nenne alle Fristen und Termine ganz am Anfang FETT und DEUTLICH. 2. Schreibe danach ein extrem ausführliches Antwortschreiben (mind. 600 Wörter)."},
+                                {"role": "user", "content": f"Analysiere dieses Dokument und erstelle die Antwort: {txt}"}
                             ]
                         )
-                        # FIX: Zugriff auf das erste Element der Liste
                         st.session_state.last_result = response.choices[0].message.content
                         st.session_state.credits -= 1
                         st.rerun()
