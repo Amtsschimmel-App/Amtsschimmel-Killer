@@ -18,9 +18,10 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: TEXT-REINIGUNG (Löst den 'string argument without an encoding' Fehler)
-def clean_text(text):
-    if not text: return "Nicht verfügbar"
+# FUNKTION: PDF-TEXT REINIGUNG (Löst den Encoding-Fehler endgültig)
+def clean_for_pdf(text):
+    if not text:
+        return "Nicht verfügbar"
     # Bekannte Problemzeichen ersetzen
     repls = {
         '€': 'Euro', '„': '"', '“': '"', '”': '"', '‘': "'", '’': "'",
@@ -29,7 +30,7 @@ def clean_text(text):
     t = str(text)
     for old, new in repls.items():
         t = t.replace(old, new)
-    # Radikaler Schutz: Alles was nicht Latin-1 ist, wird ignoriert
+    # ALLES entfernen, was nicht in Latin-1 passt (Crash-Schutz)
     return t.encode('latin-1', 'ignore').decode('latin-1')
 
 # FUNKTION: PDF ERSTELLEN
@@ -53,12 +54,19 @@ def create_full_pdf(erk, fri, ant, ste):
     pdf.ln(10)
     pdf.set_text_color(0, 0, 0)
     
-    for title, content in [("Zusammenfassung", erk), ("Fristen", fri), ("Steuer-Check", ste), ("Antwort-Entwurf", ant)]:
+    sections = [
+        ("Zusammenfassung", erk),
+        ("Wichtige Fristen", fri),
+        ("Steuerliche Relevanz", ste),
+        ("Antwort-Vorschlag", ant)
+    ]
+    
+    for title, content in sections:
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
         pdf.set_font("helvetica", size=11)
-        # Text waschen
-        pdf.multi_cell(0, 8, txt=clean_text(content))
+        # Hier wird der Text vor dem Schreiben "gewaschen"
+        pdf.multi_cell(0, 8, txt=clean_for_pdf(content))
         pdf.ln(5)
     
     return bytes(pdf.output())
@@ -87,20 +95,22 @@ if upload:
         else:
             full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
 
-        if full_text and st.button("🚀 Analyse starten"):
-            with st.spinner('🧠 KI analysiert...'):
-                prompt = f"Analysiere:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n\nERKLÄRUNG_ENDE\n\nANTWORT_START\n\nANTWORT_ENDE\n\nFRISTEN_START\n\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+        if full_text and st.button("🚀 Vollanalyse starten"):
+            with st.spinner('🧠 KI analysiert Dokument...'):
+                # Verschärfter Prompt für längere Entwürfe
+                prompt = f"Analysiere diesen Text:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Ausführliche Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Ein vollständiger, förmlicher Briefentwurf als Antwort]\nANTWORT_ENDE\n\nFRISTEN_START\n[Alle Termine]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
-                    messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte IMMER exakt in den Tags."},
+                    messages=[{"role": "system", "content": "Du bist ein erfahrener Experte für Behördenkorrespondenz. Schreibe hilfreiche, ausführliche Briefentwürfe."},
                               {"role": "user", "content": prompt}]
                 )
                 raw_res = response.choices[0].message.content
 
-                # Verbesserte Extraktion (ignoriert Groß/Kleinschreibung der Tags)
+                # Robuste Extraktion
                 def ext(s, e, src):
-                    m = re.search(f"{s}(.*?){e}", src, re.DOTALL | re.IGNORECASE)
+                    pattern = f"{s}(.*?){e}"
+                    m = re.search(pattern, src, re.DOTALL | re.IGNORECASE)
                     return m.group(1).strip() if m else ""
 
                 erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw_res)
@@ -108,8 +118,8 @@ if upload:
                 fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw_res)
                 ste = ext("STEUER_START", "STEUER_ENDE", raw_res)
 
-                st.subheader("💡 Ergebnis")
-                st.info(erk if erk else "Dokument analysiert.")
+                st.subheader("💡 Analyse")
+                st.info(erk if erk else "Text erkannt, aber keine Analyse möglich.")
 
                 if ist_pro:
                     st.divider()
@@ -125,28 +135,29 @@ if upload:
                     with c1:
                         st.write("💰 **Steuer-Check**")
                         if df_s is not None: st.dataframe(df_s, use_container_width=True)
-                        else: st.write("Nichts gefunden.")
+                        else: st.write("Keine Beträge erkannt.")
                         
-                        st.write("🗓️ **Fristen**")
-                        st.info(fri if fri else "Keine Fristen erkannt.")
+                        st.write("🗓️ **Wichtige Fristen**")
+                        st.info(fri if fri else "Keine Fristen gefunden.")
 
                     with c2:
-                        st.write("📝 **Export**")
-                        final_a = st.text_area("Entwurf anpassen:", value=ant if ant else "KI hat keinen Entwurf geliefert.", height=200)
+                        st.write("📝 **Antwort-Entwurf**")
+                        # Größeres Textfeld für den nun längeren Entwurf
+                        final_a = st.text_area("Vorschlag bearbeiten:", value=ant, height=350)
                         
                         # PDF DOWNLOAD
-                        pdf_data = create_full_pdf(erk, fri, final_a, ste)
-                        st.download_button("📥 PDF Download", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf")
+                        pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
+                        st.download_button("📥 PDF Analyse speichern", data=pdf_bytes, file_name="Amtsschimmel_Analyse.pdf", mime="application/pdf")
                         
                         # EXCEL DOWNLOAD
                         if df_s is not None:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-                                df_s.to_excel(wr, index=False)
-                            st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx")
+                                df_s.to_excel(wr, index=False, sheet_name='Steuer')
+                            st.download_button("📊 Steuer-Daten (Excel)", data=buf.getvalue(), file_name="Steuer.xlsx")
                 else:
-                    st.warning("🔒 PRO-Status erforderlich.")
+                    st.warning("🔒 PRO-Status erforderlich für Export & Details.")
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("v7.0 - Final Stability Build")
+st.caption("v8.0 - Stable Unicode & AI Prompt Update")
