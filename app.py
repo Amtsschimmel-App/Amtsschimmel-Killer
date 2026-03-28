@@ -13,43 +13,24 @@ import stripe
 from datetime import datetime
 from openpyxl.styles import Alignment
 
-# 1. KONFIGURATION
+# 1. KONFIGURATION (MUSS GANZ OBEN STEHEN)
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# 2. DESIGN (CSS) - UPGRADE FÜR SIDEBAR & BUTTONS
+# 2. DESIGN (CSS) - PREMIUM LOOK & SIDEBAR
 st.markdown("""
     <style>
-    /* Haupt-Buttons */
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; border: none; transition: 0.3s; }
     .stButton>button:hover { background-color: #2563eb; transform: translateY(-2px); }
-    
-    /* Download Buttons */
     .stDownloadButton>button { width: 100%; border-radius: 10px; background-color: #10b981; color: white; font-weight: bold; border: none; }
     
-    /* Premium Stripe-Cards in der Sidebar */
     .buy-button { 
-        text-decoration: none; 
-        display: block; 
-        padding: 15px; 
-        background: #ffffff; 
-        border: 1px solid #e2e8f0; 
-        border-radius: 12px; 
-        margin-bottom: 12px; 
-        color: #1e3a8a !important; 
-        text-align: center; 
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        transition: all 0.2s ease-in-out;
+        text-decoration: none; display: block; padding: 15px; background: #ffffff; border: 1px solid #e2e8f0; 
+        border-radius: 12px; margin-bottom: 12px; color: #1e3a8a !important; text-align: center; 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); transition: all 0.2s;
     }
-    .buy-button:hover { 
-        transform: scale(1.02); 
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        border-color: #1e3a8a;
-    }
+    .buy-button:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #1e3a8a; }
     
-    /* Fristen Box */
     .frist-box { background-color: #fef9c3; border-left: 5px solid #facc15; padding: 15px; border-radius: 5px; color: #854d0e; margin-bottom: 20px; font-weight: bold; font-size: 1.1em; }
-    
-    /* Sidebar Metrik Styling */
     [data-testid="stMetricValue"] { color: #1e3a8a; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
@@ -75,9 +56,9 @@ is_admin = params.get("admin") == ADMIN_PASSWORT
 if is_admin:
     if st.session_state.credits < 100: 
         st.session_state.credits = 999
-        st.toast("🔓 ADMIN-MODUS: Unbegrenzte Scans aktiv!", icon="🛠️")
+        st.toast("🔓 ADMIN-MODUS AKTIV", icon="🛠️")
 
-# STRIPE RÜCKKEHR CHECK
+# STRIPE RÜCKKEHR LOGIK
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
         session = stripe.checkout.Session.retrieve(params["session_id"])
@@ -86,7 +67,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
             st.session_state.credits += pack_size
             st.session_state.processed_sessions.append(params["session_id"])
             st.balloons() 
-            st.success(f"✨ Erfolgreich! {pack_size} Analyse(n) freigeschaltet.")
+            st.success(f"✨ Dankeschön! {pack_size} Analyse(n) freigeschaltet.")
             st.query_params.clear()
     except: pass
 
@@ -108,37 +89,21 @@ def get_text_hybrid(uploaded_file):
 with st.sidebar:
     st.image("https://img.icons8.com", width=80)
     st.title("Dein Konto")
-    st.metric("Verfügbares Guthaben", f"{st.session_state.credits} Scans")
-    
-    if is_admin: 
-        st.info("🔓 Admin-Zugriff aktiv")
-    
+    st.metric("Guthaben", f"{st.session_state.credits} Scans")
+    if is_admin: st.info("🔓 Admin-Zugriff aktiv")
     st.divider()
-    st.subheader("💳 Guthaben aufladen")
-    st.caption("Einmalzahlung • Sofort verfügbar")
-    
+    st.subheader("💳 Guthaben laden")
     packages = [
         ("📄 Basis-Check", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"),
         ("🚀 Spar-Paket", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"),
         ("💎 Profi-Paket", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
     ]
-    
     for title, link, count, price in packages:
-        st.markdown(f'''
-            <a href="{link}" target="_blank" class="buy-button">
-                <div style="font-size: 1.1em; font-weight: bold;">{title}</div>
-                <div style="color: #64748b; font-size: 0.9em;">{count} für {price}</div>
-            </a>
-        ''', unsafe_allow_html=True)
-    
-    st.divider()
-    st.caption("Sichere Zahlung via Stripe")
+        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{title}</b><br><small>{count} | {price}</small></a>', unsafe_allow_html=True)
 
 # --- 6. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
-st.markdown("Verwandle Behördendeutsch in klare Fakten und fertige Antworten.")
-
-upload = st.file_uploader("Dokument hochladen (PDF, JPG, PNG)", type=['png', 'jpg', 'jpeg', 'pdf'])
+upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     col_v, col_a = st.columns([1, 1.5])
@@ -146,10 +111,10 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 imgs = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
-                st.image(imgs, use_container_width=True, caption="Vorschau Seite 1")
+                st.image(imgs, use_container_width=True)
             except: st.info("Vorschau lädt...")
         else:
-            st.image(upload, use_container_width=True, caption="Hochgeladenes Bild")
+            st.image(upload, use_container_width=True)
 
     with col_a:
         if st.session_state.last_brief:
@@ -206,8 +171,9 @@ if upload:
                 with st.spinner("KI analysiert das Dokument..."):
                     text = get_text_hybrid(upload)
                     prompt = f"Analysiere diesen Text einer Behörde: {text}. 1. Liste alle Fristen auf. 2. Schreibe einen höflichen, juristisch präzisen Antwortbrief."
+                    # HIER IST DER FIX: .choices[0] hinzugefügt
                     res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                    antwort = res.choices.message.content
+                    antwort = res.choices[0].message.content
                     
                     if "---" in antwort:
                         parts = antwort.split("---")
@@ -220,4 +186,4 @@ if upload:
                     st.session_state.credits -= 1
                     st.rerun()
         else:
-            st.warning("⚠️ Dein Guthaben ist aufgebraucht. Bitte lade neue Scans über die Pakete in der Sidebar.")
+            st.warning("⚠️ Kein Guthaben mehr. Bitte lade Scans in der Sidebar nach.")
