@@ -58,7 +58,6 @@ class PDF(FPDF):
 def create_full_pdf(erk, fri, ant, ste, meta, fehler):
     pdf = PDF()
     pdf.add_page()
-    
     sections = [
         ("Dokument von", meta.get('behoerde', '-')),
         ("Aktenzeichen / Referenz", meta.get('az', '-')),
@@ -66,7 +65,6 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
         ("Fristen & Termine", fri),
         ("Rechtlicher Antwortentwurf", ant)
     ]
-    
     for title, content in sections:
         pdf.set_font("Arial", "B", 11)
         pdf.set_fill_color(230, 235, 245)
@@ -76,7 +74,6 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
         pdf.ln(2)
         pdf.multi_cell(0, 6, txt=remove_emojis(content))
         pdf.ln(5)
-        
     return pdf.output(dest='S').encode('latin-1')
 
 def create_excel(data_dict):
@@ -124,15 +121,15 @@ with st.sidebar:
     stripe_html = f'''
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <div style="background: #f9fafb; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-                <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:none; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
+                <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:1px solid #d1d5db; padding:8px; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
             </div>
-            <div style="background: #10b981; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="background: #10b981; padding: 10px; border-radius: 8px;">
                 <a href="{LINK_3}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
             </div>
             <div style="background: #1e3a8a; padding: 10px; border-radius: 8px;">
-                <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
+                <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:8px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
             </div>
         </div>
@@ -144,16 +141,8 @@ with st.sidebar:
         st.subheader("💳 Guthaben aufladen")
         st.markdown(stripe_html, unsafe_allow_html=True)
 
-    st.divider()
-    if "kosten" not in st.session_state: st.session_state.kosten = 0.0
-    if is_admin:
-        with st.expander("📊 Admin-Statistik"):
-            st.metric("OpenAI API-Kosten", f"${st.session_state.kosten:.4f}")
-
 # --- 5. HAUPT-LOGIK ---
 st.title("Amtsschimmel-Killer 📄🚀")
-
-# Tabs für bessere Übersicht
 tab1, tab2 = st.tabs(["🚀 Analyse-Tool", "📸 Tipps für perfekte Scans"])
 
 with tab1:
@@ -170,55 +159,62 @@ with tab1:
             st.subheader("📸 Vorschau")
             if upload.type == "application/pdf":
                 try:
-                    pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                    current_img = pages if isinstance(pages, list) else pages
-                    st.image(current_img, use_container_width=True)
-                except: st.info("PDF bereit zur Analyse.")
+                    # PDF in Liste von Bildern umwandeln
+                    pdf_images = convert_from_bytes(upload.getvalue(), dpi=100)
+                    # FIX: Nur das erste Bild der Liste für die Anzeige und Analyse nehmen
+                    current_img = pdf_images[0]
+                    st.image(current_img, use_container_width=True, caption="Erste Seite des PDFs")
+                except Exception as e:
+                    st.error(f"Fehler beim Laden des PDFs: {e}")
             else:
                 current_img = Image.open(upload)
                 st.image(current_img, use_container_width=True)
 
         with col_ana:
             st.subheader("🧠 KI-Ergebnis")
-            
             if st.session_state.analyse_ergebnis is None:
                 if st.session_state.credits > 0:
                     if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
                         with st.status("Analysiere...", expanded=True) as status:
-                            txt = pytesseract.image_to_string(current_img, lang='deu')
-                            
-                            prompt = f"""Analysiere STRENG in diesem Format:
-                            BEHOERDE: [Name/Absender]
-                            AZ: [Aktenzeichen/Referenz]
-                            ZUSAMMENFASSUNG: [Ausführliche Erklärung, mind. 5 Sätze.]
-                            FRISTEN: [Konkrete Daten & Folgen.]
-                            FORMFEHLER: [Mängel suchen.]
-                            ANTWORTENTWURF: [Förmlicher Brief, mind. 300 Wörter. Nutze [Name]/[Datum].]
-                            STEUER: [Infos zu Beträgen]
-                            Text: {txt}"""
-                            
-                            res = client.chat.completions.create(
-                                model="gpt-4o-mini",
-                                messages=[{"role": "system", "content": "Du bist Jurist."}, {"role": "user", "content": prompt}]
-                            )
-                            
-                            raw = res.choices.message.content
-                            if not is_admin: st.session_state.credits -= 1
-                            
-                            def ext(tag, src):
-                                m = re.search(rf"{tag}:?\s*(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
-                                return clean_text(m.group(1)) if m else "Nicht gefunden"
+                            try:
+                                # OCR Prozess
+                                txt = pytesseract.image_to_string(current_img, lang='deu')
+                                
+                                prompt = f"""Analysiere STRENG in diesem Format:
+                                BEHOERDE: [Name/Absender]
+                                AZ: [Aktenzeichen/Referenz]
+                                ZUSAMMENFASSUNG: [Ausführliche Erklärung, mind. 5 Sätzen.]
+                                FRISTEN: [Konkrete Daten & Folgen.]
+                                FORMFEHLER: [Mängel suchen.]
+                                ANTWORTENTWURF: [Förmlicher Brief, mind. 300 Wörter. Nutze [Name]/[Datum].]
+                                STEUER: [Infos zu Beträgen]
+                                Text: {txt}"""
+                                
+                                res = client.chat.completions.create(
+                                    model="gpt-4o-mini",
+                                    messages=[{"role": "system", "content": "Du bist Jurist."}, {"role": "user", "content": prompt}]
+                                )
+                                
+                                raw = res.choices.message.content
+                                if not is_admin: st.session_state.credits -= 1
+                                
+                                def ext(tag, src):
+                                    m = re.search(rf"{tag}:?\s*(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
+                                    return clean_text(m.group(1)) if m else "Nicht gefunden"
 
-                            st.session_state.analyse_ergebnis = {
-                                "meta": {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)},
-                                "erk": ext("ZUSAMMENFASSUNG", raw),
-                                "fri": ext("FRISTEN", raw),
-                                "fehler": ext("FORMFEHLER", raw),
-                                "ant": ext("ANTWORTENTWURF", raw),
-                                "ste": ext("STEUER", raw)
-                            }
-                            status.update(label="✅ Analyse abgeschlossen!", state="complete")
-                            st.rerun()
+                                st.session_state.analyse_ergebnis = {
+                                    "meta": {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)},
+                                    "erk": ext("ZUSAMMENFASSUNG", raw),
+                                    "fri": ext("FRISTEN", raw),
+                                    "fehler": ext("FORMFEHLER", raw),
+                                    "ant": ext("ANTWORTENTWURF", raw),
+                                    "ste": ext("STEUER", raw)
+                                }
+                                status.update(label="✅ Analyse abgeschlossen!", state="complete")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Fehler bei der Analyse: {e}")
+                                status.update(label="Analyse fehlgeschlagen", state="error")
                 else: st.error("Bitte lade dein Guthaben in der Sidebar auf.")
 
             if st.session_state.analyse_ergebnis:
@@ -252,4 +248,4 @@ with tab2:
         st.write("* **Hintergrund:** Vermeide unruhige Hintergründe; ein einfarbiger Tisch ist ideal.")
 
 st.divider()
-st.caption("v16.0 - Premium Branding & All-in-One Analysis Suite")
+st.caption("v16.1 - Fixed PDF OCR Error & Supporting Single Page Analysis")
