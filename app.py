@@ -2,7 +2,7 @@ import streamlit as st
 from openai import OpenAI
 import pytesseract
 from PIL import Image
-from fpdf import FPDF # In requirements.txt muss 'fpdf2' stehen
+from fpdf import FPDF # In requirements.txt muss 'fpdf2' stehen!
 import pdfplumber
 from pdf2image import convert_from_bytes
 import pandas as pd
@@ -20,7 +20,7 @@ st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; }
     .stDownloadButton>button { width: 100%; border-radius: 10px; background-color: #10b981; color: white; font-weight: bold; }
-    .buy-button { text-decoration: none; display: block; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; color: #1e3a8a !important; text-align: center; }
+    .buy-button { text-decoration: none; display: block; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; color: #1e3a8a !important; text-align: center; border: 1px solid #d1d5db; }
     .buy-title { font-weight: bold; font-size: 1.1em; display: block; }
     .buy-subtitle { font-size: 0.85em; color: #64748b; display: block; }
     </style>
@@ -34,7 +34,7 @@ try:
     LINK_3 = st.secrets["STRIPE_LINK_3"]
     LINK_10 = st.secrets["STRIPE_LINK_10"]
 except Exception as e:
-    st.error(f"⚠️ Secrets fehlen: {e}")
+    st.error(f"⚠️ Konfigurationsfehler: {e}")
 
 if shutil.which("tesseract"):
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
@@ -58,7 +58,7 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_result" not in st.session_state: st.session_state.last_result = ""
 
-# Zahlungs-Check
+# Zahlungs-Check über URL-Parameter
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
@@ -76,16 +76,20 @@ with st.sidebar:
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("💳 Guthaben laden")
-    for title, link, sub in [("📄 1 Analyse", LINK_1, "3,99 € | Einmalzahlung | KEIN ABO"), 
-                             ("🚀 Spar-Paket (3)", LINK_3, "9,99 € | Einmalzahlung | KEIN ABO"), 
-                             ("💎 Sorglos (10)", LINK_10, "19,99 € | Einmalzahlung | KEIN ABO")]:
+    
+    links = [("📄 1 Analyse", LINK_1, "3,99 € | Einmalzahlung | KEIN ABO"),
+             ("🚀 Spar-Paket (3)", LINK_3, "9,99 € | Einmalzahlung | KEIN ABO"),
+             ("💎 Sorglos (10)", LINK_10, "19,99 € | Einmalzahlung | KEIN ABO")]
+             
+    for title, link, sub in links:
         st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><span class="buy-title">{title}</span><span class="buy-subtitle">{sub}</span></a>', unsafe_allow_html=True)
+    
     if params.get("admin") == "ja": st.session_state.credits = 999
 
 # --- 6. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
 
-upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+upload = st.file_uploader("Behörden-Dokument hier hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     col_v, col_a = st.columns(2)
@@ -94,7 +98,7 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 images = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
-                st.image(images[0], use_container_width=True)
+                st.image(images, use_container_width=True)
             except: st.error("Vorschau-Fehler")
         else:
             st.image(upload, use_container_width=True)
@@ -102,22 +106,21 @@ if upload:
     with col_a:
         st.subheader("🧠 Analyse-Ergebnis")
         
-        # Falls Ergebnis da: Anzeigen
+        # Zeige Ergebnis an, falls vorhanden
         if st.session_state.last_result:
             st.markdown(st.session_state.last_result)
             st.divider()
             
-            # DOWNLOAD BEREICH (FIXED)
+            # DOWNLOAD BEREICH
             c1, c2 = st.columns(2)
             with c1:
                 try:
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.set_font("helvetica", size=11)
-                    # fpdf2 verkraftet UTF-8 nativ besser
                     pdf.multi_cell(0, 10, txt=st.session_state.last_result)
-                    pdf_bytes = pdf.output() # fpdf2 gibt hier direkt bytes zurück
-                    st.download_button("📩 PDF laden", pdf_bytes, "Amtsschimmel_Antwort.pdf", "application/pdf")
+                    # WICHTIG: fpdf2 gibt hier direkt Bytes zurück
+                    st.download_button("📩 PDF laden", pdf.output(), "Amtsschimmel_Antwort.pdf", "application/pdf")
                 except Exception as e: st.error(f"PDF-Fehler: {e}")
             
             with c2:
@@ -129,24 +132,29 @@ if upload:
                     st.download_button("📊 Excel laden", excel_buffer.getvalue(), "Analyse.xlsx", "application/vnd.ms-excel")
                 except Exception as e: st.error(f"Excel-Fehler: {e}")
             
-            if st.button("🔄 Neues Dokument"):
+            if st.button("🔄 Nächstes Dokument analysieren"):
                 st.session_state.last_result = ""
                 st.rerun()
 
+        # Falls kein Ergebnis: Analyse starten
         elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI sucht Fristen & schreibt Antwort..."):
+                with st.spinner("KI sucht Fristen & schreibt Antwort (ca. 30 Sek)..."):
                     try:
                         extracted = get_text_hybrid(upload)
-                        response = client.chat.completions.create(
+                        # API AUFRUF OHNE SYNTAX FEHLER
+                        res = client.chat.completions.create(
                             model="gpt-4o",
-                            messages=
+                            messages=[
+                                {"role": "system", "content": "Du bist Fachanwalt. WICHTIG: Liste ZUERST alle Fristen fett auf. Erstelle dann ein EXTREM ausführliches Antwortschreiben (mind. 600 Wörter)."},
+                                {"role": "user", "content": f"Analysiere: {extracted}"}
+                            ]
                         )
-                        st.session_state.last_result = response.choices[0].message.content
+                        st.session_state.last_result = res.choices[0].message.content
                         st.session_state.credits -= 1
                         st.rerun()
                     except Exception as e: st.error(f"KI-Fehler: {e}")
         else:
-            st.warning("💳 Bitte lade dein Guthaben auf.")
+            st.warning("💳 Bitte lade dein Guthaben in der Sidebar auf.")
 
-st.info("Tipp: Digitale PDFs liefern die besten Ergebnisse.")
+st.info("Tipp: Digitale PDFs liefern die präzisesten Ergebnisse.")
