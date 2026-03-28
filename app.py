@@ -87,7 +87,7 @@ with st.sidebar:
         st.info("🔓 Basis-Modus")
         # DEIN EINGEBAUTER STRIPE-LINK
         st.markdown(f'''
-            <a href="https://buy.stripe.com" target="_blank">
+            <a href="https://buy.stripe.com/7sYbJ171p4UH4Fq1OU1gs01" target="_blank">
                 <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
                     👉 JETZT PRO FREISCHALTEN
                 </button>
