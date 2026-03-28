@@ -4,3 +4,11 @@ Pillow
 pytesseract
 pandas
 pdf2image
+streamlit
+openai
+pillow
+pytesseract
+fpdf
+pdf2image
+pandas
+xlsxwriter
