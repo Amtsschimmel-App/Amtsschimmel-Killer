@@ -121,15 +121,15 @@ with st.sidebar:
     stripe_html = f'''
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <div style="background: #f9fafb; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-                <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:1px solid #d1d5db; padding:8px; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
+                <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:none; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
             </div>
-            <div style="background: #10b981; padding: 10px; border-radius: 8px;">
+            <div style="background: #10b981; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 <a href="{LINK_3}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
             </div>
             <div style="background: #1e3a8a; padding: 10px; border-radius: 8px;">
-                <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:8px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
+                <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
             </div>
         </div>
@@ -140,6 +140,17 @@ with st.sidebar:
     elif st.session_state.credits <= 0:
         st.subheader("💳 Guthaben aufladen")
         st.markdown(stripe_html, unsafe_allow_html=True)
+
+    st.divider()
+    # NEU: FEEDBACK BEREICH
+    st.subheader("💬 Feedback")
+    st.write("Fragen oder Probleme?")
+    st.markdown('<a href="mailto:deine-mail@://example.com Amtsschimmel-Killer" style="text-decoration:none;"><button style="width:100%; border-radius:5px; padding:10px; background:#f0f2f6; border:1px solid #d1d5db; cursor:pointer;">📧 Support kontaktieren</button></a>', unsafe_allow_html=True)
+
+    if is_admin:
+        with st.expander("📊 Admin-Statistik"):
+            if "kosten" not in st.session_state: st.session_state.kosten = 0.0
+            st.metric("OpenAI API-Kosten", f"${st.session_state.kosten:.4f}")
 
 # --- 5. HAUPT-LOGIK ---
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -159,9 +170,8 @@ with tab1:
             st.subheader("📸 Vorschau")
             if upload.type == "application/pdf":
                 try:
-                    # PDF in Liste von Bildern umwandeln
                     pdf_images = convert_from_bytes(upload.getvalue(), dpi=100)
-                    # FIX: Nur das erste Bild der Liste für die Anzeige und Analyse nehmen
+                    # FIX: Wir nehmen explizit nur das erste Bild (Seite 1)
                     current_img = pdf_images[0]
                     st.image(current_img, use_container_width=True, caption="Erste Seite des PDFs")
                 except Exception as e:
@@ -177,7 +187,6 @@ with tab1:
                     if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
                         with st.status("Analysiere...", expanded=True) as status:
                             try:
-                                # OCR Prozess
                                 txt = pytesseract.image_to_string(current_img, lang='deu')
                                 
                                 prompt = f"""Analysiere STRENG in diesem Format:
@@ -195,9 +204,13 @@ with tab1:
                                     messages=[{"role": "system", "content": "Du bist Jurist."}, {"role": "user", "content": prompt}]
                                 )
                                 
-                                raw = res.choices.message.content
+                                raw = res.choices[0].message.content
                                 if not is_admin: st.session_state.credits -= 1
                                 
+                                # Kosten-Tracking
+                                if "kosten" not in st.session_state: st.session_state.kosten = 0.0
+                                st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
+
                                 def ext(tag, src):
                                     m = re.search(rf"{tag}:?\s*(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
                                     return clean_text(m.group(1)) if m else "Nicht gefunden"
@@ -229,8 +242,8 @@ with tab1:
                 e_data = create_excel({"Absender": res['meta']['behoerde'], "Referenz": res['meta']['az'], "Zusammenfassung": res['erk'], "Fristen": res['fri'], "Antwort": final_a})
                 
                 c1, c2 = st.columns(2)
-                c1.download_button("📥 PDF-Gutachten laden", data=p_data, file_name=f"Analyse_{res['meta']['behoerde']}.pdf", use_container_width=True)
-                c2.download_button("📊 Excel-Tabelle laden", data=e_data, file_name=f"Daten_{res['meta']['behoerde']}.xlsx", use_container_width=True)
+                c1.download_button("📥 PDF-Gutachten laden", data=p_data, file_name=f"Analyse.pdf", use_container_width=True)
+                c2.download_button("📊 Excel-Tabelle laden", data=e_data, file_name="Daten.xlsx", use_container_width=True)
 
 with tab2:
     st.header("📸 So gelingt der perfekte Scan")
@@ -248,4 +261,4 @@ with tab2:
         st.write("* **Hintergrund:** Vermeide unruhige Hintergründe; ein einfarbiger Tisch ist ideal.")
 
 st.divider()
-st.caption("v16.1 - Fixed PDF OCR Error & Supporting Single Page Analysis")
+st.caption("v17.0 - Support Link & Final PDF-Fix")
