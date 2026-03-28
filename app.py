@@ -8,39 +8,37 @@ import pandas as pd
 import io
 import re
 from datetime import datetime
+import shutil
 
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="wide")
 
-# 2. API INITIALISIERUNG
-# Nutzt st.secrets für Streamlit Cloud oder lokale .streamlit/secrets.toml
+# 2. TESSERACT PFAD-FIX (Wichtig für Cloud & Lokal)
+tesseract_path = shutil.which("tesseract")
+if tesseract_path:
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
+
+# 3. API INITIALISIERUNG
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
-    st.error("⚠️ OpenAI API-Key fehlt! Bitte in den Secrets hinterlegen.")
+    st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Optimiert mit fpdf2 für Unicode/Euro)
+# FUNKTION: PDF ERSTELLEN (Fix für Adobe Acrobat)
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
-    
-    # Standard-Schriftarten unterstützen Unicode in fpdf2 meist besser
     pdf.set_font("helvetica", size=9)
     
-    # Logo & Zeitstempel
-    try: 
-        # Falls das Logo lokal nicht existiert, wird dieser Block übersprungen
-        pdf.image("icon_final_blau.png", x=10, y=8, w=25)
-    except: 
-        pass
+    try: pdf.image("icon_final_blau.png", x=10, y=8, w=25)
+    except: pass
     
     zeit = datetime.now().strftime("%d.%m.%Y %H:%M")
     pdf.cell(0, 10, f"Erstellt am: {zeit}", ln=1, align='R')
     pdf.ln(10)
     
-    # Titel
     pdf.set_font("helvetica", "B", 18)
-    pdf.set_text_color(30, 58, 138) # Dunkelblau
+    pdf.set_text_color(30, 58, 138)
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=1, align='C')
     pdf.ln(10)
     pdf.set_text_color(0, 0, 0)
@@ -56,38 +54,33 @@ def create_full_pdf(erk, fri, ant, ste):
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=1)
         pdf.set_font("helvetica", size=11)
-        
-        # Inhalt säubern (Sonderzeichen-Fix für Standard-Fonts)
-        clean_text = content.replace('€', 'Euro').replace('„', '"').replace('“', '"')
+        clean_text = str(content).replace('„', '"').replace('“', '"').replace('€', 'Euro')
         pdf.multi_cell(0, 8, txt=clean_text)
         pdf.ln(5)
     
-    # WICHTIG: .output() gibt bei fpdf2 direkt bytes zurück
+    # Rückgabe als echte Bytes für stabilen Download
     return pdf.output()
 
-# 3. UI DESIGN
+# 4. UI
 st.title("Amtsschimmel-Killer 📄🚀")
 ist_pro = st.query_params.get("payment") == "success"
 
 with st.sidebar:
-    if ist_pro: 
-        st.success("✨ PRO-Modus aktiv")
+    if ist_pro: st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
-    st.divider()
-    st.caption("Version 8.1 - Unicode Stable")
 
-# 4. ANALYSE-LOGIK
-upload = st.file_uploader("Dokument hochladen (PDF oder Bild)", type=['png', 'jpg', 'jpeg', 'pdf'])
+# 5. ANALYSE-LOGIK
+upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     try:
         full_text = ""
         if upload.type == "application/pdf":
             with st.spinner('📑 Scanne PDF...'):
-                # DPI auf 200 für bessere Performance
-                pages = convert_from_bytes(upload.read(), dpi=200)
+                pdf_data = upload.read()
+                pages = convert_from_bytes(pdf_data, dpi=200)
                 for page in pages:
                     full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
         else:
@@ -95,19 +88,15 @@ if upload:
 
         if full_text and st.button("🚀 Vollanalyse starten"):
             with st.spinner('🧠 KI analysiert Dokument...'):
-                # Prompt an GPT-4o-mini (besser & günstiger)
                 prompt = f"Analysiere diesen Text:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Termine]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
                 response = client.chat.completions.create(
-                    model="gpt-4o-mini", # Upgrade von 3.5-turbo
-                    messages=[
-                        {"role": "system", "content": "Du bist Experte für Behörden. Antworte strukturiert."},
-                        {"role": "user", "content": prompt}
-                    ]
+                    model="gpt-4o-mini",
+                    messages=[{"role": "system", "content": "Du bist Behörden-Experte."},
+                              {"role": "user", "content": prompt}]
                 )
                 raw_res = response.choices[0].message.content
 
-                # Extraktion mit flexibler Regex (erkennt auch **STEUER_START**)
                 def ext(s, e, src):
                     pattern = rf"\*?{s}\*?(.*?)\*?{e}\*?"
                     m = re.search(pattern, src, re.DOTALL | re.IGNORECASE)
@@ -119,7 +108,7 @@ if upload:
                 ste = ext("STEUER_START", "STEUER_ENDE", raw_res)
 
                 st.subheader("💡 Analyse")
-                st.info(erk if erk else "Analyse fehlgeschlagen.")
+                st.info(erk if erk else "Keine Analyse möglich.")
 
                 if ist_pro:
                     st.divider()
@@ -133,33 +122,36 @@ if upload:
 
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.write("💰 **Steuer-Check**")
-                        if df_s is not None: st.dataframe(df_s, use_container_width=True)
-                        else: st.write("Keine Beträge erkannt.")
-                        
                         st.write("🗓️ **Wichtige Fristen**")
                         st.warning(fri if fri else "Keine Fristen gefunden.")
-
+                        
+                        if df_s is not None:
+                            st.write("💰 **Steuer-Check**")
+                            st.dataframe(df_s, use_container_width=True)
+                        
                     with col2:
                         st.write("📝 **Antwort-Entwurf**")
-                        final_ant = st.text_area("Vorschlag bearbeiten:", value=ant, height=300)
+                        final_a = st.text_area("Vorschlag bearbeiten:", value=ant, height=300)
                         
-                        # PDF DOWNLOAD (Nutzt die korrigierte Bytes-Ausgabe)
-                        pdf_data = create_full_pdf(erk, fri, final_ant, ste)
-                        st.download_button(
-                            label="📥 PDF Analyse herunterladen",
-                            data=pdf_data,
-                            file_name=f"Analyse_{datetime.now().strftime('%Y%m%d')}.pdf",
-                            mime="application/pdf"
-                        )
+                        # PDF DOWNLOAD FIX
+                        pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
+                        st.download_button("📥 PDF Analyse speichern", data=pdf_bytes, file_name="Analyse.pdf", mime="application/pdf")
                         
+                        # EXCEL DOWNLOAD MIT AUTOMATISCHER SPALTENBREITE
                         if df_s is not None:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
                                 df_s.to_excel(writer, index=False, sheet_name='Steuer')
-                            st.download_button("📊 Excel-Export", data=buf.getvalue(), file_name="Steuerdaten.xlsx")
+                                worksheet = writer.sheets['Steuer']
+                                # Automatische Spaltenbreite berechnen
+                                for i, col in enumerate(df_s.columns):
+                                    column_len = max(df_s[col].astype(str).str.len().max(), len(col)) + 2
+                                    worksheet.set_column(i, i, column_len)
+                            
+                            st.download_button("📊 Steuer-Excel speichern", data=buf.getvalue(), file_name="Steuer_Check.xlsx")
                 else:
-                    st.warning("🔒 Upgrade auf PRO für PDF-Export und Steuer-Details.")
-                    
+                    st.warning("🔒 PRO-Status erforderlich für Export.")
     except Exception as e:
-        st.error(f"Ein Fehler ist aufgetreten: {e}")
+        st.error(f"Fehler: {e}")
+
+st.caption("v8.3 - Fixed PDF Corrupt & Auto-Excel Width")
