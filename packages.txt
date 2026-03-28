@@ -1,3 +1,4 @@
 tesseract-ocr
 tesseract-ocr-deu
 poppler-utils
+libgl1-mesa-glx
