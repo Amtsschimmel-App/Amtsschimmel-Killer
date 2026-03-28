@@ -13,7 +13,6 @@ st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="w
 
 # 2. API INITIALISIERUNG
 try:
-    # Nutzt die Secrets von Streamlit Cloud
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Streamlit Cloud Secrets!")
@@ -22,9 +21,10 @@ except Exception:
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True, align='C')
-    pdf.ln(10)
+    # fpdf2 nutzt kleine Schriftnamen (helvetica statt Helvetica)
+    pdf.set_font("helvetica", "B", 16)
+    pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", align='C')
+    pdf.ln(15)
     
     sections = [
         ("Zusammenfassung", erk),
@@ -34,18 +34,23 @@ def create_full_pdf(erk, fri, ant, ste):
     ]
     
     for title, content in sections:
-        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=True)
-        pdf.set_font("Helvetica", size=11)
-        # Euro-Zeichen und Sonderzeichen fixen für PDF
-        safe_text = str(content).replace('€', 'Euro').encode('latin-1', 'replace').decode('latin-1')
+        pdf.set_font("helvetica", size=11)
+        
+        # Text säubern: fpdf2 kommt mit Standard-Strings klar,
+        # wir ersetzen nur das Euro-Zeichen, da Standard-Fonts das oft nicht können
+        safe_text = str(content).replace('€', 'Euro')
+        
+        # multi_cell braucht in fpdf2 nur den String
         pdf.multi_cell(0, 8, txt=safe_text)
         pdf.ln(5)
-    return bytes(pdf.output())
+    
+    # In fpdf2 gibt output() direkt Bytes zurück, wenn kein Name angegeben wird
+    return pdf.output()
 
 # 3. UI
 st.title("Amtsschimmel-Killer 📄🚀")
-st.write("Behörden-Check & Steuer-Optimierung")
 
 ist_pro = st.query_params.get("payment") == "success"
 
@@ -57,13 +62,14 @@ with st.sidebar:
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
 
 # 4. UPLOAD & ANALYSE
-upload = st.file_uploader("Dokument hochladen (PDF, JPG, PNG)", type=['png', 'jpg', 'jpeg', 'pdf'])
+upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     try:
         full_text = ""
         if upload.type == "application/pdf":
             with st.spinner('📑 Scanne PDF...'):
+                # PDF in Bilder umwandeln für OCR
                 pages = convert_from_bytes(upload.read())
                 for page in pages:
                     full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
@@ -72,14 +78,14 @@ if upload:
 
         if full_text and st.button("🚀 Analyse starten"):
             with st.spinner('🧠 KI analysiert...'):
-                prompt = f"Analysiere diesen Text:\n{full_text}\n\nGib die Antwort STRENG in diesem Format:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+                prompt = f"Analysiere diesen Text:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
-                    messages=[{"role": "system", "content": "Du bist ein Experte für Behördenunterlagen."},
+                    messages=[{"role": "system", "content": "Du bist ein Experte für Behördendeutsch."},
                               {"role": "user", "content": prompt}]
                 )
-                raw = response.choices[0].message.content
+                raw = response.choices.message.content
 
                 def ext(s, e, src):
                     m = re.search(f"{s}(.*?){e}", src, re.DOTALL)
@@ -91,7 +97,7 @@ if upload:
                 ste = ext("STEUER_START", "STEUER_ENDE", raw)
 
                 st.subheader("💡 Ergebnis")
-                st.info(erk if erk else "Dokument analysiert.")
+                st.info(erk if erk else "Dokument erkannt.")
 
                 if ist_pro:
                     st.divider()
@@ -114,8 +120,11 @@ if upload:
                         final_a = st.text_area("Entwurf anpassen:", value=ant, height=150)
                         
                         # PDF DOWNLOAD
-                        pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
-                        st.download_button("📥 PDF Download", data=pdf_bytes, file_name="Analyse.pdf")
+                        try:
+                            pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
+                            st.download_button("📥 PDF Download", data=pdf_bytes, file_name="Analyse.pdf", mime="application/pdf")
+                        except Exception as pdf_err:
+                            st.error(f"PDF-Fehler: {pdf_err}")
                         
                         # EXCEL DOWNLOAD
                         if df_s is not None:
@@ -126,7 +135,7 @@ if upload:
                 else:
                     st.warning("🔒 PRO-Status erforderlich für Details.")
     except Exception as e:
-        st.error(f"Fehler: {e}")
+        st.error(f"Ein Fehler ist aufgetreten: {e}")
 
 st.divider()
-st.caption("Keine Rechts- oder Steuerberatung.")
+st.caption("Keine Rechtsberatung.")
