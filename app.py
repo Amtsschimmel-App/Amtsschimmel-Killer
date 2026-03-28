@@ -24,7 +24,7 @@ try:
 except Exception:
     st.error("⚠️ API-Keys fehlen in den Secrets! Bitte im Streamlit Dashboard eintragen.")
 
-# TESSERACT PFAD-FIX (für Cloud & Lokal)
+# TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -69,13 +69,21 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
         pdf.ln(4)
     return pdf.output(dest='S').encode('latin-1')
 
+def create_excel(data_dict):
+    """Erstellt eine Excel-Datei im Speicher."""
+    df = pd.DataFrame([data_dict])
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Analyse')
+    return output.getvalue()
+
 # --- 3. ZAHLUNGSPRÜFUNG & ADMIN-LOGIK ---
 session_id = st.query_params.get("session_id")
 is_admin = st.query_params.get("admin") == "ja" 
 ist_pro = False
 
 if is_admin:
-    ist_pro = True # Admin hat immer Pro-Rechte
+    ist_pro = True 
 elif session_id:
     try:
         checkout_session = stripe.checkout.Session.retrieve(session_id)
@@ -91,32 +99,19 @@ with st.sidebar:
         st.image(logo_file, width=150)
     
     st.header("Dein Status")
-    
     if is_admin:
         st.success("🛠️ ADMIN-MODUS")
-        st.caption("Kostenloser Vollzugriff aktiv.")
     elif ist_pro: 
         st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
-        st.markdown(f'''
-            <a href="https://buy.stripe.com" target="_blank">
-                <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
-                    👉 JETZT PRO FREISCHALTEN
-                </button>
-            </a>
-        ''', unsafe_allow_html=True)
+        st.markdown(f'''<a href="https://buy.stripe.com" target="_blank"><button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">👉 JETZT PRO FREISCHALTEN</button></a>''', unsafe_allow_html=True)
    
     st.divider()
-    
-    # Kosten-Logik initialisieren
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
-    
-    # API-KOSTEN NUR FÜR ADMINS EINBLENDEN (EXPANDER)
     if is_admin:
         with st.expander("📊 API-Verbrauch (Nur Admin)"):
             st.metric("Gesamtkosten OpenAI", f"${st.session_state.kosten:.4f}")
-            st.caption("Dies zeigt dein verbrauchtes API-Guthaben an.")
 
 # --- 5. HAUPT-LOGIK ---
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -131,7 +126,7 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 pages_prev = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                current_img = pages_prev[0] # Erste Seite
+                current_img = pages_prev[0]
                 st.image(current_img, use_container_width=True)
             except: st.info("PDF zur Analyse bereit.")
         else:
@@ -140,37 +135,27 @@ if upload:
 
     with col_ana:
         st.subheader("🧠 KI-Analyse")
-        
-        # Bildcheck
-        if current_img:
-            is_ok, msg = check_image_quality(current_img)
-            if not is_ok: st.warning(f"⚠️ {msg}")
-
         if st.button("🚀 Analyse starten", use_container_width=True):
             with st.status("Verarbeite...", expanded=True) as status:
-                # 1. OCR PHASE
                 if upload.type == "application/pdf":
                     pages = convert_from_bytes(upload.getvalue(), dpi=150)
                     full_text = "".join([pytesseract.image_to_string(p, lang='deu') for p in pages])
                 else:
                     full_text = pytesseract.image_to_string(current_img, lang='deu')
 
-                # 2. KI PHASE
                 if len(full_text.strip()) < 15:
                     status.update(label="❌ Fehler: Kein Text", state="error")
-                    st.error("Text unleserlich. Bitte schärferes Foto!")
+                    st.error("Text unleserlich.")
                 else:
                     prompt = f"""Analysiere: {full_text}
                     FORMAT: BEHOERDE: [Name] | AZ: [Nummer] | ERKLÄRUNG: [Sinn] | FRISTEN: [Datum] | FORMFEHLER: [Check] | ANTWORT: [Entwurf] | STEUER: [Info]"""
                     
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Experte."}, {"role": "user", "content": prompt}]
+                        messages=[{"role": "system", "content": "Behörden-Experte."}, {"role": "user", "content": prompt}]
                     )
                     
-                    # Interne Kosten tracken
-                    token_cost = (res.usage.total_tokens / 1000) * 0.00015
-                    st.session_state.kosten += token_cost
+                    st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
                     raw = res.choices[0].message.content
 
                     def ext(tag, src):
@@ -185,17 +170,27 @@ if upload:
                     st.header(meta['behoerde'])
                     with st.expander("💡 Analyse", expanded=True):
                         st.write(erk)
-                    
-                    if "Keine" not in fehler and "nicht gefunden" not in fehler.lower():
-                        st.error(f"🚨 FORMFEHLER: {fehler}")
-                    
                     st.warning(f"📅 Fristen: {fri}")
 
                     if ist_pro:
-                        st.subheader("✍️ Pro-Antwortbrief")
+                        st.subheader("📥 Downloads & Pro-Features")
+                        col_pdf, col_xls = st.columns(2)
+                        
+                        # PDF Download
                         final_a = st.text_area("Entwurf anpassen:", value=ant, height=200)
                         pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
-                        st.download_button("📥 PDF laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
+                        col_pdf.download_button("📥 PDF laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
+                        
+                        # Excel Download
+                        excel_data = create_excel({
+                            "Datum": datetime.now().strftime("%d.%m.%Y"),
+                            "Behörde": meta['behoerde'],
+                            "Aktenzeichen": meta['az'],
+                            "Fristen": fri,
+                            "Steuer-Info": ste,
+                            "Zusammenfassung": erk
+                        })
+                        col_xls.download_button("📊 Excel laden", data=excel_data, file_name="Amtsschimmel_Daten.xlsx", use_container_width=True)
 
 st.divider()
-st.caption("v11.0 - Clean Admin Mode")
+st.caption("v11.1 - Excel Export & Admin Mode Fix")
