@@ -72,7 +72,7 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 1.8 - Syntax Fix & PDF Export")
+    st.caption("Version 1.9 - Syntax-Fix & Stable")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bild oder PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
@@ -95,7 +95,7 @@ if upload:
 
         if full_document_text and st.button("Gesamtes Dokument analysieren"):
             with st.spinner('KI analysiert den gesamten Text...'):
-                # REPARIERTER PROMPT
+                # --- REPARIERTER OPENAI AUFRUF ---
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE"}
@@ -105,11 +105,11 @@ if upload:
                 full_res = response['choices'][0]['message']['content']
 
                 # --- EXTRAKTION & ANZEIGE ---
-                erklaerung = ""
+                extraktion_erklaerung = ""
                 if "ERKLÄRUNG_START" in full_res:
-                    erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip()
+                    extraktion_erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip()
                     st.subheader("💡 Analyse-Ergebnis")
-                    st.info(erklaerung)
+                    st.info(extraktion_erklaerung)
 
                 # --- PRO-BEREICH ---
                 if ist_pro:
@@ -136,7 +136,7 @@ if upload:
                             final_antwort = st.text_area("Vervollständige den Entwurf:", value=antwort_raw, height=300)
                             
                             # PDF Download
-                            pdf_bytes = create_pdf_output(erklaerung, final_antwort)
+                            pdf_bytes = create_pdf_output(extraktion_erklaerung, final_antwort)
                             st.download_button(
                                 label="📥 Komplette Analyse als PDF speichern",
                                 data=pdf_bytes,
