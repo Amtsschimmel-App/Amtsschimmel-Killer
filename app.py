@@ -17,7 +17,7 @@ import cv2
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# 2. API INITIALISIERUNG & SECRETS
+# 2. API INITIALISIERUNG
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     stripe.api_key = st.secrets["STRIPE_API_KEY"]
@@ -64,6 +64,7 @@ def create_excel(data_dict):
 # --- 3. CREDITS & MULTI-PAKET LOGIK ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "verified_sessions" not in st.session_state: st.session_state.verified_sessions = []
+if "analyse_ergebnis" not in st.session_state: st.session_state.analyse_ergebnis = None
 
 session_id = st.query_params.get("session_id")
 pack_type = st.query_params.get("pack") 
@@ -85,7 +86,6 @@ if is_admin: st.session_state.credits = 999
 with st.sidebar:
     logo_file = "icon_final_blau.png"
     if os.path.exists(logo_file): st.image(logo_file, width=150)
-    else: st.title("📄 Amtsschimmel-Killer")
     
     st.header("Dein Guthaben")
     st.metric("Verfügbare Analysen", st.session_state.credits)
@@ -123,6 +123,12 @@ with st.sidebar:
 st.title("Amtsschimmel-Killer 📄🚀")
 upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
+# Wenn ein neues File hochgeladen wird, löschen wir das alte Ergebnis aus dem Speicher
+if upload and "last_upload" in st.session_state and st.session_state.last_upload != upload.name:
+    st.session_state.analyse_ergebnis = None
+if upload:
+    st.session_state.last_upload = upload.name
+
 if upload:
     col_img, col_ana = st.columns(2)
     current_img = None
@@ -131,7 +137,7 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                current_img = pages[0] if isinstance(pages, list) else pages
+                current_img = pages if isinstance(pages, list) else pages
                 st.image(current_img, use_container_width=True)
             except: st.info("PDF geladen.")
         else:
@@ -140,63 +146,68 @@ if upload:
 
     with col_ana:
         st.subheader("🧠 KI-Analyse")
-        if st.session_state.credits > 0:
-            if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
-                with st.status("Analysiere...", expanded=True) as status:
-                    # OCR
-                    full_text = pytesseract.image_to_string(current_img, lang='deu') if current_img else ""
-                    
-                    # VERSTÄRKTER PROMPT
-                    prompt = f"""Analysiere das Dokument und antworte STRENG in diesem Format (Tags am Zeilenanfang):
-                    
-                    BEHOERDE: [Name/Absender]
-                    AZ: [Aktenzeichen/Referenz]
-                    ZUSAMMENFASSUNG: [Was ist passiert? Einfach erklären.]
-                    FRISTEN: [Wann muss was getan werden?]
-                    FORMFEHLER: [Was fehlt im Bescheid?]
-                    ANTWORTENTWURF: [Ein kompletter, förmlicher Briefentwurf]
-                    STEUER: [Info zu Beträgen]
+        
+        # Button nur zeigen, wenn noch kein Ergebnis da ist oder Credits vorhanden sind
+        if st.session_state.analyse_ergebnis is None:
+            if st.session_state.credits > 0:
+                if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
+                    with st.status("Analysiere...", expanded=True) as status:
+                        full_text = pytesseract.image_to_string(current_img, lang='deu') if current_img else ""
+                        
+                        prompt = f"""Analysiere das Dokument STRENG in diesem Format:
+                        BEHOERDE: [Name/Absender]
+                        AZ: [Aktenzeichen]
+                        ZUSAMMENFASSUNG: [Einfache Erklärung]
+                        FRISTEN: [Deadlines]
+                        FORMFEHLER: [Was fehlt?]
+                        ANTWORTENTWURF: [Briefentwurf]
+                        STEUER: [Beträge]
+                        Dokument-Inhalt: {full_text}"""
+                        
+                        res = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[{"role": "system", "content": "Verwaltungsrecht-Experte."}, {"role": "user", "content": prompt}]
+                        )
+                        
+                        if not is_admin: st.session_state.credits -= 1
+                        st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
+                        raw = res.choices[0].message.content
 
-                    Hier ist der Text des Dokuments:
-                    {full_text}"""
-                    
-                    res = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Du bist ein präziser Behörden-Experte. Nutze exakt die vorgegebenen Tags!"}, {"role": "user", "content": prompt}]
-                    )
-                    
-                    if not is_admin: st.session_state.credits -= 1
-                    st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
-                    raw = res.choices[0].message.content
+                        def ext(tag, src):
+                            pattern = rf"(?:\*\*|){tag}(?:\*\*|):?\s*(.*?)(?=\n(?:\*\*|)[A-Z]+(?:\*\*|):|$)"
+                            m = re.search(pattern, src, re.DOTALL | re.IGNORECASE)
+                            return m.group(1).strip() if m else "Nicht gefunden"
 
-                    # FLEXIBLE EXTRAKTION (Reagiert auch auf **TAGS:**)
-                    def ext(tag, src):
-                        # Sucht nach TAG oder **TAG** am Zeilenanfang
-                        pattern = rf"(?:\*\*|){tag}(?:\*\*|):?\s*(.*?)(?=\n(?:\*\*|)[A-Z]+(?:\*\*|):|$)"
-                        m = re.search(pattern, src, re.DOTALL | re.IGNORECASE)
-                        return m.group(1).strip() if m else "Information nicht im Text gefunden"
+                        # Speichere alles im Session State
+                        st.session_state.analyse_ergebnis = {
+                            "meta": {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)},
+                            "erk": ext("ZUSAMMENFASSUNG", raw),
+                            "fri": ext("FRISTEN", raw),
+                            "fehler": ext("FORMFEHLER", raw),
+                            "ant": ext("ANTWORTENTWURF", raw),
+                            "ste": ext("STEUER", raw)
+                        }
+                        status.update(label="✅ Fertig!", state="complete")
+            else:
+                st.error("Bitte lade dein Guthaben links auf.")
 
-                    meta = {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)}
-                    erk = ext("ZUSAMMENFASSUNG", raw)
-                    fri = ext("FRISTEN", raw)
-                    fehler = ext("FORMFEHLER", raw)
-                    ant = ext("ANTWORTENTWURF", raw)
-                    ste = ext("STEUER", raw)
-                    
-                    status.update(label="✅ Fertig!", state="complete")
-                    
-                    st.header(meta['behoerde'])
-                    with st.expander("💡 Zusammenfassung", expanded=True): st.write(erk)
-                    st.warning(f"📅 Fristen: {fri}")
-                    
-                    final_a = st.text_area("Vorschau Antwortentwurf:", value=ant, height=300)
-                    pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
-                    excel_data = create_excel({"Absender": meta['behoerde'], "AZ": meta['az'], "Frist": fri, "Antwort": final_a})
-                    
-                    st.download_button("📥 PDF-Analyse laden", data=pdf_data, file_name=f"Analyse.pdf", use_container_width=True)
-                    st.download_button("📊 Excel-Tabelle laden", data=excel_data, file_name="Daten.xlsx", use_container_width=True)
-        else:
-            st.error("Bitte wähle ein Paket links aus, um Guthaben aufzuladen.")
+        # Falls ein Ergebnis im Speicher liegt, zeige es an
+        if st.session_state.analyse_ergebnis:
+            res = st.session_state.analyse_ergebnis
+            st.header(res['meta']['behoerde'])
+            with st.expander("💡 Zusammenfassung", expanded=True): st.write(res['erk'])
+            st.warning(f"📅 Fristen: {res['fri']}")
+            
+            # Text Area zur Bearbeitung
+            final_a = st.text_area("Vorschau Antwortentwurf:", value=res['ant'], height=300)
+            
+            # Downloads generieren
+            pdf_data = create_full_pdf(res['erk'], res['fri'], final_a, res['ste'], res['meta'], res['fehler'])
+            excel_data = create_excel({"Absender": res['meta']['behoerde'], "AZ": res['meta']['az'], "Frist": res['fri'], "Antwort": final_a})
+            
+            col_pdf, col_xls = st.columns(2)
+            col_pdf.download_button("📥 PDF laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
+            col_xls.download_button("📊 Excel laden", data=excel_data, file_name="Daten.xlsx", use_container_width=True)
 
 st.divider()
-st.caption("v14.0 - Improved Prompting & Tag Extraction")
+st.caption("v14.1 - Persistent Analysis Result (Fix for Download Reset)")
