@@ -11,6 +11,8 @@ import os
 from datetime import datetime
 import shutil
 import stripe
+import numpy as np  # NEU für Bildanalyse
+import cv2          # NEU für Bildanalyse
 
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
@@ -20,14 +22,31 @@ try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     stripe.api_key = st.secrets["STRIPE_API_KEY"]
 except Exception:
-    st.error("⚠️ API-Keys fehlen in den Secrets! Bitte unter Settings -> Secrets eintragen.")
+    st.error("⚠️ API-Keys fehlen in den Secrets!")
 
 # TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
-# --- HILFSFUNKTIONEN ---
+# --- NEU: HILFSFUNKTION FÜR BILDQUALITÄT ---
+def check_image_quality(image):
+    """Prüft Helligkeit und Schärfe des Bildes."""
+    img_array = np.array(image.convert('L'))
+    
+    # Helligkeit (0=Schwarz, 255=Weiß)
+    brightness = np.mean(img_array)
+    if brightness < 40:
+        return False, "Bild ist zu dunkel (kaum lesbar)."
+    
+    # Schärfe (Laplace-Varianz)
+    laplacian_var = cv2.Laplacian(img_array, cv2.CV_64F).var()
+    if laplacian_var < 80:
+        return False, "Bild ist zu unscharf (verwackelt)."
+    
+    return True, "OK"
+
+# --- WEITERE HILFSFUNKTIONEN (PDF etc.) ---
 def remove_emojis(text):
     if not text: return ""
     return text.encode('latin-1', 'ignore').decode('latin-1')
@@ -61,7 +80,7 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
         
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. ZAHLUNGSPRÜFUNG (STRIPE SICHERHEIT) ---
+# --- 3. ZAHLUNGSPRÜFUNG ---
 session_id = st.query_params.get("session_id")
 ist_pro = False
 
@@ -85,18 +104,11 @@ with st.sidebar:
         st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
-        # DEIN EINGEBAUTER STRIPE-LINK
-        st.markdown(f'''
-            <a href="https://buy.stripe.com/7sYbJ171p4UH4Fq1OU1gs01" target="_blank">
-                <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
-                    👉 JETZT PRO FREISCHALTEN
-                </button>
-            </a>
-        ''', unsafe_allow_html=True)
+        st.markdown(f'''<a href="https://buy.stripe.com/7sYbJ171p4UH4Fq1OU1gs01" target="_blank"><button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">👉 JETZT PRO FREISCHALTEN</button></a>''', unsafe_allow_html=True)
    
     st.divider()
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
-    st.caption(f"Verbrauch: ${st.session_state.kosten:.4f}")
+    st.metric("API-Kosten (Gesamt)", f"${st.session_state.kosten:.4f}")
 
 # --- 5. HAUPT-LOGIK ---
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -109,68 +121,90 @@ if upload:
         st.subheader("📸 Dokument")
         if upload.type == "application/pdf":
             try:
-                preview = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                st.image(preview, use_container_width=True)
-            except: st.info("Analyse bereit.")
+                pages_prev = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
+                st.image(pages_prev[0], use_container_width=True)
+                current_img = pages_prev[0]
+            except: 
+                st.info("Analyse bereit.")
+                current_img = None
         else:
-            st.image(upload, use_container_width=True)
+            current_img = Image.open(upload)
+            st.image(current_img, use_container_width=True)
 
     with col_ana:
         st.subheader("🧠 KI-Analyse")
+        
+        # --- NEU: VORAB-CHECK BEVOR DER BUTTON GEKLICKT WIRD ---
+        image_valid = True
+        if current_img:
+            is_ok, msg = check_image_quality(current_img)
+            if not is_ok:
+                st.warning(f"⚠️ Hinweis zur Bildqualität: {msg}")
+                image_valid = False # Wir lassen den Button zu, warnen aber.
+
         if st.button("🚀 Analyse starten", use_container_width=True):
             with st.status("Verarbeite...", expanded=True) as status:
-                # OCR
+                
+                # 1. OCR PHASE
                 if upload.type == "application/pdf":
                     pages = convert_from_bytes(upload.getvalue(), dpi=150)
                     full_text = "".join([pytesseract.image_to_string(p, lang='deu') for p in pages])
                 else:
-                    full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
+                    full_text = pytesseract.image_to_string(current_img, lang='deu')
 
-                # KI PROMPT
-                prompt = f"""Analysiere den Text: {full_text}
-                FORMAT:
-                BEHOERDE: [Name]
-                AZ: [Nummer]
-                ERKLÄRUNG: [Zusammenfassung]
-                FRISTEN: [Wichtige Daten]
-                FORMFEHLER: [Prüfe auf fehlende Unterschrift, fehlende Rechtsbehelfsbelehrung oder Fristfehler!]
-                ANTWORT: [Briefentwurf]
-                STEUER: [Betrag | Grund]"""
-                
-                res = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "system", "content": "Du bist Behörden-Experte."}, 
-                              {"role": "user", "content": prompt}]
-                )
-                
-                st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
-                raw = res.choices[0].message.content
-
-                def ext(tag, src):
-                    m = re.search(rf"{tag}:(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
-                    return m.group(1).strip() if m else "Nicht gefunden"
-
-                meta = {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)}
-                erk, fri, fehler, ant, ste = ext("ERKLÄRUNG", raw), ext("FRISTEN", raw), ext("FORMFEHLER", raw), ext("ANTWORT", raw), ext("STEUER", raw)
-                
-                status.update(label="✅ Fertig!", state="complete")
-
-                st.header(meta['behoerde'])
-                with st.expander("💡 Was will die Behörde?", expanded=True):
-                    st.write(erk)
-                
-                if "Keine" not in fehler and "nicht gefunden" not in fehler.lower():
-                    st.error(f"🚨 **FORMFEHLER-WARNUNG:** {fehler}")
-                
-                st.warning(f"📅 **Fristen:** {fri}")
-
-                if ist_pro:
-                    st.subheader("✍️ Pro-Antwortbrief")
-                    final_a = st.text_area("Anpassen:", value=ant, height=200)
-                    pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
-                    st.download_button("📥 PDF-Gutachten laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
+                # --- NEU: LEER-CHECK ---
+                if len(full_text.strip()) < 10:
+                    status.update(label="❌ Fehler: Kein Text erkannt", state="error")
+                    st.error("Ich konnte keinen Text im Dokument finden. Bitte lade ein schärferes Foto hoch.")
                 else:
-                    st.info("🔓 Schalte PRO frei für den Antwortbrief & PDF-Download.")
+                    # 2. KI PHASE
+                    prompt = f"""Analysiere den Text: {full_text}
+                    FORMAT:
+                    BEHOERDE: [Name]
+                    AZ: [Nummer]
+                    ERKLÄRUNG: [Zusammenfassung]
+                    FRISTEN: [Wichtige Daten]
+                    FORMFEHLER: [Prüfe auf fehlende Unterschrift, fehlende Rechtsbehelfsbelehrung oder Fristfehler!]
+                    ANTWORT: [Briefentwurf]
+                    STEUER: [Betrag | Grund]"""
+                    
+                    res = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "system", "content": "Du bist Behörden-Experte."}, 
+                                  {"role": "user", "content": prompt}]
+                    )
+                    
+                    # KOSTEN-UPDATE (Verfeinert)
+                    aktuelle_kosten = (res.usage.total_tokens / 1000) * 0.00015
+                    st.session_state.kosten += aktuelle_kosten
+                    
+                    raw = res.choices[0].message.content
+
+                    def ext(tag, src):
+                        m = re.search(rf"{tag}:(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
+                        return m.group(1).strip() if m else "Nicht gefunden"
+
+                    meta = {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)}
+                    erk, fri, fehler, ant, ste = ext("ERKLÄRUNG", raw), ext("FRISTEN", raw), ext("FORMFEHLER", raw), ext("ANTWORT", raw), ext("STEUER", raw)
+                    
+                    status.update(label=f"✅ Fertig! (Kosten dieser Analyse: ${aktuelle_kosten:.5f})", state="complete")
+
+                    st.header(meta['behoerde'])
+                    with st.expander("💡 Was will die Behörde?", expanded=True):
+                        st.write(erk)
+                    
+                    if "Keine" not in fehler and "nicht gefunden" not in fehler.lower():
+                        st.error(f"🚨 **FORMFEHLER-WARNUNG:** {fehler}")
+                    
+                    st.warning(f"📅 **Fristen:** {fri}")
+
+                    if ist_pro:
+                        st.subheader("✍️ Pro-Antwortbrief")
+                        final_a = st.text_area("Anpassen:", value=ant, height=200)
+                        pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
+                        st.download_button("📥 PDF-Gutachten laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
+                    else:
+                        st.info("🔓 Schalte PRO frei für den Antwortbrief & PDF-Download.")
 
 st.divider()
-st.caption("Keine Rechtsberatung. v10.7 - Fixed Indentation & Link")
+st.caption("Keine Rechtsberatung. v10.8 - Added Image Validation & Token Tracking")
