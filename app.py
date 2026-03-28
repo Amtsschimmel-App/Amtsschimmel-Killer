@@ -8,7 +8,6 @@ import pandas as pd
 import io
 import re
 import os
-from datetime import datetime
 import shutil
 import stripe
 import numpy as np
@@ -24,8 +23,8 @@ try:
     LINK_1 = st.secrets["STRIPE_LINK_1"]
     LINK_3 = st.secrets["STRIPE_LINK_3"]
     LINK_10 = st.secrets["STRIPE_LINK_10"]
-except Exception:
-    st.error("⚠️ Secrets fehlen in der Streamlit Cloud!")
+except Exception as e:
+    st.error(f"⚠️ Konfigurationsfehler: {e}")
 
 # TESSERACT PFAD
 tesseract_path = shutil.which("tesseract")
@@ -61,7 +60,7 @@ def create_excel(data_dict):
             worksheet.set_column(i, i, 50, wrap)
     return output.getvalue()
 
-# --- 3. CREDITS & MULTI-PAKET LOGIK ---
+# --- 3. CREDITS & SESSION STATE ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "verified_sessions" not in st.session_state: st.session_state.verified_sessions = []
 if "analyse_ergebnis" not in st.session_state: st.session_state.analyse_ergebnis = None
@@ -70,6 +69,7 @@ session_id = st.query_params.get("session_id")
 pack_type = st.query_params.get("pack") 
 is_admin = st.query_params.get("admin") == "ja"
 
+# Zahlung verifizieren
 if session_id and session_id not in st.session_state.verified_sessions:
     try:
         checkout_session = stripe.checkout.Session.retrieve(session_id)
@@ -78,7 +78,7 @@ if session_id and session_id not in st.session_state.verified_sessions:
             st.session_state.credits += amount
             st.session_state.verified_sessions.append(session_id)
             st.toast(f"✨ {amount} Analysen freigeschaltet!", icon="✅")
-    except: st.sidebar.error("Zahlung nicht verifiziert.")
+    except Exception: st.sidebar.error("Zahlungsfehler.")
 
 if is_admin: st.session_state.credits = 999
 
@@ -86,7 +86,6 @@ if is_admin: st.session_state.credits = 999
 with st.sidebar:
     logo_file = "icon_final_blau.png"
     if os.path.exists(logo_file): st.image(logo_file, width=150)
-    
     st.header("Dein Guthaben")
     st.metric("Verfügbare Analysen", st.session_state.credits)
     
@@ -100,44 +99,31 @@ with st.sidebar:
                 <a href="{LINK_3}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button></a>
                 <p style="margin:0; font-size:10px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
             </div>
-            <div style="background: #1e3a8a; padding: 10px; border-radius: 8px;">
-                <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:8px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
-                <p style="margin:0; font-size:10px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
-            </div>
         </div>
     '''
-
     if is_admin:
-        with st.expander("🛠️ Stripe-Links testen"): st.markdown(stripe_html, unsafe_allow_html=True)
+        with st.expander("🛠️ Admin-Links"): st.markdown(stripe_html, unsafe_allow_html=True)
     elif st.session_state.credits <= 0:
         st.subheader("💳 Guthaben aufladen")
         st.markdown(stripe_html, unsafe_allow_html=True)
-    
-    st.divider()
-    if "kosten" not in st.session_state: st.session_state.kosten = 0.0
-    if is_admin:
-        with st.expander("📊 Admin-Statistik"):
-            st.metric("OpenAI API-Kosten", f"${st.session_state.kosten:.4f}")
 
 # --- 5. HAUPT-LOGIK ---
 st.title("Amtsschimmel-Killer 📄🚀")
 upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
-# Wenn ein neues File hochgeladen wird, löschen wir das alte Ergebnis aus dem Speicher
-if upload and "last_upload" in st.session_state and st.session_state.last_upload != upload.name:
+# Reset wenn neues Dokument
+if upload and "last_file" in st.session_state and st.session_state.last_file != upload.name:
     st.session_state.analyse_ergebnis = None
-if upload:
-    st.session_state.last_upload = upload.name
+if upload: st.session_state.last_file = upload.name
 
 if upload:
     col_img, col_ana = st.columns(2)
-    current_img = None
     with col_img:
         st.subheader("📸 Dokument")
         if upload.type == "application/pdf":
             try:
                 pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                current_img = pages if isinstance(pages, list) else pages
+                current_img = pages[0] if isinstance(pages, list) else pages
                 st.image(current_img, use_container_width=True)
             except: st.info("PDF geladen.")
         else:
@@ -147,67 +133,65 @@ if upload:
     with col_ana:
         st.subheader("🧠 KI-Analyse")
         
-        # Button nur zeigen, wenn noch kein Ergebnis da ist oder Credits vorhanden sind
+        # Nur analysieren, wenn noch kein Ergebnis vorliegt
         if st.session_state.analyse_ergebnis is None:
             if st.session_state.credits > 0:
                 if st.button("🚀 Analyse jetzt starten (-1 Credit)", use_container_width=True):
-                    with st.status("Analysiere...", expanded=True) as status:
-                        full_text = pytesseract.image_to_string(current_img, lang='deu') if current_img else ""
-                        
-                        prompt = f"""Analysiere das Dokument STRENG in diesem Format:
-                        BEHOERDE: [Name/Absender]
-                        AZ: [Aktenzeichen]
-                        ZUSAMMENFASSUNG: [Einfache Erklärung]
-                        FRISTEN: [Deadlines]
-                        FORMFEHLER: [Was fehlt?]
-                        ANTWORTENTWURF: [Briefentwurf]
-                        STEUER: [Beträge]
-                        Dokument-Inhalt: {full_text}"""
-                        
-                        res = client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=[{"role": "system", "content": "Verwaltungsrecht-Experte."}, {"role": "user", "content": prompt}]
-                        )
-                        
-                        if not is_admin: st.session_state.credits -= 1
-                        st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
-                        raw = res.choices[0].message.content
+                    with st.status("Verarbeite Dokument...", expanded=True) as status:
+                        try:
+                            # 1. Texterkennung
+                            txt = pytesseract.image_to_string(current_img, lang='deu')
+                            if len(txt.strip()) < 10:
+                                st.error("❌ Kein Text erkannt. Bitte schärferes Foto!")
+                                status.update(label="Abgebrochen", state="error")
+                            else:
+                                # 2. KI-Anfrage
+                                prompt = f"Analysiere diesen Text exakt in diesem Format:\nBEHOERDE: [Name]\nAZ: [Aktenzeichen]\nZUSAMMENFASSUNG: [Was ist passiert?]\nFRISTEN: [Wann zu tun?]\nFORMFEHLER: [Was fehlt?]\nANTWORTENTWURF: [Briefentwurf]\nSTEUER: [Infos]\n\nText: {txt}"
+                                
+                                response = client.chat.completions.create(
+                                    model="gpt-4o-mini",
+                                    messages=[{"role": "system", "content": "Verwaltungsrechtler."}, {"role": "user", "content": prompt}],
+                                    timeout=60 # Erhöhtes Timeout gegen Hänger
+                                )
+                                
+                                raw = response.choices[0].message.content
+                                if not is_admin: st.session_state.credits -= 1
+                                
+                                # 3. Parsing (Flexibel)
+                                def ext(tag, src):
+                                    m = re.search(rf"{tag}:?\s*(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
+                                    return m.group(1).strip() if m else "Nicht gefunden"
 
-                        def ext(tag, src):
-                            pattern = rf"(?:\*\*|){tag}(?:\*\*|):?\s*(.*?)(?=\n(?:\*\*|)[A-Z]+(?:\*\*|):|$)"
-                            m = re.search(pattern, src, re.DOTALL | re.IGNORECASE)
-                            return m.group(1).strip() if m else "Nicht gefunden"
+                                st.session_state.analyse_ergebnis = {
+                                    "meta": {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)},
+                                    "erk": ext("ZUSAMMENFASSUNG", raw),
+                                    "fri": ext("FRISTEN", raw),
+                                    "fehler": ext("FORMFEHLER", raw),
+                                    "ant": ext("ANTWORTENTWURF", raw),
+                                    "ste": ext("STEUER", raw)
+                                }
+                                status.update(label="✅ Analyse abgeschlossen!", state="complete")
+                                st.rerun() # Seite neu laden um Ergebnis anzuzeigen
+                        except Exception as e:
+                            st.error(f"⚠️ Fehler: {e}")
+                            status.update(label="Hänger erkannt", state="error")
+            else: st.error("Bitte lade dein Guthaben auf.")
 
-                        # Speichere alles im Session State
-                        st.session_state.analyse_ergebnis = {
-                            "meta": {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)},
-                            "erk": ext("ZUSAMMENFASSUNG", raw),
-                            "fri": ext("FRISTEN", raw),
-                            "fehler": ext("FORMFEHLER", raw),
-                            "ant": ext("ANTWORTENTWURF", raw),
-                            "ste": ext("STEUER", raw)
-                        }
-                        status.update(label="✅ Fertig!", state="complete")
-            else:
-                st.error("Bitte lade dein Guthaben links auf.")
-
-        # Falls ein Ergebnis im Speicher liegt, zeige es an
+        # Ergebnis anzeigen
         if st.session_state.analyse_ergebnis:
             res = st.session_state.analyse_ergebnis
             st.header(res['meta']['behoerde'])
             with st.expander("💡 Zusammenfassung", expanded=True): st.write(res['erk'])
             st.warning(f"📅 Fristen: {res['fri']}")
             
-            # Text Area zur Bearbeitung
             final_a = st.text_area("Vorschau Antwortentwurf:", value=res['ant'], height=300)
             
-            # Downloads generieren
             pdf_data = create_full_pdf(res['erk'], res['fri'], final_a, res['ste'], res['meta'], res['fehler'])
-            excel_data = create_excel({"Absender": res['meta']['behoerde'], "AZ": res['meta']['az'], "Frist": res['fri'], "Antwort": final_a})
+            excel_data = create_excel({"Behörde": res['meta']['behoerde'], "AZ": res['meta']['az'], "Frist": res['fri'], "Antwort": final_a})
             
-            col_pdf, col_xls = st.columns(2)
-            col_pdf.download_button("📥 PDF laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
-            col_xls.download_button("📊 Excel laden", data=excel_data, file_name="Daten.xlsx", use_container_width=True)
+            c1, c2 = st.columns(2)
+            c1.download_button("📥 PDF laden", data=pdf_data, file_name="Analyse.pdf", use_container_width=True)
+            c2.download_button("📊 Excel laden", data=excel_data, file_name="Daten.xlsx", use_container_width=True)
 
 st.divider()
-st.caption("v14.1 - Persistent Analysis Result (Fix for Download Reset)")
+st.caption("v14.2 - High-Stability Analysis (Fix for Hangs & Timeouts)")
