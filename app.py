@@ -3,7 +3,7 @@ import openai
 from PIL import Image
 import pytesseract
 from fpdf import FPDF
-from pdf2image import convert_from_bytes # Neu für PDF-Lesefunktion
+from pdf2image import convert_from_bytes
 import io
 
 # 1. SEITEN-KONFIGURATION
@@ -24,8 +24,9 @@ def create_pdf_output(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
-    clean_text = text.replace('€', 'Euro').replace('„', '"').replace('“', '"')
-    pdf.multi_cell(0, 10, txt=clean_text)
+    # Sonderzeichen-Bereinigung
+    clean_text = text.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+    pdf.multi_cell(0, 10, txt=clean_text.encode('latin-1', 'replace').decode('latin-1'))
     return pdf.output()
 
 # LOGO ANZEIGEN
@@ -52,52 +53,60 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 1.0 - Full PDF Support")
+    st.caption("Version 1.1 - PDF Fix & Logic Update")
 
-# 4. BRIEF-ANALYSE (Jetzt mit PDF-Erlaubnis!)
+# 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bild oder PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     try:
-        all_text = ""
+        # Variable für das zu analysierende Bild vorbereiten
+        analysis_image = None
         
         # LOGIK: Falls es ein PDF ist, wandle die erste Seite in ein Bild um
         if upload.type == "application/pdf":
-            with st.spinner('PDF wird für die Analyse vorbereitet...'):
-                images = convert_from_bytes(upload.read(), first_page=1, last_page=1)
-                analysis_image = images[0]
-                st.info("📄 PDF-Dokument erkannt (Seite 1).")
+            with st.spinner('PDF wird vorbereitet...'):
+                # PDF in Bilder umwandeln
+                pdf_images = convert_from_bytes(upload.read(), first_page=1, last_page=1)
+                if pdf_images:
+                    analysis_image = pdf_images[0]
+                    st.info("📄 PDF erkannt. Analysiere Seite 1...")
         else:
             # Normales Bild laden
             analysis_image = Image.open(upload)
             st.image(analysis_image, caption="Dein Scan", width=300)
 
-        if st.button("Dokument analysieren"):
+        if analysis_image and st.button("Dokument analysieren"):
             with st.spinner('KI liest den Amtsschimmel...'):
-                # Texterkennung (OCR) auf dem (umgewandelten) Bild
+                # Texterkennung (OCR)
                 try:
                     text_raw = pytesseract.image_to_string(analysis_image, lang='deu')
                 except:
                     text_raw = pytesseract.image_to_string(analysis_image, lang='eng')
                 
                 if len(text_raw.strip()) < 10:
-                    st.error("❌ Dokument konnte nicht gelesen werden.")
+                    st.error("❌ Dokument konnte nicht gelesen werden. Ist das Bild scharf?")
                 else:
-                    # OpenAI Aufruf
+                    # OpenAI Aufruf (Fix für den 'list' Fehler)
                     response = openai.ChatCompletion.create(
                         model="gpt-3.5-turbo",
                         messages=[
-                            {"role": "system", "content": "Du bist der Amtsschimmel-Killer."},
-                            {"role": "user", "content": f"Analysiere diesen Text:\n{text_raw}\n\nFormat:\nERKLÄRUNG_START\n[3 Sätze]\nERKLÄRUNG_ENDE\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE"}
+                            {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Antworte immer strukturiert."},
+                            {"role": "user", "content": f"Analysiere diesen Text:\n{text_raw}\n\nFormat:\nERKLÄRUNG_START\n[3 einfache Sätze]\nERKLÄRUNG_ENDE\nANTWORT_START\n[Ein förmlicher Briefentwurf]\nANTWORT_ENDE"}
                         ]
                     )
-                    full_res = response.choices.message.content
+                    
+                    # KORREKTER ZUGRIFF auf die Antwort:
+                    full_res = response['choices'][0]['message']['content']
 
                     # --- TEIL 1: ERKLÄRUNG ---
                     st.subheader("💡 Was bedeutet das?")
                     if "ERKLÄRUNG_START" in full_res:
-                        erklaerung = full_res.split("ERKLÄRUNG_START").split("ERKLÄRUNG_ENDE")
-                        st.info(erklaerung.strip())
+                        try:
+                            erklaerung = full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0]
+                            st.info(erklaerung.strip())
+                        except:
+                            st.write(full_res)
                     else:
                         st.write(full_res)
 
@@ -107,20 +116,23 @@ if upload:
                         st.subheader("🚀 PRO: Dein Aktions-Plan")
                         
                         if "ANTWORT_START" in full_res:
-                            antwort_text = full_res.split("ANTWORT_START").split("ANTWORT_ENDE").strip()
-                            st.markdown("### 📝 Antwort-Entwurf")
-                            final_text = st.text_area("Bearbeite den Entwurf:", value=antwort_text, height=300)
-                            
-                            # PDF Download
-                            pdf_output = create_pdf_output(final_text)
-                            st.download_button(
-                                label="📥 Antwort als PDF speichern",
-                                data=pdf_output,
-                                file_name="Amtsschimmel_Antwort.pdf",
-                                mime="application/pdf"
-                            )
+                            try:
+                                antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
+                                st.markdown("### 📝 Antwort-Entwurf")
+                                final_text = st.text_area("Bearbeite den Entwurf:", value=antwort_text, height=300)
+                                
+                                # PDF Download
+                                pdf_bytes = create_pdf_output(final_text)
+                                st.download_button(
+                                    label="📥 Antwort als PDF speichern",
+                                    data=pdf_bytes,
+                                    file_name="Amtsschimmel_Antwort.pdf",
+                                    mime="application/pdf"
+                                )
+                            except:
+                                st.warning("Fehler beim Extrahieren des Antwort-Entwurfs.")
                         else:
-                            st.warning("Antwort-Entwurf konnte nicht generiert werden.")
+                            st.warning("Kein Antwort-Entwurf im Text gefunden.")
                     else:
                         st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe.")
 
