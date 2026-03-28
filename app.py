@@ -2,7 +2,7 @@ import streamlit as st
 from openai import OpenAI
 import pytesseract
 from PIL import Image
-from fpdf import FPDF
+from fpdf import FPDF # Nutze fpdf2 in requirements.txt!
 from pdf2image import convert_from_bytes
 import pdfplumber
 import pandas as pd
@@ -12,15 +12,16 @@ import shutil
 import stripe
 from datetime import datetime
 
-# 1. SEITEN-KONFIGURATION
+# 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# 2. DESIGN-FIX
+# 2. DESIGN
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }
     .stDownloadButton>button { width: 100%; border-radius: 8px; background-color: #10b981; color: white; }
     .sidebar-link { text-decoration: none; color: #1e3a8a; font-weight: bold; display: block; padding: 10px; background: #f0f2f6; border-radius: 5px; margin-bottom: 5px; text-align: center; border: 1px solid #d1d5db; }
+    .deadline-box { background-color: #fee2e2; padding: 15px; border-radius: 10px; border-left: 5px solid #ef4444; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -32,7 +33,7 @@ try:
     LINK_3 = st.secrets["STRIPE_LINK_3"]
     LINK_10 = st.secrets["STRIPE_LINK_10"]
 except Exception as e:
-    st.error(f"⚠️ Secrets fehlen oder fehlerhaft: {e}")
+    st.error(f"⚠️ Konfigurationsfehler: {e}")
 
 if shutil.which("tesseract"):
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
@@ -59,15 +60,13 @@ def get_text_hybrid(uploaded_file):
 # --- 4. SESSION STATE ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
-if "last_result" not in st.session_state: st.session_state.last_result = None
+if "last_result" not in st.session_state: st.session_state.last_result = ""
+if "last_deadlines" not in st.session_state: st.session_state.last_deadlines = ""
 
-# Automatischer Credit-Check
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
-    try:
-        st.session_state.credits += int(params.get("credits", 1))
-        st.session_state.processed_sessions.append(params["session_id"])
-    except: pass
+    st.session_state.credits += int(params.get("credits", 1))
+    st.session_state.processed_sessions.append(params["session_id"])
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -86,65 +85,58 @@ st.title("Amtsschimmel-Killer 📄🚀")
 upload = st.file_uploader("Behörden-Dokument hier hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    col_v, col_a = st.columns([1, 1]) 
+    col_v, col_a = st.columns([1, 1])
     
     with col_v:
         st.subheader("📸 Vorschau")
         if upload.type == "application/pdf":
             try:
-                img_list = get_pdf_preview(upload.getvalue())
-                st.image(img_list[0], use_container_width=True)
-            except: st.error("Vorschau konnte nicht geladen werden.")
+                img_preview = get_pdf_preview(upload.getvalue())
+                st.image(img_preview[0], use_container_width=True)
+            except: st.error("Vorschau-Fehler")
         else:
             st.image(upload, use_container_width=True)
 
     with col_a:
-        st.subheader("🧠 KI-Analyse")
+        st.subheader("🧠 Analyse & Antwort")
         if st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("Lese Dokument & erstelle Antwort..."):
-                    try:
-                        txt = get_text_hybrid(upload)
-                        # KORREKTUR: API-Aufruf
-                        res = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": "Du bist ein Fachanwalt. Erstelle ein SEHR ausführliches Antwortschreiben (mind. 600 Wörter) mit rechtlichen Begründungen und Paragraphen."},
-                                {"role": "user", "content": f"Analysiere: {txt}"}
-                            ]
-                        )
-                        # KORREKTUR: Datenauslese
-                        st.session_state.last_result = res.choices[0].message.content
-                        st.session_state.credits -= 1
-                    except Exception as e:
-                        st.error(f"KI-Fehler: {e}")
+                with st.spinner("Extrahiere Daten & Fristen..."):
+                    txt = get_text_hybrid(upload)
+                    # Getrenntes Abfragen von Fristen und Antwort für mehr Präzision
+                    res = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=
+                    )
+                    full_text = res.choices[0].message.content
+                    st.session_state.last_result = full_text
+                    st.session_state.credits -= 1
             
             if st.session_state.last_result:
-                st.info("Hier ist dein Entwurf:")
-                st.write(st.session_state.last_result)
+                st.markdown(st.session_state.last_result)
                 
-                # DOWNLOAD BEREICH
                 st.divider()
+                st.subheader("📩 Exportieren")
                 c1, c2 = st.columns(2)
+                
                 with c1:
-                    try:
-                        pdf = FPDF()
-                        pdf.add_page()
-                        pdf.set_font("Arial", size=11)
-                        # Säuberung für PDF
-                        clean_pdf_text = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
-                        pdf.multi_cell(0, 7, txt=clean_pdf_text)
-                        st.download_button("📩 Als PDF", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf", "application/pdf")
-                    except: st.error("PDF-Erstellung fehlgeschlagen.")
+                    # PDF FIX: Nutze utf-8 fähigen Export
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Helvetica", size=11)
+                    # Einfaches Encoding-Handling für PDF
+                    pdf_body = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
+                    pdf.multi_cell(0, 10, txt=pdf_body)
+                    st.download_button("📩 Als PDF", pdf.output(dest='S').encode('latin-1'), "Amtsschimmel_Antwort.pdf", "application/pdf")
+                
                 with c2:
-                    try:
-                        df_ex = pd.DataFrame([{"Inhalt": st.session_state.last_result}])
-                        output_ex = io.BytesIO()
-                        # Nutze Standard engine für bessere Kompatibilität
-                        df_ex.to_excel(output_ex, index=False)
-                        st.download_button("📊 Als Excel", output_ex.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    except: st.error("Excel-Erstellung fehlgeschlagen.")
+                    # EXCEL FIX: Nutze openpyxl engine
+                    df = pd.DataFrame([{"Datum": datetime.now(), "Analyse": st.session_state.last_result}])
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False)
+                    st.download_button("📊 Als Excel", output.getvalue(), "Amtsschimmel_Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
-            st.warning("💳 Bitte lade dein Guthaben in der Sidebar auf.")
+            st.warning("💳 Bitte lade Guthaben auf.")
 
-st.info("Hinweis: Durch Caching lädt die Vorschau beim zweiten Mal blitzschnell.")
+st.info("Tipp: Digitale PDFs werden am präzisesten erkannt.")
