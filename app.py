@@ -76,7 +76,7 @@ with st.sidebar:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 **Pro freischalten (2€)**](https://buy.stripe.com)")
     st.divider()
-    st.caption("v2.5 - Steuer-Modul Beta")
+    st.caption("v2.6 - Excel Export Ready")
 
 # 4. ANALYSE
 upload = st.file_uploader("Dokument oder Steuer-Beleg hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
@@ -120,8 +120,9 @@ if upload:
                 if ist_pro:
                     st.divider()
                     
-                    # STEUER-CHECK (NEU!)
+                    # STEUER-CHECK
                     st.subheader("💰 Steuer-Check (PRO)")
+                    df_steuer = None
                     if ste:
                         lines = [l.split("|") for l in ste.split("\n") if "|" in l]
                         if lines:
@@ -136,18 +137,37 @@ if upload:
                     c1, c2 = st.columns(2)
                     with c1:
                         st.subheader("🗓️ Fristen")
+                        df_fristen = None
                         if fri:
                             f_lines = [l.split("|") for l in fri.split("\n") if "|" in l]
-                            if f_lines: st.table(pd.DataFrame(f_lines, columns=["Aufgabe", "Datum"]))
+                            if f_lines: 
+                                df_fristen = pd.DataFrame(f_lines, columns=["Aufgabe", "Datum"])
+                                st.table(df_fristen)
                             else: st.write(fri)
                         else: st.write("Keine Fristen gefunden.")
                     
                     with c2:
-                        st.subheader("📝 Antwort & Export")
+                        st.subheader("📝 Export & Antwort")
                         final_ant = st.text_area("Entwurf:", value=ant, height=200)
-                        # PDF mit Steuer-Info
+                        
+                        # PDF DOWNLOAD
                         pdf_data = create_full_pdf(erk, fri, final_ant, ste, full_doc_text)
-                        st.download_button(label="📥 Gesamte Analyse (PDF)", data=pdf_data, file_name="Amtsschimmel_Steuer_Analyse.pdf", mime="application/pdf")
+                        st.download_button(label="📥 Analyse als PDF speichern", data=pdf_data, file_name="Amtsschimmel_Analyse.pdf", mime="application/pdf")
+                        
+                        # EXCEL DOWNLOAD
+                        if df_steuer is not None:
+                            excel_buffer = io.BytesIO()
+                            with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                                df_steuer.to_excel(writer, index=False, sheet_name='Steuer_Check')
+                                if df_fristen is not None:
+                                    df_fristen.to_excel(writer, index=False, sheet_name='Fristen')
+                            
+                            st.download_button(
+                                label="📊 Steuer-Export (Excel)",
+                                data=excel_buffer.getvalue(),
+                                file_name="Amtsschimmel_Steuer_Export.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
                 else:
                     st.warning("🔒 PRO-Status erforderlich für Steuer-Check, Fristen & Antwortschreiben.")
     except Exception as e:
