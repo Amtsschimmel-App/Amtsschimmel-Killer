@@ -25,35 +25,41 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Design-Update v9.2)
+# HILFSFUNKTION: Emojis entfernen (verhindert Latin-1 Fehler)
+def remove_emojis(text):
+    if not text:
+        return ""
+    # Entfernt alle Zeichen, die nicht im Latin-1 Bereich liegen (inkl. Emojis)
+    return text.encode('latin-1', 'ignore').decode('latin-1')
+
+# FUNKTION: PDF ERSTELLEN (v9.3 - Emoji-Safe)
 def create_full_pdf(erk, fri, ant, ste, meta):
     pdf = FPDF()
     pdf.add_page()
     
     # --- HEADER ---
     logo_path = "icon_final_blau.png"
+    header_y = 20
     if os.path.exists(logo_path):
         try: 
             pdf.image(logo_path, x=10, y=8, w=20)
-            # Wenn Logo da ist, rücken wir den Text etwas tiefer
             header_y = 35 
-        except: 
-            header_y = 20
-    else:
-        header_y = 20
+        except: pass
 
-    # Zeitstempel oben rechts
+    # Zeitstempel
     pdf.set_font("Arial", size=8)
     pdf.set_xy(150, 10)
     zeit = datetime.now().strftime("%d.%m.%Y %H:%M")
     pdf.cell(50, 10, f"Erstellt am: {zeit}", ln=1, align='R')
 
-    # Behörden-Infos (Unter dem Logo / Mit Abstand)
+    # Behörden-Infos (Gereinigt von Emojis)
     pdf.set_xy(10, header_y)
     pdf.set_font("Arial", "B", 10)
     pdf.set_text_color(50, 50, 50)
-    pdf.cell(0, 6, f"Behörde: {meta.get('behoerde', '-')}", ln=1)
-    pdf.cell(0, 6, f"Referenz/AZ: {meta.get('az', '-')}", ln=1)
+    behoerde = remove_emojis(meta.get('behoerde', '-'))
+    az = remove_emojis(meta.get('az', '-'))
+    pdf.cell(0, 6, f"Behoerde: {behoerde}", ln=1)
+    pdf.cell(0, 6, f"Referenz/AZ: {az}", ln=1)
     
     # Trennlinie
     pdf.set_draw_color(30, 58, 138)
@@ -67,25 +73,24 @@ def create_full_pdf(erk, fri, ant, ste, meta):
     pdf.ln(5)
     pdf.set_text_color(0, 0, 0)
 
-    # --- SEKTIONEN ---
+    # --- SEKTIONEN (Icons nur im Label, nicht im Content) ---
     sections = [
-        ("📋 Zusammenfassung", erk),
-        ("🗓️ Fristen & Termine", fri),
-        ("💰 Steuer-Informationen", ste),
-        ("✍️ Antwort-Entwurf", ant)
+        ("Zusammenfassung", erk),
+        ("Fristen und Termine", fri),
+        ("Steuer-Informationen", ste),
+        ("Antwort-Entwurf", ant)
     ]
 
     for title, content in sections:
-        # Box für Titel
         pdf.set_font("Arial", "B", 11)
         pdf.set_fill_color(240, 240, 245)
         pdf.cell(0, 8, title, ln=1, fill=True)
         
-        # Inhalt
         pdf.set_font("Arial", size=10)
-        text_clean = str(content if content else "-").encode('latin-1', 'replace').decode('latin-1')
+        # Inhalt radikal von Emojis säubern
+        clean_content = remove_emojis(content)
         pdf.ln(2)
-        pdf.multi_cell(0, 6, txt=text_clean)
+        pdf.multi_cell(0, 6, txt=clean_content)
         pdf.ln(6)
 
     return pdf.output(dest='S').encode('latin-1')
@@ -101,13 +106,13 @@ with st.sidebar:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
     st.divider()
-    st.caption("v9.2 - Layout-Fix & Design")
+    st.caption("v9.3 - Emoji-Crash-Fix")
 
 # 5. HAUPT-LOGIK
 upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    col_img, col_ana = st.columns([1, 1])
+    col_img, col_ana = st.columns()
     
     with col_img:
         st.subheader("📸 Dokument")
@@ -131,12 +136,12 @@ if upload:
                     else:
                         full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
                     
-                    status.write("🤖 Suche Fakten...")
-                    prompt = f"Analysiere diesen Text:\n{full_text}\n\nBEHOERDE: [Name]\nAKTENZEICHEN: [Nummer]\nBETREFF: [Thema]\n\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Daten]\nFRISTEN_ENDE\n\nSTEUER_START\n[Daten]\nSTEUER_ENDE"
+                    status.write("🤖 KI-Experte wird befragt...")
+                    prompt = f"Analysiere diesen Text:\n{full_text}\n\nBEHOERDE: [Name]\nAKTENZEICHEN: [Nummer]\nBETREFF: [Thema]\n\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Daten]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                     
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Du bist Behörden-Experte."}, {"role": "user", "content": prompt}]
+                        messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte ohne Emojis."}, {"role": "user", "content": prompt}]
                     )
                     raw = res.choices[0].message.content
 
@@ -145,16 +150,20 @@ if upload:
                         return m.group(1).strip() if m else ""
 
                     meta = {"behoerde": ext("BEHOERDE:", "\n", raw), "az": ext("AKTENZEICHEN:", "\n", raw)}
-                    erk, ant, fri, ste = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw), ext("ANTWORT_START", "ANTWORT_ENDE", raw), ext("FRISTEN_START", "FRISTEN_ENDE", raw), ext("STEUER_START", "STEUER_ENDE", raw)
+                    erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw)
+                    ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw)
+                    fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw)
+                    ste = ext("STEUER_START", "STEUER_ENDE", raw)
                     
                     status.update(label="✅ Fertig!", state="complete", expanded=False)
 
                     st.info(f"**{meta['behoerde']}** (AZ: {meta['az']})")
-                    with st.expander("Erklärung", expanded=True): st.write(erk)
+                    with st.expander("📝 Erklärung", expanded=True): st.write(erk)
 
                     if ist_pro:
                         st.divider()
-                        final_a = st.text_area("Antwort bearbeiten:", value=ant, height=200)
+                        st.warning(f"🗓️ **Fristen:** {fri}")
+                        final_a = st.text_area("✍️ Antwort bearbeiten:", value=ant, height=200)
                         
                         c1, c2 = st.columns(2)
                         with c1:
