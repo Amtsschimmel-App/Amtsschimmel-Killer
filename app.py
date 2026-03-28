@@ -17,12 +17,16 @@ import cv2
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# 2. API INITIALISIERUNG
+# 2. API INITIALISIERUNG & SECRETS LADEN
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     stripe.api_key = st.secrets["STRIPE_API_KEY"]
+    # Links aus Secrets laden
+    LINK_1 = st.secrets["STRIPE_LINK_1"]
+    LINK_3 = st.secrets["STRIPE_LINK_3"]
+    LINK_10 = st.secrets["STRIPE_LINK_10"]
 except Exception:
-    st.error("⚠️ API-Keys fehlen in den Secrets!")
+    st.error("⚠️ Secrets fehlen (API-Keys oder Stripe-Links)!")
 
 # TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
@@ -74,49 +78,38 @@ if session_id and session_id not in st.session_state.verified_sessions:
             st.session_state.credits += amount
             st.session_state.verified_sessions.append(session_id)
             st.toast(f"✨ {amount} Analysen freigeschaltet!", icon="✅")
-    except: st.sidebar.error("Fehler bei der Verifizierung.")
+    except: st.sidebar.error("Zahlungs-Verifizierung fehlgeschlagen.")
 
 if is_admin: st.session_state.credits = 999
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    logo_file = "icon_final_blau.png"
-    if os.path.exists(logo_file): st.image(logo_file, width=150)
-    
+    st.title("📄 Amtsschimmel-Killer")
     st.header("Dein Guthaben")
     st.metric("Verfügbare Analysen", st.session_state.credits)
     
-    # HTML-Code für die Stripe-Buttons
-    stripe_buttons_html = f'''
+    stripe_html = f'''
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <div style="background: #f9fafb; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-                <a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" target="_blank" style="text-decoration:none;">
-                    <button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:none; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button>
-                </a>
-                <p style="margin:0; font-size:11px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
+                <a href="{LINK_1}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#f9fafb; color:black; border:1px solid #d1d5db; padding:8px; cursor:pointer; font-weight:bold;">Analyse (1 Dokument)</button></a>
+                <p style="margin:0; font-size:10px; text-align:center; color:gray;">3,99 € | Einmalzahlung</p>
             </div>
-            <div style="background: #10b981; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" target="_blank" style="text-decoration:none;">
-                    <button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button>
-                </a>
-                <p style="margin:0; font-size:11px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
+            <div style="background: #10b981; padding: 10px; border-radius: 8px;">
+                <a href="{LINK_3}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#10b981; color:white; border:none; padding:10px; cursor:pointer; font-weight:bold;">Spar-Paket (3 Dokumente)</button></a>
+                <p style="margin:0; font-size:10px; text-align:center; color:white;">9,99 € | KEIN ABO</p>
             </div>
-            <div style="background: #303a8a; padding: 10px; border-radius: 8px;">
-                <a href="https://buy.stripe.com/28EcN50D1bj52xi8di1gs04" target="_blank" style="text-decoration:none;">
-                    <button style="width:100%; border-radius:5px; background:#303a8a; color:white; border:none; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button>
-                </a>
-                <p style="margin:0; font-size:11px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
+            <div style="background: #1e3a8a; padding: 10px; border-radius: 8px;">
+                <a href="{LINK_10}" target="_blank" style="text-decoration:none;"><button style="width:100%; border-radius:5px; background:#1e3a8a; color:white; border:none; padding:8px; cursor:pointer; font-weight:bold;">Sorglos-Paket (10 Dokumente)</button></a>
+                <p style="margin:0; font-size:10px; text-align:center; color:white;">19,99 € | KEIN ABO</p>
             </div>
         </div>
     '''
 
-    # Logik: Wer sieht welche Buttons?
     if is_admin:
-        with st.expander("🛠️ Admin: Stripe-Links testen"):
-            st.markdown(stripe_buttons_html, unsafe_allow_html=True)
+        with st.expander("🛠️ Stripe-Links testen"): st.markdown(stripe_html, unsafe_allow_html=True)
     elif st.session_state.credits <= 0:
         st.subheader("💳 Guthaben aufladen")
-        st.markdown(stripe_buttons_html, unsafe_allow_html=True)
+        st.markdown(stripe_html, unsafe_allow_html=True)
     
     st.divider()
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
@@ -136,9 +129,9 @@ if upload:
         if upload.type == "application/pdf":
             try:
                 pages = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-                current_img = pages
+                current_img = pages[0] if isinstance(pages, list) else pages
                 st.image(current_img, use_container_width=True)
-            except: st.info("PDF bereit.")
+            except: st.info("PDF geladen.")
         else:
             current_img = Image.open(upload)
             st.image(current_img, use_container_width=True)
@@ -150,15 +143,13 @@ if upload:
                 with st.status("Dokument wird analysiert...", expanded=True) as status:
                     full_text = pytesseract.image_to_string(current_img, lang='deu') if current_img else ""
                     if len(full_text.strip()) < 15:
-                        status.update(label="❌ Fehler: Kein Text", state="error")
-                        st.error("Text unleserlich. Bitte schärferes Foto hochladen!")
+                        status.update(label="❌ Fehler: Text unleserlich", state="error")
                     else:
-                        prompt = f"Analysiere detailliert: {full_text}. BEHOERDE, AZ, ERKLÄRUNG, FRISTEN, FORMFEHLER, ANTWORT (ausführlicher Brief), STEUER."
+                        prompt = f"Analysiere detailliert: {full_text}. BEHOERDE, AZ, ERKLÄRUNG, FRISTEN, FORMFEHLER, ANTWORT (ausführlich), STEUER."
                         res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": "Verwaltungsrechtler."}, {"role": "user", "content": prompt}])
-                        
                         if not is_admin: st.session_state.credits -= 1
                         st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
-                        raw = res.choices.message.content
+                        raw = res.choices[0].message.content
 
                         def ext(tag, src):
                             m = re.search(rf"{tag}:(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
@@ -167,7 +158,7 @@ if upload:
                         meta = {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)}
                         erk, fri, fehler, ant, ste = ext("ERKLÄRUNG", raw), ext("FRISTEN", raw), ext("FORMFEHLER", raw), ext("ANTWORT", raw), ext("STEUER", raw)
                         
-                        status.update(label="✅ Analyse abgeschlossen!", state="complete")
+                        status.update(label="✅ Analyse fertig!", state="complete")
                         st.header(meta['behoerde'])
                         with st.expander("💡 Zusammenfassung", expanded=True): st.write(erk)
                         st.warning(f"📅 Fristen: {fri}")
@@ -176,10 +167,10 @@ if upload:
                         pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
                         excel_data = create_excel({"Behörde": meta['behoerde'], "AZ": meta['az'], "Frist": fri, "Antwort": final_a})
                         
-                        st.download_button("📥 PDF-Gutachten laden", data=pdf_data, file_name=f"Analyse_{meta['behoerde']}.pdf", use_container_width=True)
-                        st.download_button("📊 Excel-Daten laden", data=excel_data, file_name="Amtsschimmel_Daten.xlsx", use_container_width=True)
+                        st.download_button("📥 PDF-Analyse laden", data=pdf_data, file_name=f"Analyse.pdf", use_container_width=True)
+                        st.download_button("📊 Excel-Tabelle laden", data=excel_data, file_name="Daten.xlsx", use_container_width=True)
         else:
             st.error("Bitte wähle ein Paket links aus, um Guthaben aufzuladen.")
 
 st.divider()
-st.caption("v12.9 - Admin & User Sidebar Fix")
+st.caption("v13.1 - Dynamic Links via Secrets")
