@@ -58,7 +58,7 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_result" not in st.session_state: st.session_state.last_result = ""
 
-# Zahlungs-Check über URL-Parameter
+# Zahlungs-Check
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
@@ -72,14 +72,13 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    if os.path.exists("icon_final_blau.png"): st.image("icon_final_blau.png", width=120)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("💳 Guthaben laden")
     
-    links = [("📄 1 Analyse", LINK_1, "3,99 € | Einmalzahlung | KEIN ABO"),
-             ("🚀 Spar-Paket (3)", LINK_3, "9,99 € | Einmalzahlung | KEIN ABO"),
-             ("💎 Sorglos (10)", LINK_10, "19,99 € | Einmalzahlung | KEIN ABO")]
+    links = [("📄 1 Analyse", LINK_1, "3,99 € | Einmalzahlung"),
+             ("🚀 Spar-Paket (3)", LINK_3, "9,99 € | Einmalzahlung"),
+             ("💎 Sorglos (10)", LINK_10, "19,99 € | Einmalzahlung")]
              
     for title, link, sub in links:
         st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><span class="buy-title">{title}</span><span class="buy-subtitle">{sub}</span></a>', unsafe_allow_html=True)
@@ -99,14 +98,13 @@ if upload:
             try:
                 images = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
                 st.image(images, use_container_width=True)
-            except: st.error("Vorschau-Fehler")
+            except: st.error("Vorschau nicht verfügbar.")
         else:
             st.image(upload, use_container_width=True)
 
     with col_a:
         st.subheader("🧠 Analyse-Ergebnis")
         
-        # Zeige Ergebnis an, falls vorhanden
         if st.session_state.last_result:
             st.markdown(st.session_state.last_result)
             st.divider()
@@ -115,39 +113,40 @@ if upload:
             c1, c2 = st.columns(2)
             with c1:
                 try:
+                    # PDF Erstellung mit Fix für Sonderzeichen
                     pdf = FPDF()
                     pdf.add_page()
-                    pdf.set_font("helvetica", size=11)
-                    pdf.multi_cell(0, 10, txt=st.session_state.last_result)
-                    # WICHTIG: fpdf2 gibt hier direkt Bytes zurück
-                    st.download_button("📩 PDF laden", pdf.output(), "Amtsschimmel_Antwort.pdf", "application/pdf")
+                    pdf.set_font("helvetica", size=12)
+                    # Ersetze € durch Euro und nutze latin-1 Encoding für Kompatibilität
+                    clean_text = st.session_state.last_result.replace("€", "Euro").replace("–", "-")
+                    pdf.multi_cell(0, 10, txt=clean_text.encode('latin-1', 'replace').decode('latin-1'))
+                    pdf_bytes = pdf.output()
+                    st.download_button("📩 PDF laden", pdf_bytes, "Amtsschimmel_Antwort.pdf", "application/pdf")
                 except Exception as e: st.error(f"PDF-Fehler: {e}")
             
             with c2:
                 try:
-                    df = pd.DataFrame([{"Analyse": st.session_state.last_result, "Datum": datetime.now()}])
+                    df = pd.DataFrame([{"Analyse": st.session_state.last_result, "Datum": datetime.now().strftime("%d.%m.%Y %H:%M")}])
                     excel_buffer = io.BytesIO()
                     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                         df.to_excel(writer, index=False)
-                    st.download_button("📊 Excel laden", excel_buffer.getvalue(), "Analyse.xlsx", "application/vnd.ms-excel")
+                    st.download_button("📊 Excel laden", excel_buffer.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 except Exception as e: st.error(f"Excel-Fehler: {e}")
             
-            if st.button("🔄 Nächstes Dokument analysieren"):
+            if st.button("🔄 Nächstes Dokument"):
                 st.session_state.last_result = ""
                 st.rerun()
 
-        # Falls kein Ergebnis: Analyse starten
         elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI sucht Fristen & schreibt Antwort (ca. 30 Sek)..."):
+                with st.spinner("KI analysiert das Dokument..."):
                     try:
                         extracted = get_text_hybrid(upload)
-                        # API AUFRUF OHNE SYNTAX FEHLER
                         res = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[
-                                {"role": "system", "content": "Du bist Fachanwalt. WICHTIG: Liste ZUERST alle Fristen fett auf. Erstelle dann ein EXTREM ausführliches Antwortschreiben (mind. 600 Wörter)."},
-                                {"role": "user", "content": f"Analysiere: {extracted}"}
+                                {"role": "system", "content": "Du bist ein erfahrener Fachanwalt. Dein Ziel ist es, dem Nutzer zu helfen, Behördenschreiben abzuwehren oder korrekt zu beantworten. \n1. Liste zuerst alle Fristen fett auf. \n2. Erstelle dann ein formelles Antwortschreiben. \nWICHTIG: Das Antwortschreiben MUSS mit einer fetten Überschrift beginnen (z.B. **BETREFF: Antwortschreiben zu [Aktenzeichen]**). Schreib mindestens 600 Wörter."},
+                                {"role": "user", "content": f"Analysiere dieses Dokument und verfasse das Antwortschreiben: {extracted}"}
                             ]
                         )
                         st.session_state.last_result = res.choices[0].message.content
@@ -157,4 +156,4 @@ if upload:
         else:
             st.warning("💳 Bitte lade dein Guthaben in der Sidebar auf.")
 
-st.info("Tipp: Digitale PDFs liefern die präzisesten Ergebnisse.")
+st.info("Hinweis: Diese Analyse ersetzt keine Rechtsberatung.")
