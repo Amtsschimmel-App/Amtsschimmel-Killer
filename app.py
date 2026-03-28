@@ -25,17 +25,17 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# HILFSFUNKTION: Emojis entfernen (verhindert Latin-1 Fehler)
+# HILFSFUNKTION: Emojis entfernen (verhindert Latin-1 Fehler im PDF)
 def remove_emojis(text):
     if not text:
         return ""
-    # Entfernt alle Zeichen, die nicht im Latin-1 Bereich liegen (inkl. Emojis)
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
-# FUNKTION: PDF ERSTELLEN (v9.3 - Emoji-Safe)
+# FUNKTION: PDF ERSTELLEN
 def create_full_pdf(erk, fri, ant, ste, meta):
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_font("Arial", size=10)
     
     # --- HEADER ---
     logo_path = "icon_final_blau.png"
@@ -52,7 +52,7 @@ def create_full_pdf(erk, fri, ant, ste, meta):
     zeit = datetime.now().strftime("%d.%m.%Y %H:%M")
     pdf.cell(50, 10, f"Erstellt am: {zeit}", ln=1, align='R')
 
-    # Behörden-Infos (Gereinigt von Emojis)
+    # Behörden-Infos
     pdf.set_xy(10, header_y)
     pdf.set_font("Arial", "B", 10)
     pdf.set_text_color(50, 50, 50)
@@ -73,21 +73,19 @@ def create_full_pdf(erk, fri, ant, ste, meta):
     pdf.ln(5)
     pdf.set_text_color(0, 0, 0)
 
-    # --- SEKTIONEN (Icons nur im Label, nicht im Content) ---
+    # --- SEKTIONEN ---
     sections = [
         ("Zusammenfassung", erk),
         ("Fristen und Termine", fri),
         ("Steuer-Informationen", ste),
-        ("Antwort-Entwurf", ant)
+        ("Antwort-Vorschlag", ant)
     ]
 
     for title, content in sections:
         pdf.set_font("Arial", "B", 11)
         pdf.set_fill_color(240, 240, 245)
         pdf.cell(0, 8, title, ln=1, fill=True)
-        
         pdf.set_font("Arial", size=10)
-        # Inhalt radikal von Emojis säubern
         clean_content = remove_emojis(content)
         pdf.ln(2)
         pdf.multi_cell(0, 6, txt=clean_content)
@@ -106,17 +104,19 @@ with st.sidebar:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
     st.divider()
-    st.caption("v9.3 - Emoji-Crash-Fix")
+    st.caption("v9.4 - Column Fix & Stability")
 
 # 5. HAUPT-LOGIK
 upload = st.file_uploader("Brief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    col_img, col_ana = st.columns()
+    # FIX: columns benötigt eine Zahl (2)
+    col_img, col_ana = st.columns(2)
     
     with col_img:
         st.subheader("📸 Dokument")
         if upload.type == "application/pdf":
+            # Vorschau der ersten Seite
             preview = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
             st.image(preview, use_container_width=True)
         else:
@@ -125,9 +125,9 @@ if upload:
     with col_ana:
         st.subheader("🧠 Analyse")
         if st.button("🚀 Jetzt analysieren", use_container_width=True):
-            with st.status("Verarbeite...", expanded=True) as status:
+            with st.status("Verarbeite Dokument...", expanded=True) as status:
                 try:
-                    status.write("📑 Lese Text...")
+                    status.write("📑 Text wird extrahiert...")
                     full_text = ""
                     if upload.type == "application/pdf":
                         pages = convert_from_bytes(upload.getvalue(), dpi=150)
@@ -136,14 +136,15 @@ if upload:
                     else:
                         full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
                     
-                    status.write("🤖 KI-Experte wird befragt...")
+                    status.write("🤖 KI-Analyse läuft...")
                     prompt = f"Analysiere diesen Text:\n{full_text}\n\nBEHOERDE: [Name]\nAKTENZEICHEN: [Nummer]\nBETREFF: [Thema]\n\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Daten]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                     
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte ohne Emojis."}, {"role": "user", "content": prompt}]
+                        messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte ohne Emojis."}, 
+                                  {"role": "user", "content": prompt}]
                     )
-                    raw = res.choices[0].message.content
+                    raw = res.choices[0].message.content # Sicherere Extraktion
 
                     def ext(s, e, src):
                         m = re.search(rf"{s}(.*?){e}", src, re.DOTALL | re.IGNORECASE)
@@ -155,20 +156,21 @@ if upload:
                     fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw)
                     ste = ext("STEUER_START", "STEUER_ENDE", raw)
                     
-                    status.update(label="✅ Fertig!", state="complete", expanded=False)
+                    status.update(label="✅ Analyse abgeschlossen!", state="complete", expanded=False)
 
                     st.info(f"**{meta['behoerde']}** (AZ: {meta['az']})")
-                    with st.expander("📝 Erklärung", expanded=True): st.write(erk)
+                    with st.expander("📝 Was bedeutet das?", expanded=True): 
+                        st.write(erk if erk else "Keine Zusammenfassung verfügbar.")
 
                     if ist_pro:
                         st.divider()
-                        st.warning(f"🗓️ **Fristen:** {fri}")
+                        st.warning(f"🗓️ **Fristen:** {fri if fri else 'Keine gefunden'}")
                         final_a = st.text_area("✍️ Antwort bearbeiten:", value=ant, height=200)
                         
                         c1, c2 = st.columns(2)
                         with c1:
                             pdf_data = create_full_pdf(erk, fri, final_a, ste, meta)
-                            st.download_button("📥 PDF speichern", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf", use_container_width=True)
+                            st.download_button("📥 PDF Analyse", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf", use_container_width=True)
                         with c2:
                             if ste:
                                 buf = io.BytesIO()
@@ -181,6 +183,6 @@ if upload:
                                         ws = wr.sheets['Steuer']
                                         for i, col in enumerate(df.columns):
                                             ws.set_column(i, i, max(df[col].astype(str).str.len().max(), len(col)) + 5)
-                                st.download_button("📊 Excel speichern", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
+                                st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
                 except Exception as e:
                     st.error(f"Fehler: {e}")
