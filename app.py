@@ -1,5 +1,5 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 from PIL import Image
 import pytesseract
 from fpdf import FPDF
@@ -8,160 +8,125 @@ import pandas as pd
 import io
 import re
 
-# 1. SEITEN-KONFIGURATION & DESIGN
+# 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="wide")
 
-st.markdown("""
-    <style>
-    .stApp { background: linear-gradient(180deg, #ffffff 0%, #f1f4f9 100%); }
-    h1 { color: #1e3a8a; font-family: 'Helvetica Neue', sans-serif; font-weight: 800; }
-    .stButton>button { width: 100%; border-radius: 10px; background-color: #1e3a8a; color: white; font-weight: bold; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# 2. SICHERHEIT & API
-# Falls du lokal arbeitest, kannst du hier deinen Key auch direkt einsetzen: 
-# openai.api_key = "DEIN_KEY"
+# 2. API INITIALISIERUNG
 try:
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
-except:
-    st.warning("⚠️ API-Key nicht in Secrets gefunden. Bitte prüfen.")
+    # Nutzt die Secrets von Streamlit Cloud
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+except Exception:
+    st.error("⚠️ OpenAI API-Key fehlt in den Streamlit Cloud Secrets!")
 
-# FUNKTION: PDF ERSTELLEN
-def create_full_pdf(erklaerung, fristen_text, antwort_text, steuer_text, original_text):
+# FUNKTION: PDF ERSTELLEN (Optimiert für fpdf2)
+def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "Amtsschimmel-Killer: Analyse", ln=True, align='C')
+    pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True, align='C')
     pdf.ln(10)
     
     sections = [
-        ("1. Zusammenfassung:", erklaerung),
-        ("2. Wichtige Fristen:", fristen_text),
-        ("3. Steuerliche Relevanz:", steuer_text),
-        ("4. Antwort-Entwurf:", antwort_text)
+        ("Zusammenfassung", erk),
+        ("Wichtige Fristen", fri),
+        ("Steuerliche Relevanz", ste),
+        ("Antwort-Entwurf", ant)
     ]
     
     for title, content in sections:
         pdf.set_font("Helvetica", "B", 12)
-        pdf.cell(0, 10, title, ln=True)
+        pdf.cell(0, 10, f"{title}:", ln=True)
         pdf.set_font("Helvetica", size=11)
-        text = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
-        pdf.multi_cell(0, 8, txt=text.encode('latin-1', 'replace').decode('latin-1'))
+        # Euro-Zeichen und Sonderzeichen fixen für PDF
+        safe_text = str(content).replace('€', 'Euro').encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 8, txt=safe_text)
         pdf.ln(5)
-
     return bytes(pdf.output())
 
 # 3. UI
-st.title("Amtsschimmel-Killer")
-st.write("_Behörden-Check & Steuer-Optimierung_")
+st.title("Amtsschimmel-Killer 📄🚀")
+st.write("Behörden-Check & Steuer-Optimierung")
 
-st.divider()
 ist_pro = st.query_params.get("payment") == "success"
 
 with st.sidebar:
-    st.markdown("### 🛠️ Status")
     if ist_pro:
         st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
-        st.markdown("[👉 **Pro freischalten (2€)**](https://buy.stripe.com)")
+        st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
 
-# 4. ANALYSE
+# 4. UPLOAD & ANALYSE
 upload = st.file_uploader("Dokument hochladen (PDF, JPG, PNG)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     try:
-        full_doc_text = ""
+        full_text = ""
         if upload.type == "application/pdf":
             with st.spinner('📑 Scanne PDF...'):
-                pdf_pages = convert_from_bytes(upload.read())
-                for i, page in enumerate(pdf_pages):
-                    full_doc_text += f"\n--- SEITE {i+1} ---\n" + pytesseract.image_to_string(page, lang='deu')
+                pages = convert_from_bytes(upload.read())
+                for page in pages:
+                    full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
         else:
-            full_doc_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
+            full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
 
-        if full_doc_text and st.button("🚀 Analyse starten"):
-            with st.spinner('🧠 KI arbeitet...'):
-                user_msg = f"Analysiere:\n{full_doc_text}\n\nFormat:\nERKLÄRUNG_START\n[Text]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Text]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
+        if full_text and st.button("🚀 Analyse starten"):
+            with st.spinner('🧠 KI analysiert...'):
+                prompt = f"Analysiere diesen Text:\n{full_text}\n\nGib die Antwort STRENG in diesem Format:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
-                # Update auf neue OpenAI Syntax (v1.0.0+)
-                response = openai.chat.completions.create(
+                response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
-                    messages=[{"role": "system", "content": "Du bist ein Experte für Behördendeutsch."},
-                              {"role": "user", "content": user_msg}]
+                    messages=[{"role": "system", "content": "Du bist ein Experte für Behördenunterlagen."},
+                              {"role": "user", "content": prompt}]
                 )
-                
-                res_content = response.choices[0].message.content
+                raw = response.choices[0].message.content
 
-                def extract(start, end, source):
-                    pattern = f"{start}(.*?){end}"
-                    match = re.search(pattern, source, re.DOTALL)
-                    return match.group(1).strip() if match else ""
+                def ext(s, e, src):
+                    m = re.search(f"{s}(.*?){e}", src, re.DOTALL)
+                    return m.group(1).strip() if m else ""
 
-                erk = extract("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", res_content)
-                ant = extract("ANTWORT_START", "ANTWORT_ENDE", res_content)
-                fri = extract("FRISTEN_START", "FRISTEN_ENDE", res_content)
-                ste = extract("STEUER_START", "STEUER_ENDE", res_content)
+                erk = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw)
+                ant = ext("ANTWORT_START", "ANTWORT_ENDE", raw)
+                fri = ext("FRISTEN_START", "FRISTEN_ENDE", raw)
+                ste = ext("STEUER_START", "STEUER_ENDE", raw)
 
                 st.subheader("💡 Ergebnis")
-                st.info(erk if erk else "Text erkannt, aber keine Zusammenfassung möglich.")
+                st.info(erk if erk else "Dokument analysiert.")
 
                 if ist_pro:
                     st.divider()
-                    df_steuer = None
-                    df_fristen = None
-
-                    # Spalten für Layout
                     c1, c2 = st.columns(2)
+                    df_s = None
                     
                     with c1:
-                        st.subheader("💰 Steuer-Check")
                         if ste:
-                            lines = [l.split("|") for l in ste.split("\n") if "|" in l]
-                            if lines:
-                                df_steuer = pd.DataFrame(lines, columns=["Betrag", "Kategorie", "Begründung"])
-                                st.dataframe(df_steuer)
-                        else: st.write("Keine Beträge gefunden.")
-
-                        st.subheader("🗓️ Fristen")
+                            st.write("💰 **Steuer-Check**")
+                            rows = [l.split("|") for l in ste.split("\n") if "|" in l]
+                            if rows:
+                                df_s = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
+                                st.dataframe(df_s, use_container_width=True)
                         if fri:
-                            f_lines = [l.split("|") for l in fri.split("\n") if "|" in l]
-                            if f_lines:
-                                df_fristen = pd.DataFrame(f_lines, columns=["Aufgabe", "Datum"])
-                                st.table(df_fristen)
+                            st.write("🗓️ **Fristen**")
+                            st.text(fri)
 
                     with c2:
-                        st.subheader("📝 Export")
-                        final_ant = st.text_area("Antwort-Vorschlag:", value=ant, height=150)
+                        st.write("📝 **Export & Antwort**")
+                        final_a = st.text_area("Entwurf anpassen:", value=ant, height=150)
                         
-                        # PDF
-                        pdf_data = create_full_pdf(erk, fri, final_ant, ste, full_doc_text)
-                        st.download_button("📥 PDF Download", data=pdf_data, file_name="Analyse.pdf")
+                        # PDF DOWNLOAD
+                        pdf_bytes = create_full_pdf(erk, fri, final_a, ste)
+                        st.download_button("📥 PDF Download", data=pdf_bytes, file_name="Analyse.pdf")
                         
-                        # EXCEL (Der neue Teil)
-                        if df_steuer is not None:
-                            try:
-                                buf = io.BytesIO()
-                                with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-                                    df_steuer.to_excel(writer, index=False, sheet_name='Steuer')
-                                    if df_fristen is not None:
-                                        df_fristen.to_excel(writer, index=False, sheet_name='Fristen')
-                                
-                                st.download_button(
-                                    label="📊 Excel Export",
-                                    data=buf.getvalue(),
-                                    file_name="Amtsschimmel_Daten.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                )
-                            except Exception as e:
-                                st.error(f"Excel-Fehler: {e}. Hast du 'xlsxwriter' installiert?")
-
+                        # EXCEL DOWNLOAD
+                        if df_s is not None:
+                            buf = io.BytesIO()
+                            with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
+                                df_s.to_excel(wr, index=False, sheet_name='Steuer')
+                            st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 else:
-                    st.warning("🔒 PRO-Status erforderlich für alle Details.")
-
+                    st.warning("🔒 PRO-Status erforderlich für Details.")
     except Exception as e:
-        st.error(f"Ein Fehler ist aufgetreten: {e}")
+        st.error(f"Fehler: {e}")
 
 st.divider()
-st.caption("Keine Rechtsberatung.")
+st.caption("Keine Rechts- oder Steuerberatung.")
