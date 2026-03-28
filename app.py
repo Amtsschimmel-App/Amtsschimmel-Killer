@@ -1,17 +1,83 @@
-# --- 4. SESSION STATE & ADMIN-LOGIK ---
+import streamlit as st
+from openai import OpenAI
+import pytesseract
+from PIL import Image
+from fpdf import FPDF 
+import pdfplumber
+from pdf2image import convert_from_bytes
+import pandas as pd
+import io
+import os
+import shutil
+import stripe
+from datetime import datetime
+from openpyxl.styles import Alignment
+
+# 1. KONFIGURATION
+st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
+
+# 2. DESIGN (CSS) - UPGRADE FÜR SIDEBAR & BUTTONS
+st.markdown("""
+    <style>
+    /* Haupt-Buttons */
+    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; border: none; transition: 0.3s; }
+    .stButton>button:hover { background-color: #2563eb; transform: translateY(-2px); }
+    
+    /* Download Buttons */
+    .stDownloadButton>button { width: 100%; border-radius: 10px; background-color: #10b981; color: white; font-weight: bold; border: none; }
+    
+    /* Premium Stripe-Cards in der Sidebar */
+    .buy-button { 
+        text-decoration: none; 
+        display: block; 
+        padding: 15px; 
+        background: #ffffff; 
+        border: 1px solid #e2e8f0; 
+        border-radius: 12px; 
+        margin-bottom: 12px; 
+        color: #1e3a8a !important; 
+        text-align: center; 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease-in-out;
+    }
+    .buy-button:hover { 
+        transform: scale(1.02); 
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        border-color: #1e3a8a;
+    }
+    
+    /* Fristen Box */
+    .frist-box { background-color: #fef9c3; border-left: 5px solid #facc15; padding: 15px; border-radius: 5px; color: #854d0e; margin-bottom: 20px; font-weight: bold; font-size: 1.1em; }
+    
+    /* Sidebar Metrik Styling */
+    [data-testid="stMetricValue"] { color: #1e3a8a; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 3. API INITIALISIERUNG
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+stripe.api_key = st.secrets["STRIPE_API_KEY"]
+
+if shutil.which("tesseract"):
+    pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
+
+# --- 4. SESSION STATE & ZAHLUNGSLOGIK ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_fristen" not in st.session_state: st.session_state.last_fristen = ""
 if "last_brief" not in st.session_state: st.session_state.last_brief = ""
 
 params = st.query_params
-
-# ADMIN CHECK
+ADMIN_PASSWORT = "GeheimAmt2024!" 
 is_admin = params.get("admin") == ADMIN_PASSWORT
-if is_admin and st.session_state.credits < 100: 
-    st.session_state.credits = 999
 
-# STRIPE RÜCKKEHR LOGIK (SCHÖNER)
+# ADMIN-LOGIK
+if is_admin:
+    if st.session_state.credits < 100: 
+        st.session_state.credits = 999
+        st.toast("🔓 ADMIN-MODUS: Unbegrenzte Scans aktiv!", icon="🛠️")
+
+# STRIPE RÜCKKEHR CHECK
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
         session = stripe.checkout.Session.retrieve(params["session_id"])
@@ -19,31 +85,139 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
             pack_size = int(params.get("pack", 1))
             st.session_state.credits += pack_size
             st.session_state.processed_sessions.append(params["session_id"])
-            
-            # SCHÖNE MELDUNG & EFFEKT
-            st.balloons() # Konfetti-Regen! 🎈
-            st.success(f"✨ Dankeschön! {pack_size} Analyse(n) wurden deinem Konto gutgeschrieben.")
-            
-            # URL säubern ohne Seite komplett neu zu laden
+            st.balloons() 
+            st.success(f"✨ Erfolgreich! {pack_size} Analyse(n) freigeschaltet.")
             st.query_params.clear()
-            st.toast("Guthaben aktualisiert!", icon="💳")
-    except Exception as e:
-        st.error("Da gab es ein Problem mit der Zahlungsbestätigung.")
+    except: pass
+
+# --- HILFSFUNKTIONEN ---
+def get_text_hybrid(uploaded_file):
+    text = ""
+    file_bytes = uploaded_file.getvalue()
+    if uploaded_file.type == "application/pdf":
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            text = "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
+        if len(text.strip()) < 50:
+            images = convert_from_bytes(file_bytes, dpi=150)
+            text = "\n".join([pytesseract.image_to_string(img, lang='deu') for img in images])
+    else:
+        text = pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
+    return text.strip()
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
-    if is_admin: st.warning("🔓 Admin-Zugriff aktiv")
-    st.divider()
-    st.subheader("💳 Guthaben laden")
-    st.caption("Einmalzahlung • Kein Abo")
+    st.image("https://img.icons8.com", width=80)
+    st.title("Dein Konto")
+    st.metric("Verfügbares Guthaben", f"{st.session_state.credits} Scans")
     
-    # Deine Links aus den Secrets
+    if is_admin: 
+        st.info("🔓 Admin-Zugriff aktiv")
+    
+    st.divider()
+    st.subheader("💳 Guthaben aufladen")
+    st.caption("Einmalzahlung • Sofort verfügbar")
+    
     packages = [
-        ("📄 1 Analyse", st.secrets["STRIPE_LINK_1"], "3,99 €"),
-        ("🚀 Spar-Paket (3)", st.secrets["STRIPE_LINK_3"], "9,99 €"),
-        ("💎 Sorglos-Paket (10)", st.secrets["STRIPE_LINK_10"], "19,99 €")
+        ("📄 Basis-Check", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"),
+        ("🚀 Spar-Paket", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"),
+        ("💎 Profi-Paket", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
     ]
     
-    for title, link, price in packages:
-        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{title}</b><br><small>{price} | Sofort-Freischaltung</small></a>', unsafe_allow_html=True)
+    for title, link, count, price in packages:
+        st.markdown(f'''
+            <a href="{link}" target="_blank" class="buy-button">
+                <div style="font-size: 1.1em; font-weight: bold;">{title}</div>
+                <div style="color: #64748b; font-size: 0.9em;">{count} für {price}</div>
+            </a>
+        ''', unsafe_allow_html=True)
+    
+    st.divider()
+    st.caption("Sichere Zahlung via Stripe")
+
+# --- 6. HAUPTSEITE ---
+st.title("Amtsschimmel-Killer 📄🚀")
+st.markdown("Verwandle Behördendeutsch in klare Fakten und fertige Antworten.")
+
+upload = st.file_uploader("Dokument hochladen (PDF, JPG, PNG)", type=['png', 'jpg', 'jpeg', 'pdf'])
+
+if upload:
+    col_v, col_a = st.columns([1, 1.5])
+    with col_v:
+        if upload.type == "application/pdf":
+            try:
+                imgs = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
+                st.image(imgs, use_container_width=True, caption="Vorschau Seite 1")
+            except: st.info("Vorschau lädt...")
+        else:
+            st.image(upload, use_container_width=True, caption="Hochgeladenes Bild")
+
+    with col_a:
+        if st.session_state.last_brief:
+            st.subheader("⚠️ Wichtige Fristen")
+            st.markdown(f'<div class="frist-box">{st.session_state.last_fristen}</div>', unsafe_allow_html=True)
+            st.subheader("📝 Entwurf Antwortschreiben")
+            st.markdown(st.session_state.last_brief)
+            st.divider()
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                try:
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("helvetica", style="B", size=14)
+                    pdf.cell(0, 10, txt="WICHTIGE FRISTEN", ln=True)
+                    pdf.set_font("helvetica", size=11)
+                    clean_f = st.session_state.last_fristen.replace("€", "Euro").replace("–", "-").replace("✅", "OK")
+                    pdf.multi_cell(0, 8, txt=clean_f.encode('latin-1', 'replace').decode('latin-1'))
+                    pdf.ln(10)
+                    pdf.set_font("helvetica", style="B", size=14)
+                    pdf.cell(0, 10, txt="ANTWORTSCHREIBEN", ln=True)
+                    pdf.set_font("helvetica", size=11)
+                    clean_b = st.session_state.last_brief.replace("€", "Euro").replace("–", "-").replace("✅", "OK")
+                    pdf.multi_cell(0, 8, txt=clean_b.encode('latin-1', 'replace').decode('latin-1'))
+                    st.download_button("📩 PDF laden", bytes(pdf.output()), "Amtsschimmel_Antwort.pdf", "application/pdf")
+                except Exception as e: st.error(f"PDF-Fehler: {e}")
+            
+            with c2:
+                try:
+                    datum = datetime.now().strftime("%d.%m.%Y")
+                    df = pd.DataFrame([
+                        {"Datum": datum, "Bereich": "GEFUNDENE FRISTEN", "Inhalt": st.session_state.last_fristen},
+                        {"Datum": datum, "Bereich": "ANTWORTSCHREIBEN", "Inhalt": st.session_state.last_brief}
+                    ])
+                    buf = io.BytesIO()
+                    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False, sheet_name='Analyse')
+                        ws = writer.sheets['Analyse']
+                        ws.column_dimensions['A'].width = 15
+                        ws.column_dimensions['B'].width = 25
+                        ws.column_dimensions['C'].width = 110
+                        for row in ws.iter_rows(min_row=2, max_col=3):
+                            for cell in row:
+                                cell.alignment = Alignment(wrap_text=True, vertical='top')
+                    st.download_button("📊 Excel laden", buf.getvalue(), "Amtsschimmel_Analyse.xlsx")
+                except Exception as e: st.error(f"Excel-Fehler: {e}")
+            
+            if st.button("🔄 Nächstes Dokument"):
+                st.session_state.last_fristen = ""; st.session_state.last_brief = ""; st.rerun()
+
+        elif st.session_state.credits > 0:
+            if st.button("🚀 JETZT ANALYSIEREN"):
+                with st.spinner("KI analysiert das Dokument..."):
+                    text = get_text_hybrid(upload)
+                    prompt = f"Analysiere diesen Text einer Behörde: {text}. 1. Liste alle Fristen auf. 2. Schreibe einen höflichen, juristisch präzisen Antwortbrief."
+                    res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
+                    antwort = res.choices.message.content
+                    
+                    if "---" in antwort:
+                        parts = antwort.split("---")
+                        st.session_state.last_fristen = parts[0].strip()
+                        st.session_state.last_brief = parts[1].strip()
+                    else:
+                        st.session_state.last_fristen = "Siehe Brief"
+                        st.session_state.last_brief = antwort
+                    
+                    st.session_state.credits -= 1
+                    st.rerun()
+        else:
+            st.warning("⚠️ Dein Guthaben ist aufgebraucht. Bitte lade neue Scans über die Pakete in der Sidebar.")
