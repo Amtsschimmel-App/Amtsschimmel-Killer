@@ -20,13 +20,19 @@ try:
 except:
     st.error("⚠️ API-Key fehlt in den Streamlit-Secrets!")
 
-# FUNKTION: PDF FÜR NUTZER ERSTELLEN
+# VERBESSERTE FUNKTION: PDF ERSTELLEN (Unterstützt jetzt mehr Text/Seiten)
 def create_pdf_output(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
+    
+    # Sonderzeichen-Bereinigung
     clean_text = text.replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-')
+    
+    # Text mit automatischem Zeilenumbruch hinzufügen
+    # Falls der Text sehr lang ist, erstellt fpdf automatisch neue Seiten
     pdf.multi_cell(0, 10, txt=clean_text.encode('latin-1', 'replace').decode('latin-1'))
+    
     return bytes(pdf.output())
 
 # LOGO ANZEIGEN
@@ -37,7 +43,7 @@ except:
     st.info("💡 Logo wird geladen...")
 
 st.title("Amtsschimmel-Killer 📄🚀")
-st.write("Verstehe Behördenbriefe & PDFs in Sekunden.")
+st.write("Verstehe Behördenbriefe & mehrseitige PDFs in Sekunden.")
 st.divider()
 
 # 3. STRIPE & PRO-STATUS
@@ -53,84 +59,88 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 1.5 - Multi-Page Update")
+    st.caption("Version 1.6 - Full Multi-Page Support")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bild oder PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     try:
-        text_raw = ""
+        full_document_text = ""
         
-        # VERFEINERUNG: PDF-VERARBEITUNG FÜR ALLE SEITEN
         if upload.type == "application/pdf":
-            with st.spinner('PDF wird komplett eingelesen (alle Seiten)...'):
+            with st.spinner('Lese alle PDF-Seiten ein...'):
+                # Alle Seiten in Bilder umwandeln
                 pdf_pages = convert_from_bytes(upload.read())
-                st.info(f"📄 PDF mit {len(pdf_pages)} Seite(n) erkannt.")
+                st.info(f"📄 Dokument mit {len(pdf_pages)} Seiten erkannt.")
+                
+                # Jede Seite einzeln per OCR auslesen
                 for i, page in enumerate(pdf_pages):
                     page_text = pytesseract.image_to_string(page, lang='deu')
-                    text_raw += f"\n--- SEITE {i+1} ---\n" + page_text
+                    full_document_text += f"\n--- SEITE {i+1} ---\n{page_text}"
         else:
-            # Bildverarbeitung
+            # Einzelbild-Verarbeitung
             image = Image.open(upload)
             st.image(image, caption="Dein Scan", width=300)
-            text_raw = pytesseract.image_to_string(image, lang='deu')
+            full_document_text = pytesseract.image_to_string(image, lang='deu')
 
-        if text_raw and st.button("Dokument jetzt analysieren"):
-            with st.spinner('KI analysiert den gesamten Inhalt...'):
+        if full_document_text and st.button("Gesamtes Dokument analysieren"):
+            with st.spinner('KI analysiert den gesamten Text...'):
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Antworte IMMER mit den Markern: ERKLÄRUNG_START, ERKLÄRUNG_ENDE, ANTWORT_START, ANTWORT_ENDE, FRISTEN_START, FRISTEN_ENDE."},
-                        {"role": "user", "content": f"Analysiere diesen Text (kann mehrere Seiten enthalten):\n{text_raw}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE"}
+                    messages=\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE"}
                     ]
                 )
                 
-                full_res = response['choices'][0]['message']['content']
+                full_res = response['choices']['message']['content']
 
-                # --- AUSGABE: ERKLÄRUNG ---
-                st.subheader("💡 Was bedeutet das?")
+                # --- ANZEIGE: ERKLÄRUNG ---
+                st.subheader("💡 Analyse-Ergebnis")
                 if "ERKLÄRUNG_START" in full_res:
-                    st.info(full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip())
-                else:
-                    st.write("Analyse vollständig. Details siehe unten.")
+                    parts = full_res.split("ERKLÄRUNG_START")
+                    content = parts[1].split("ERKLÄRUNG_ENDE")
+                    st.info(content[0].strip())
 
                 # --- PRO-BEREICH ---
                 if ist_pro:
                     st.divider()
                     
-                    # 🗓️ FRISTEN (In einem Expander für bessere Übersicht)
-                    with st.expander("🗓️ Deine Fristen-Übersicht", expanded=True):
+                    # 🗓️ FRISTEN
+                    with st.expander("🗓️ Erkannte Fristen", expanded=True):
                         if "FRISTEN_START" in full_res:
                             try:
-                                fristen_raw = full_res.split("FRISTEN_START")[1].split("FRISTEN_ENDE")[0].strip()
-                                lines = [line.split("|") for line in fristen_raw.split("\n") if "|" in line]
+                                f_parts = full_res.split("FRISTEN_START")
+                                f_content = f_parts[1].split("FRISTEN_ENDE")[0].strip()
+                                lines = [line.split("|") for line in f_content.split("\n") if "|" in line]
                                 if lines:
                                     df = pd.DataFrame(lines, columns=["Aufgabe", "Datum"])
                                     st.table(df)
                                 else:
-                                    st.write("Keine konkreten Fristen im Dokument gefunden.")
+                                    st.write("Keine Fristen gefunden.")
                             except:
-                                st.write("Fristen-Formatierung fehlgeschlagen.")
+                                st.write("Fristen konnten nicht extrahiert werden.")
 
-                    # 📝 ANTWORT-ENTWURF
-                    with st.expander("📝 Dein Antwort-Entwurf & PDF", expanded=True):
+                    # 📝 ANTWORT-ENTWURF (Wird als PDF zum Download angeboten)
+                    with st.expander("📝 Dein Antwort-Entwurf (PDF Export)", expanded=True):
                         if "ANTWORT_START" in full_res:
-                            antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
-                            final_text = st.text_area("Hier Text ergänzen (z.B. dein Name):", value=antwort_text, height=300)
+                            a_parts = full_res.split("ANTWORT_START")
+                            antwort_text = a_parts[1].split("ANTWORT_ENDE")[0].strip()
                             
+                            final_text = st.text_area("Vervollständige den Entwurf hier:", value=antwort_text, height=300)
+                            
+                            # Hier wird das PDF generiert
                             pdf_bytes = create_pdf_output(final_text)
                             st.download_button(
-                                label="📥 Antwort als PDF speichern",
+                                label="📥 Antwort-Schreiben als PDF herunterladen",
                                 data=pdf_bytes,
                                 file_name="Amtsschimmel_Antwort.pdf",
                                 mime="application/pdf"
                             )
                 else:
-                    st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe und Fristen-Checks.")
+                    st.warning("🔒 PRO freischalten für Antwort-Entwürfe und Fristen-Checks.")
 
     except Exception as e:
-        st.error(f"Fehler: {e}")
+        st.error(f"Fehler bei der Verarbeitung: {e}")
 
 # 5. RECHTLICHES
 st.divider()
