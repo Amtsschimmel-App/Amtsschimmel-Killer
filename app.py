@@ -26,7 +26,6 @@ st.markdown("""
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     stripe.api_key = st.secrets["STRIPE_API_KEY"]
-    # Deine Stripe Payment Links
     STRIPE_LINKS = {
         "1": st.secrets["STRIPE_LINK_1"],
         "3": st.secrets["STRIPE_LINK_3"],
@@ -54,39 +53,32 @@ def get_text_hybrid(uploaded_file):
         text = pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     return text.strip()
 
-# --- 4. ZAHLUNGS-VALIDIERUNG (Ersatz für Webhook) ---
+# --- 4. ZAHLUNGS-VALIDIERUNG ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# Prüfe URL Parameter nach Rückkehr von Stripe
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
         session = stripe.checkout.Session.retrieve(params["session_id"])
         if session.payment_status == "paid":
-            # Extrahiere Paket-Größe aus Metadata oder Query-Param
             amount = int(params.get("credits", 1))
             st.session_state.credits += amount
             st.session_state.processed_sessions.append(params["session_id"])
             st.toast(f"✅ {amount} Analysen gutgeschrieben!", icon="✨")
-    except Exception as e:
-        st.sidebar.error("Zahlung konnte nicht verifiziert werden.")
+    except:
+        pass
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.header("👤 Dein Konto")
     st.metric("Guthaben", f"{st.session_state.credits} Scans")
-    
     st.subheader("💳 Aufladen")
-    # WICHTIG: In Stripe Dashboard bei "Payment Links" die "Pass-through-Parameter" aktivieren
-    # Oder einfach die Links hier direkt mit ?session_id={CHECKOUT_SESSION_ID} nutzen (falls möglich)
     st.markdown(f'[🛒 1 Analyse (3,99€)]({STRIPE_LINKS["1"]})', unsafe_allow_html=True)
     st.markdown(f'[🚀 3er Spar-Paket (9,99€)]({STRIPE_LINKS["3"]})', unsafe_allow_html=True)
     st.markdown(f'[💎 10er Sorglos (19,99€)]({STRIPE_LINKS["10"]})', unsafe_allow_html=True)
-    
     if st.query_params.get("admin") == "ja":
         st.session_state.credits = 999
-        st.success("Admin-Modus: Unbegrenzt")
 
 # --- 6. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -94,24 +86,43 @@ st.title("Amtsschimmel-Killer 📄🚀")
 upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    st.info("Vorschau wird geladen...")
-    # (Hier käme die Vorschau-Logik von oben hin)
+    # VORSCHAU LOGIK FIX
+    with st.expander("📄 Dokument-Vorschau ansehen", expanded=True):
+        if upload.type == "application/pdf":
+            try:
+                images = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
+                st.image(images[0], use_container_width=True)
+            except:
+                st.warning("Vorschau für dieses PDF nicht verfügbar.")
+        else:
+            st.image(upload, use_container_width=True)
     
     if st.session_state.credits > 0:
         if st.button("🚀 JETZT ANALYSIEREN"):
-            with st.spinner("KI verfasst ausführliche Antwort..."):
+            with st.spinner("KI liest Dokument und schreibt Antwort..."):
                 extracted_text = get_text_hybrid(upload)
                 if extracted_text:
-                    res = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "Verfasse ein sehr ausführliches Antwortschreiben (mind. 500 Wörter) im juristischen Stil."},
-                            {"role": "user", "content": f"Text: {extracted_text}"}
-                        ]
-                    )
-                    st.markdown("### Ergebnis:")
-                    st.write(res.choices.message.content)
-                    st.session_state.credits -= 1
-                    st.rerun()
+                    try:
+                        # FIX: Richtiger API-Aufruf
+                        res = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "Du bist ein spezialisierter Rechtsanwalt. Verfasse ein sehr ausführliches Antwortschreiben (mind. 500 Wörter) im juristischen Stil."},
+                                {"role": "user", "content": f"Erstelle eine Analyse und ein Antwortschreiben basierend auf diesem Text: {extracted_text}"}
+                            ]
+                        )
+                        # FIX: Attribut-Zugriff korrigiert
+                        antwort_text = res.choices[0].message.content
+                        st.markdown("### Dein fertiges Schreiben:")
+                        st.write(antwort_text)
+                        
+                        st.session_state.credits -= 1
+                        st.success("Erfolg! 1 Credit abgezogen.")
+                    except Exception as e:
+                        st.error(f"Fehler bei der KI-Anfrage: {e}")
+                else:
+                    st.error("Konnte keinen Text im Dokument finden.")
     else:
-        st.warning("Kein Guthaben. Bitte links aufladen.")
+        st.warning("Bitte lade dein Guthaben in der Sidebar auf.")
+
+st.info("Tipp: Nutze digitale PDFs für die schnellste Verarbeitung.")
