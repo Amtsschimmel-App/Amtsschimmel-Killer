@@ -1,5 +1,5 @@
 import streamlit as st
-from openai import OpenAI # Neu: Der neue OpenAI Client
+import openai  # Wir nutzen hier wieder die klassische Schreibweise
 from PIL import Image
 import pytesseract
 import pandas as pd
@@ -13,9 +13,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# NEU: OpenAI Client initialisieren
+# 2. SICHERHEIT (OpenAI Key aus den Streamlit Secrets)
 try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
 except:
     st.error("⚠️ API-Key fehlt in den Streamlit-Secrets!")
 
@@ -24,7 +24,7 @@ def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    # Ersetzt Sonderzeichen für PDF-Kompatibilität
+    # Sonderzeichen-Fix für PDF
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, txt=clean_text)
     return pdf.output()
@@ -53,7 +53,7 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 0.7 - OpenAI v1 Migration")
+    st.caption("Version 0.8 - Stable Legacy Mode")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bilddatei)", type=['png', 'jpg', 'jpeg'])
@@ -64,8 +64,8 @@ if upload:
         st.image(image, caption="Dein Scan", width=300)
         
         if st.button("Brief analysieren"):
-            with st.spinner('KI liest den Brief...'):
-                # Texterkennung
+            with st.spinner('Amtsschimmel wird gezähmt...'):
+                # Texterkennung (OCR)
                 try:
                     text_raw = pytesseract.image_to_string(image, lang='deu')
                 except:
@@ -74,11 +74,11 @@ if upload:
                 if len(text_raw.strip()) < 10:
                     st.error("❌ Text nicht lesbar. Bitte Foto schärfer aufnehmen.")
                 else:
-                    # NEU: OpenAI Chat Completion Aufruf (v1.0+)
-                    response = client.chat.completions.create(
+                    # Klassischer OpenAI Aufruf für Version 0.28
+                    response = openai.ChatCompletion.create(
                         model="gpt-3.5-turbo",
                         messages=[
-                            {"role": "system", "content": "Du bist der 'Amtsschimmel-Killer'. Hilf Bürgern, Behördenbriefe zu verstehen."},
+                            {"role": "system", "content": "Du bist der Amtsschimmel-Killer."},
                             {"role": "user", "content": f"Analysiere diesen Text:\n{text_raw}\n\nFormat:\nERKLÄRUNG_START\n[3 Sätze]\nERKLÄRUNG_ENDE\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE"}
                         ]
                     )
@@ -98,9 +98,9 @@ if upload:
                         st.subheader("🚀 PRO: Dein Aktions-Plan")
                         
                         if "ANTWORT_START" in full_res:
-                            antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0]
+                            antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
                             st.markdown("### 📝 Antwort-Entwurf")
-                            final_text = st.text_area("Hier kannst du den Entwurf anpassen:", value=antwort_text.strip(), height=300)
+                            final_text = st.text_area("Hier kannst du den Entwurf anpassen:", value=antwort_text, height=300)
                             
                             pdf_data = create_pdf(final_text)
                             st.download_button(
