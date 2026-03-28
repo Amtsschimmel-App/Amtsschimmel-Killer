@@ -53,56 +53,54 @@ with st.sidebar:
         st.markdown("[👉 Jetzt Pro freischalten (2€)](https://buy.stripe.com)")
     
     st.divider()
-    st.caption("Version 1.4 - Stufe 3: Fristen-Check")
+    st.caption("Version 1.5 - Multi-Page Update")
 
 # 4. BRIEF-ANALYSE
 upload = st.file_uploader("Brief hochladen (Bild oder PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     try:
-        analysis_image = None
+        text_raw = ""
+        
+        # VERFEINERUNG: PDF-VERARBEITUNG FÜR ALLE SEITEN
         if upload.type == "application/pdf":
-            with st.spinner('PDF wird vorbereitet...'):
-                pdf_pages = convert_from_bytes(upload.read(), first_page=1, last_page=1)
-                if pdf_pages:
-                    analysis_image = pdf_pages[0]
-                    st.info("📄 PDF erkannt. Analysiere Seite 1...")
+            with st.spinner('PDF wird komplett eingelesen (alle Seiten)...'):
+                pdf_pages = convert_from_bytes(upload.read())
+                st.info(f"📄 PDF mit {len(pdf_pages)} Seite(n) erkannt.")
+                for i, page in enumerate(pdf_pages):
+                    page_text = pytesseract.image_to_string(page, lang='deu')
+                    text_raw += f"\n--- SEITE {i+1} ---\n" + page_text
         else:
-            analysis_image = Image.open(upload)
-            st.image(analysis_image, caption="Dein Scan", width=300)
+            # Bildverarbeitung
+            image = Image.open(upload)
+            st.image(image, caption="Dein Scan", width=300)
+            text_raw = pytesseract.image_to_string(image, lang='deu')
 
-        if analysis_image and st.button("Dokument analysieren"):
-            with st.spinner('Amtsschimmel wird gezähmt...'):
-                try:
-                    text_raw = pytesseract.image_to_string(analysis_image, lang='deu')
-                except:
-                    text_raw = pytesseract.image_to_string(analysis_image, lang='eng')
+        if text_raw and st.button("Dokument jetzt analysieren"):
+            with st.spinner('KI analysiert den gesamten Inhalt...'):
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Antworte IMMER mit den Markern: ERKLÄRUNG_START, ERKLÄRUNG_ENDE, ANTWORT_START, ANTWORT_ENDE, FRISTEN_START, FRISTEN_ENDE."},
+                        {"role": "user", "content": f"Analysiere diesen Text (kann mehrere Seiten enthalten):\n{text_raw}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE"}
+                    ]
+                )
                 
-                if len(text_raw.strip()) < 10:
-                    st.error("❌ Text nicht lesbar.")
+                full_res = response['choices'][0]['message']['content']
+
+                # --- AUSGABE: ERKLÄRUNG ---
+                st.subheader("💡 Was bedeutet das?")
+                if "ERKLÄRUNG_START" in full_res:
+                    st.info(full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip())
                 else:
-                    # PROMPT FÜR STUFE 3 (Erklärung + Antwort + Fristen)
-                    response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Antworte IMMER strukturiert mit den Markern: ERKLÄRUNG_START, ERKLÄRUNG_ENDE, ANTWORT_START, ANTWORT_ENDE, FRISTEN_START, FRISTEN_ENDE."},
-                            {"role": "user", "content": f"Analysiere:\n{text_raw}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE"}
-                        ]
-                    )
+                    st.write("Analyse vollständig. Details siehe unten.")
+
+                # --- PRO-BEREICH ---
+                if ist_pro:
+                    st.divider()
                     
-                    full_res = response['choices'][0]['message']['content']
-
-                    # --- TEIL 1: ERKLÄRUNG ---
-                    st.subheader("💡 Was bedeutet das?")
-                    if "ERKLÄRUNG_START" in full_res:
-                        st.info(full_res.split("ERKLÄRUNG_START")[1].split("ERKLÄRUNG_ENDE")[0].strip())
-
-                    # --- TEIL 2: PRO-FUNKTIONEN ---
-                    if ist_pro:
-                        st.divider()
-                        
-                        # --- NEU: FRISTEN-TABELLE ---
-                        st.subheader("🗓️ Deine Fristen-Übersicht")
+                    # 🗓️ FRISTEN (In einem Expander für bessere Übersicht)
+                    with st.expander("🗓️ Deine Fristen-Übersicht", expanded=True):
                         if "FRISTEN_START" in full_res:
                             try:
                                 fristen_raw = full_res.split("FRISTEN_START")[1].split("FRISTEN_ENDE")[0].strip()
@@ -111,15 +109,15 @@ if upload:
                                     df = pd.DataFrame(lines, columns=["Aufgabe", "Datum"])
                                     st.table(df)
                                 else:
-                                    st.write("Keine konkreten Fristen gefunden.")
+                                    st.write("Keine konkreten Fristen im Dokument gefunden.")
                             except:
-                                st.write("Fristen konnten nicht formatiert werden.")
+                                st.write("Fristen-Formatierung fehlgeschlagen.")
 
-                        # --- ANTWORT-ENTWURF & PDF ---
-                        st.subheader("📝 Antwort-Entwurf")
+                    # 📝 ANTWORT-ENTWURF
+                    with st.expander("📝 Dein Antwort-Entwurf & PDF", expanded=True):
                         if "ANTWORT_START" in full_res:
                             antwort_text = full_res.split("ANTWORT_START")[1].split("ANTWORT_ENDE")[0].strip()
-                            final_text = st.text_area("Bearbeite den Entwurf:", value=antwort_text, height=300)
+                            final_text = st.text_area("Hier Text ergänzen (z.B. dein Name):", value=antwort_text, height=300)
                             
                             pdf_bytes = create_pdf_output(final_text)
                             st.download_button(
@@ -128,8 +126,8 @@ if upload:
                                 file_name="Amtsschimmel_Antwort.pdf",
                                 mime="application/pdf"
                             )
-                    else:
-                        st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe und Fristen-Checks.")
+                else:
+                    st.warning("🔒 Schalte PRO frei für Antwort-Entwürfe und Fristen-Checks.")
 
     except Exception as e:
         st.error(f"Fehler: {e}")
