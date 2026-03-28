@@ -42,7 +42,7 @@ if shutil.which("tesseract"):
 @st.cache_data
 def get_pdf_preview(file_bytes):
     images = convert_from_bytes(file_bytes, dpi=72, first_page=1, last_page=1)
-    return images[0] if images else None
+    return images if images else None
 
 def get_text_hybrid(uploaded_file):
     text = ""
@@ -57,33 +57,40 @@ def get_text_hybrid(uploaded_file):
         text = pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     return text.strip()
 
-# --- 4. SESSION STATE ---
+# --- 4. SESSION STATE & ZAHLUNGS-LOGIK ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_result" not in st.session_state: st.session_state.last_result = ""
 
+# GUTHABEN-CHECK (Robust für Promo-Codes)
 params = st.query_params
-if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
+current_sid = params.get("session_id")
+
+if current_sid and current_sid not in st.session_state.processed_sessions:
     try:
-        st.session_state.credits += int(params.get("credits", 1))
-        st.session_state.processed_sessions.append(params["session_id"])
+        session = stripe.checkout.Session.retrieve(current_sid)
+        if session.payment_status in ["paid", "no_payment_required"]:
+            to_add = int(params.get("pack", params.get("credits", 1)))
+            st.session_state.credits += to_add
+            st.session_state.processed_sessions.append(current_sid)
+            st.toast(f"✅ {to_add} Analyse(n) freigeschaltet!", icon="✨")
     except: pass
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
     if os.path.exists("icon_final_blau.png"): st.image("icon_final_blau.png", width=120)
-    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
+    st.metric("Verfügbares Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
-    st.subheader("💳 Aufladen")
-    st.markdown(f'<a href="{LINK_1}" target="_blank" class="sidebar-link">🛒 1 Analyse (3,99€)</a>', unsafe_allow_html=True)
-    st.markdown(f'<a href="{LINK_3}" target="_blank" class="sidebar-link">🚀 3er Paket (9,99€)</a>', unsafe_allow_html=True)
-    st.markdown(f'<a href="{LINK_10}" target="_blank" class="sidebar-link">💎 10er Paket (19,99€)</a>', unsafe_allow_html=True)
-    if st.query_params.get("admin") == "ja": st.session_state.credits = 999
+    st.subheader("💳 Guthaben laden")
+    st.markdown(f'<a href="{LINK_1}" target="_blank" class="sidebar-link">1 Analyse kaufen</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{LINK_3}" target="_blank" class="sidebar-link">3 Analysen kaufen</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{LINK_10}" target="_blank" class="sidebar-link">10 Analysen kaufen</a>', unsafe_allow_html=True)
+    if params.get("admin") == "ja": st.session_state.credits = 999
 
 # --- 6. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
 
-upload = st.file_uploader("Behörden-Dokument hier hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+upload = st.file_uploader("Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     col_v, col_a = st.columns(2)
@@ -99,13 +106,43 @@ if upload:
             st.image(upload, use_container_width=True)
 
     with col_a:
-        st.subheader("🧠 Analyse & Antwort")
-        if st.session_state.credits > 0:
+        st.subheader("🧠 Analyse-Ergebnis")
+        
+        # WICHTIG: Wenn ein Ergebnis da ist, zeige es an, EGAL wie viele Credits man hat!
+        if st.session_state.last_result:
+            st.markdown(st.session_state.last_result)
+            st.divider()
+            
+            # DOWNLOAD BEREICH
+            c1, c2 = st.columns(2)
+            with c1:
+                try:
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Helvetica", size=10)
+                    pdf_text = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
+                    pdf.multi_cell(0, 8, txt=pdf_text)
+                    st.download_button("📩 PDF laden", pdf.output(dest='S').encode('latin-1'), "Amtsschimmel_Antwort.pdf", "application/pdf")
+                except: st.error("PDF-Export Fehler")
+            with c2:
+                try:
+                    df = pd.DataFrame([{"Inhalt": st.session_state.last_result}])
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False)
+                    st.download_button("📊 Excel laden", output.getvalue(), "Amtsschimmel_Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                except: st.error("Excel-Export Fehler")
+            
+            if st.button("🔄 Nächstes Dokument analysieren"):
+                st.session_state.last_result = ""
+                st.rerun()
+
+        # Zeige den Button nur, wenn noch kein Ergebnis vorliegt UND Guthaben da ist
+        elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("Extrahiere Daten & Fristen..."):
+                with st.spinner("KI verfasst Antwort (ca. 20-30 Sek)..."):
                     try:
                         txt = get_text_hybrid(upload)
-                        # API-AUFRUF IN EINER SAUBEREN STRUKTUR
                         response = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[
@@ -114,35 +151,12 @@ if upload:
                             ],
                             temperature=0.3
                         )
-                        st.session_state.last_result = response.choices[0].message.content
+                        st.session_state.last_result = response.choices.message.content
                         st.session_state.credits -= 1
                         st.rerun()
                     except Exception as e:
                         st.error(f"KI-Fehler: {e}")
-            
-            if st.session_state.last_result:
-                st.markdown(st.session_state.last_result)
-                st.divider()
-                st.subheader("📩 Exportieren")
-                c1, c2 = st.columns(2)
-                with c1:
-                    try:
-                        pdf = FPDF()
-                        pdf.add_page()
-                        pdf.set_font("Helvetica", size=10)
-                        pdf_text = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
-                        pdf.multi_cell(0, 8, txt=pdf_text)
-                        st.download_button("📩 Als PDF", pdf.output(dest='S').encode('latin-1'), "Antwort.pdf", "application/pdf")
-                    except: st.error("PDF-Fehler")
-                with c2:
-                    try:
-                        df = pd.DataFrame([{"Inhalt": st.session_state.last_result}])
-                        output = io.BytesIO()
-                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            df.to_excel(writer, index=False)
-                        st.download_button("📊 Als Excel", output.getvalue(), "Analyse.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    except: st.error("Excel-Fehler")
         else:
-            st.warning("💳 Bitte lade Guthaben auf.")
+            st.warning("💳 Bitte lade dein Guthaben auf, um die Analyse zu starten.")
 
-st.info("Hinweis: Digitale PDFs werden am präzisesten erkannt.")
+st.info("Tipp: Nutze digitale PDFs für die höchste Genauigkeit.")
