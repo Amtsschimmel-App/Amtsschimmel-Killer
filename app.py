@@ -17,12 +17,10 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Kompatibel mit allen FPDF-Versionen)
+# FUNKTION: PDF ERSTELLEN
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
-    
-    # Header
     pdf.set_font("helvetica", "B", 16)
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True, align='C')
     pdf.ln(10)
@@ -35,20 +33,18 @@ def create_full_pdf(erk, fri, ant, ste):
     ]
     
     for title, content in sections:
-        # Titel
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=True)
-        
-        # Inhalt
         pdf.set_font("helvetica", size=11)
         safe_text = str(content).replace('€', 'Euro')
-        
-        # Falls Text zu lang ist, Zeilenumbruch nutzen
         pdf.multi_cell(0, 8, txt=safe_text)
         pdf.ln(5)
     
-    # Output als Bytes
-    return pdf.output(dest='S') if hasattr(pdf, 'output') and not isinstance(pdf.output(), bytes) else pdf.output()
+    # Sicherstellen, dass Bytes zurückgegeben werden
+    try:
+        return pdf.output()
+    except:
+        return pdf.output(dest='S').encode('latin-1')
 
 # 3. UI
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -79,7 +75,6 @@ if upload:
             with st.spinner('🧠 KI analysiert...'):
                 prompt = f"Analysiere:\n{full_text}\n\nFormat:\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Entwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Aufgabe] | [Datum]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                 
-                # FIX: [0] hinzugefügt für choices
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[{"role": "system", "content": "Du bist Behörden-Experte."},
@@ -110,7 +105,7 @@ if upload:
                             rows = [l.split("|") for l in ste.split("\n") if "|" in l]
                             if rows:
                                 df_s = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
-                                st.dataframe(df_s)
+                                st.dataframe(df_s, use_container_width=True)
                         if fri:
                             st.write("🗓️ **Fristen**")
                             st.text(fri)
@@ -126,15 +121,27 @@ if upload:
                         except Exception as pdf_err:
                             st.error(f"PDF-Fehler: {pdf_err}")
                         
-                        # EXCEL DOWNLOAD
+                        # EXCEL DOWNLOAD (Mit automatischer Spaltenbreite)
                         if df_s is not None:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-                                df_s.to_excel(wr, index=False)
-                            st.download_button("📊 Excel", data=buf.getvalue(), file_name="Steuer.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                df_s.to_excel(wr, index=False, sheet_name='Steuer_Check')
+                                worksheet = wr.sheets['Steuer_Check']
+                                
+                                # AUTO-WIDTH LOGIK
+                                for i, col in enumerate(df_s.columns):
+                                    # Länge der Daten in der Spalte berechnen
+                                    column_len = df_s[col].astype(str).map(len).max()
+                                    # Länge des Headers berücksichtigen
+                                    column_len = max(column_len, len(col)) + 2
+                                    # Breite im Excel-Sheet setzen
+                                    worksheet.set_column(i, i, column_len)
+                            
+                            st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer_Export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 else:
                     st.warning("🔒 PRO-Status erforderlich.")
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("Keine Rechtsberatung.")
+st.divider()
+st.caption("HINWEIS: Keine Rechts- oder Steuerberatung.")
