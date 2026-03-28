@@ -18,7 +18,7 @@ try:
 except Exception:
     st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# FUNKTION: PDF ERSTELLEN (Stabilisiert für Adobe & mit Logo/Zeitstempel)
+# FUNKTION: PDF ERSTELLEN (Adobe-kompatibel + Logo + Zeitstempel)
 def create_full_pdf(erk, fri, ant, ste):
     pdf = FPDF()
     pdf.add_page()
@@ -27,7 +27,7 @@ def create_full_pdf(erk, fri, ant, ste):
     try:
         pdf.image("icon_final_blau.png", x=10, y=8, w=25)
     except:
-        pass # Falls Datei fehlt, einfach überspringen
+        pass 
     
     # ZEITSTEMPEL (oben rechts)
     pdf.set_font("helvetica", size=9)
@@ -37,9 +37,9 @@ def create_full_pdf(erk, fri, ant, ste):
     
     # TITEL
     pdf.set_font("helvetica", "B", 18)
-    pdf.set_text_color(30, 58, 138) # Dunkelblau passend zum Design
+    pdf.set_text_color(30, 58, 138) # Dunkelblau
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True, align='C')
-    pdf.set_text_color(0, 0, 0) # Zurück zu Schwarz
+    pdf.set_text_color(0, 0, 0) 
     pdf.ln(10)
     
     sections = [
@@ -53,13 +53,13 @@ def create_full_pdf(erk, fri, ant, ste):
         pdf.set_font("helvetica", "B", 12)
         pdf.cell(0, 10, f"{title}:", ln=True)
         pdf.set_font("helvetica", size=11)
-        # Sonderzeichen-Bereinigung für maximale Kompatibilität
+        # Radikale Bereinigung für Adobe Acrobat Kompatibilität
         t = str(content).replace('€', 'Euro').replace('„', '"').replace('“', '"').replace('–', '-').replace('—', '-')
         pdf.multi_cell(0, 7, txt=t)
         pdf.ln(4)
     
-    # DER FIX FÜR ADOBE: Output in BytesIO Stream
-    return pdf.output()
+    # WICHTIG: Explizite Konvertierung in Bytes für Adobe
+    return bytes(pdf.output())
 
 # 3. UI
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -108,16 +108,19 @@ if upload:
 
                 if ist_pro:
                     st.divider()
-                    c1, c2 = st.columns(2)
+                    # Wir bereiten die Daten VOR den Spalten vor
                     df_s = None
+                    if ste:
+                        rows = [l.split("|") for l in ste.split("\n") if "|" in l]
+                        if rows:
+                            df_s = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
+
+                    c1, c2 = st.columns(2)
                     
                     with c1:
-                        if ste:
+                        if df_s is not None:
                             st.write("💰 **Steuer-Check**")
-                            rows = [l.split("|") for l in ste.split("\n") if "|" in l]
-                            if rows:
-                                df_s = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
-                                st.dataframe(df_s, use_container_width=True)
+                            st.dataframe(df_s, use_container_width=True)
                         if fri:
                             st.write("🗓️ **Fristen**")
                             st.text(fri)
@@ -135,15 +138,23 @@ if upload:
                             buf = io.BytesIO()
                             with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
                                 df_s.to_excel(wr, index=False, sheet_name='Steuer')
-                                # Auto-Width
+                                workbook = wr.book
                                 worksheet = wr.sheets['Steuer']
-                                for i, col in enumerate(df_s.columns):
-                                    width = max(df_s[col].astype(str).map(len).max(), len(col)) + 2
-                                    worksheet.set_column(i, i, width)
+                                
+                                # Blaues Design für Header
+                                header_format = workbook.add_format({
+                                    'bold': True, 'font_color': 'white', 'bg_color': '#1E3A8A', 'border': 1
+                                })
+                                for col_num, value in enumerate(df_s.columns.values):
+                                    worksheet.write(0, col_num, value, header_format)
+                                    # Auto-Width
+                                    width = max(df_s[df_s.columns[col_num]].astype(str).map(len).max(), len(value)) + 3
+                                    worksheet.set_column(col_num, col_num, width)
+                                    
                             st.download_button("📊 Steuer-Liste als Excel", data=buf.getvalue(), file_name="Steuer.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 else:
                     st.warning("🔒 PRO-Status erforderlich.")
     except Exception as e:
         st.error(f"Fehler: {e}")
 
-st.caption("Keine Rechtsberatung. v2.8")
+st.caption("v2.9 - Final Stable Build")
