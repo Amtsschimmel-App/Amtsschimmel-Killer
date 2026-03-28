@@ -88,14 +88,15 @@ with st.sidebar:
     else:
         st.info("🔓 Basis-Modus")
         # DEIN PERSÖNLICHER BEZAHL-LINK
-        st.markdown(f'''
-            <a href="https://buy.stripe.com" target="_blank">
-                <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
-                    👉 JETZT PRO FREISCHALTEN
-                </button>
-            </a>
-        ''', unsafe_allow_html=True)
-    
+        # ÄNDERE DIESE ZEILE IN DEINER app.py:
+st.markdown(f'''
+    <a href="https://buy.stripe.com" target="_blank">
+        <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
+            👉 JETZT PRO FREISCHALTEN
+        </button>
+    </a>
+''', unsafe_allow_html=True)
+   
     st.divider()
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
     st.caption(f"Verbrauch: ${st.session_state.kosten:.4f}")
