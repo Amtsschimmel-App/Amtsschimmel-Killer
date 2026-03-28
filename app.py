@@ -2,9 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import pytesseract
 from PIL import Image
-from fpdf import FPDF
-from pdf2image import convert_from_bytes
+from fpdf import FPDF # In requirements.txt muss 'fpdf2' stehen
 import pdfplumber
+from pdf2image import convert_from_bytes
 import pandas as pd
 import io
 import os
@@ -15,14 +15,14 @@ from datetime import datetime
 # 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# 2. DESIGN
+# 2. DESIGN (CSS)
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }
-    .stDownloadButton>button { width: 100%; border-radius: 8px; background-color: #10b981; color: white; }
-    .buy-button { text-decoration: none; display: block; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; transition: all 0.2s; color: #1e3a8a !important; text-align: center; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; }
+    .stDownloadButton>button { width: 100%; border-radius: 10px; background-color: #10b981; color: white; font-weight: bold; }
+    .buy-button { text-decoration: none; display: block; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; color: #1e3a8a !important; text-align: center; }
     .buy-title { font-weight: bold; font-size: 1.1em; display: block; }
-    .buy-subtitle { font-size: 0.85em; color: #64748b; display: block; font-weight: 500; }
+    .buy-subtitle { font-size: 0.85em; color: #64748b; display: block; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -34,19 +34,12 @@ try:
     LINK_3 = st.secrets["STRIPE_LINK_3"]
     LINK_10 = st.secrets["STRIPE_LINK_10"]
 except Exception as e:
-    st.error(f"⚠️ Konfigurationsfehler: {e}")
+    st.error(f"⚠️ Secrets fehlen: {e}")
 
 if shutil.which("tesseract"):
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
 
 # --- HILFSFUNKTIONEN ---
-@st.cache_data
-def get_pdf_preview(file_bytes):
-    try:
-        images = convert_from_bytes(file_bytes, dpi=72, first_page=1, last_page=1)
-        return images[0] if images else None
-    except: return None
-
 def get_text_hybrid(uploaded_file):
     text = ""
     file_bytes = uploaded_file.getvalue()
@@ -60,43 +53,33 @@ def get_text_hybrid(uploaded_file):
         text = pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     return text.strip()
 
-# --- 4. SESSION STATE & ZAHLUNGS-LOGIK ---
+# --- 4. SESSION STATE ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_result" not in st.session_state: st.session_state.last_result = ""
 
+# Zahlungs-Check
 params = st.query_params
-current_sid = params.get("session_id")
-if current_sid and current_sid not in st.session_state.processed_sessions:
+if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
-        session = stripe.checkout.Session.retrieve(current_sid)
+        session = stripe.checkout.Session.retrieve(params["session_id"])
         if session.payment_status in ["paid", "no_payment_required"]:
-            to_add = int(params.get("pack", params.get("credits", 1)))
+            to_add = int(params.get("pack", 1))
             st.session_state.credits += to_add
-            st.session_state.processed_sessions.append(current_sid)
+            st.session_state.processed_sessions.append(params["session_id"])
             st.toast(f"✅ {to_add} Analyse(n) freigeschaltet!", icon="✨")
     except: pass
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
     if os.path.exists("icon_final_blau.png"): st.image("icon_final_blau.png", width=120)
-    st.metric("Guthaben", f"{st.session_state.credits} Scans")
+    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("💳 Guthaben laden")
-    st.markdown(f'''
-        <a href="{LINK_1}" target="_blank" class="buy-button">
-            <span class="buy-title">📄 1 Analyse</span>
-            <span class="buy-subtitle">3,99 € | Einmalzahlung | KEIN ABO</span>
-        </a>
-        <a href="{LINK_3}" target="_blank" class="buy-button">
-            <span class="buy-title">🚀 Spar-Paket (3)</span>
-            <span class="buy-subtitle">9,99 € | Einmalzahlung | KEIN ABO</span>
-        </a>
-        <a href="{LINK_10}" target="_blank" class="buy-button">
-            <span class="buy-title">💎 Sorglos-Paket (10)</span>
-            <span class="buy-subtitle">19,99 € | Einmalzahlung | KEIN ABO</span>
-        </a>
-    ''', unsafe_allow_html=True)
+    for title, link, sub in [("📄 1 Analyse", LINK_1, "3,99 € | Einmalzahlung | KEIN ABO"), 
+                             ("🚀 Spar-Paket (3)", LINK_3, "9,99 € | Einmalzahlung | KEIN ABO"), 
+                             ("💎 Sorglos (10)", LINK_10, "19,99 € | Einmalzahlung | KEIN ABO")]:
+        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><span class="buy-title">{title}</span><span class="buy-subtitle">{sub}</span></a>', unsafe_allow_html=True)
     if params.get("admin") == "ja": st.session_state.credits = 999
 
 # --- 6. HAUPTSEITE ---
@@ -109,56 +92,61 @@ if upload:
     with col_v:
         st.subheader("📸 Vorschau")
         if upload.type == "application/pdf":
-            img = get_pdf_preview(upload.getvalue())
-            if img: st.image(img, use_container_width=True)
+            try:
+                images = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
+                st.image(images[0], use_container_width=True)
+            except: st.error("Vorschau-Fehler")
         else:
             st.image(upload, use_container_width=True)
 
     with col_a:
-        st.subheader("🧠 Ergebnis")
+        st.subheader("🧠 Analyse-Ergebnis")
+        
+        # Falls Ergebnis da: Anzeigen
         if st.session_state.last_result:
             st.markdown(st.session_state.last_result)
             st.divider()
+            
+            # DOWNLOAD BEREICH (FIXED)
             c1, c2 = st.columns(2)
             with c1:
-                # PDF FIX: Direkte Erzeugung und Speicherung in Buffer
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Helvetica", size=10)
-                txt_safe = st.session_state.last_result.encode('latin-1', 'replace').decode('latin-1')
-                pdf.multi_cell(0, 8, txt=txt_safe)
-                # Korrekter Export für Streamlit Download Button
-                pdf_output = pdf.output(dest='S')
-                if isinstance(pdf_output, str): pdf_output = pdf_output.encode('latin-1')
-                st.download_button("📩 PDF laden", pdf_output, "Antwort.pdf", "application/pdf")
-            with c2:
-                # EXCEL FIX: Sicherstellen, dass openpyxl genutzt wird
-                df = pd.DataFrame([{"Datum": datetime.now().strftime("%d.%m.%Y"), "Inhalt": st.session_state.last_result}])
-                out = io.BytesIO()
-                with pd.ExcelWriter(out, engine='openpyxl') as w: 
-                    df.to_excel(w, index=False)
-                st.download_button("📊 Excel laden", out.getvalue(), "Analyse.xlsx")
+                try:
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("helvetica", size=11)
+                    # fpdf2 verkraftet UTF-8 nativ besser
+                    pdf.multi_cell(0, 10, txt=st.session_state.last_result)
+                    pdf_bytes = pdf.output() # fpdf2 gibt hier direkt bytes zurück
+                    st.download_button("📩 PDF laden", pdf_bytes, "Amtsschimmel_Antwort.pdf", "application/pdf")
+                except Exception as e: st.error(f"PDF-Fehler: {e}")
             
-            if st.button("🔄 Neue Analyse"):
+            with c2:
+                try:
+                    df = pd.DataFrame([{"Analyse": st.session_state.last_result, "Datum": datetime.now()}])
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False)
+                    st.download_button("📊 Excel laden", excel_buffer.getvalue(), "Analyse.xlsx", "application/vnd.ms-excel")
+                except Exception as e: st.error(f"Excel-Fehler: {e}")
+            
+            if st.button("🔄 Neues Dokument"):
                 st.session_state.last_result = ""
                 st.rerun()
-                
+
         elif st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI verfasst Antwort & sucht Fristen..."):
+                with st.spinner("KI sucht Fristen & schreibt Antwort..."):
                     try:
-                        txt = get_text_hybrid(upload)
+                        extracted = get_text_hybrid(upload)
                         response = client.chat.completions.create(
                             model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": "Du bist ein erfahrener Fachanwalt. DEINE AUFGABE: 1. Nenne alle Fristen und Termine ganz am Anfang FETT und DEUTLICH. 2. Schreibe danach ein extrem ausführliches Antwortschreiben (mind. 600 Wörter)."},
-                                {"role": "user", "content": f"Analysiere dieses Dokument und erstelle die Antwort: {txt}"}
-                            ]
+                            messages=
                         )
                         st.session_state.last_result = response.choices[0].message.content
                         st.session_state.credits -= 1
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"KI-Fehler: {e}")
+                    except Exception as e: st.error(f"KI-Fehler: {e}")
         else:
             st.warning("💳 Bitte lade dein Guthaben auf.")
+
+st.info("Tipp: Digitale PDFs liefern die besten Ergebnisse.")
