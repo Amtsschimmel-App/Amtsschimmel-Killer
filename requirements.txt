@@ -7,3 +7,5 @@ fpdf2
 pdf2image
 pandas
 xlsxwriter
+opencv-python-headless
+numpy
