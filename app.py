@@ -23,14 +23,13 @@ if tesseract_path:
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
-    st.error("⚠️ OpenAI API-Key fehlt!")
+    st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
 
-# HILFSFUNKTION: Emojis entfernen (für PDF-Stabilität)
+# HILFSFUNKTIONEN
 def remove_emojis(text):
     if not text: return ""
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
-# FUNKTION: PDF ERSTELLEN
 def create_full_pdf(erk, fri, ant, ste, meta):
     pdf = FPDF()
     pdf.add_page()
@@ -77,19 +76,29 @@ def create_full_pdf(erk, fri, ant, ste, meta):
 
     return pdf.output(dest='S').encode('latin-1')
 
-# 4. UI & SIDEBAR
+# 4. UI & SIDEBAR (FIX: Logo-Code repariert)
 st.title("Amtsschimmel-Killer 📄🚀")
 ist_pro = st.query_params.get("payment") == "success"
 
 with st.sidebar:
-    st.image("icon_final_blau.png", width=100) if os.path.exists("icon_final_blau.png") else None
+    # REPARATUR: Logo wird jetzt korrekt als Bild geladen, nicht als Text
+    logo_file = "icon_final_blau.png"
+    if os.path.exists(logo_file):
+        st.image(logo_file, width=150)
+    else:
+        st.info("📄 Amtsschimmel-Killer")
+    
     st.header("Menü")
-    if ist_pro: st.success("✨ PRO-Modus aktiv")
+    if ist_pro: 
+        st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
         st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
+    
     st.divider()
-    st.caption("v9.5 - Dashboard-Design Update")
+    if "kosten" not in st.session_state: st.session_state.kosten = 0.0
+    st.caption(f"Kosten dieser Sitzung: ${st.session_state.kosten:.4f}")
+    st.caption("v9.6 - Sidebar Fix & Cost Control")
 
 # 5. HAUPT-LOGIK
 upload = st.file_uploader("Behördenbrief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
@@ -119,6 +128,10 @@ if upload:
                     else:
                         full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
                     
+                    if len(full_text.strip()) < 10:
+                        st.error("Text zu kurz oder unscharf. Bitte erneut versuchen!")
+                        st.stop()
+
                     status.write("🤖 KI-Analyse...")
                     prompt = f"Analysiere:\n{full_text}\n\nBEHOERDE: [Name]\nAKTENZEICHEN: [Nummer]\nBETREFF: [Thema]\n\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Datum/Frist]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
                     
@@ -127,6 +140,11 @@ if upload:
                         messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte ohne Emojis."}, 
                                   {"role": "user", "content": prompt}]
                     )
+                    
+                    # Kosten-Zähler (gpt-4o-mini Preise)
+                    tokens = res.usage.total_tokens
+                    st.session_state.kosten += (tokens / 1000) * 0.00015 
+                    
                     raw = res.choices[0].message.content
 
                     def ext(s, e, src):
@@ -138,26 +156,19 @@ if upload:
                     
                     status.update(label="✅ Fertig!", state="complete", expanded=False)
 
-                    # --- DASHBOARD LAYOUT ---
-                    st.header(meta['behoerde'] if meta['behoerde'] else "Behörde erkannt")
-                    
+                    st.header(meta['behoerde'] if meta['behoerde'] else "Behörde")
                     m1, m2 = st.columns(2)
                     m1.metric("Aktenzeichen", meta['az'][:20] + "..." if len(meta['az']) > 20 else meta['az'])
-                    # Frist-Extraktion für Metric (nur Datum suchen)
-                    frist_clean = re.search(r"(\d{2}\.\d{2}\.\d{4})", fri)
-                    m2.metric("Nächste Frist", frist_clean.group(1) if frist_clean else "Nicht gefunden")
+                    frist_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", fri)
+                    m2.metric("Frist", frist_match.group(1) if frist_match else "Prüfen")
 
-                    st.markdown(f"**Betreff:** {meta['betreff']}")
-                    
                     with st.container(border=True):
-                        st.subheader("💡 Was ist zu tun?")
+                        st.subheader("💡 Analyse")
                         st.write(erk)
 
                     if ist_pro:
                         st.divider()
-                        st.subheader("✍️ Briefentwurf")
-                        final_a = st.text_area("Vorschlag (kann editiert werden):", value=ant, height=250)
-                        
+                        final_a = st.text_area("✍️ Antwortentwurf:", value=ant, height=250)
                         c1, c2 = st.columns(2)
                         with c1:
                             pdf_data = create_full_pdf(erk, fri, final_a, ste, meta)
@@ -174,8 +185,8 @@ if upload:
                                         ws = wr.sheets['Steuer']
                                         for i, col in enumerate(df.columns):
                                             ws.set_column(i, i, max(df[col].astype(str).str.len().max(), len(col)) + 5)
-                                st.download_button("📊 Steuer-Export (Excel)", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
+                                st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
                     else:
-                        st.warning("🔒 PRO freischalten für Antwort-Entwurf & Export.")
+                        st.warning("🔒 PRO freischalten für Export.")
                 except Exception as e:
                     st.error(f"Fehler: {e}")
