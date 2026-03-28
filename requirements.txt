@@ -3,3 +3,4 @@ fpdf2
 Pillow
 pytesseract
 pandas
+pdf2image
