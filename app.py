@@ -10,61 +10,48 @@ import re
 import os
 from datetime import datetime
 import shutil
+import stripe
 
 # 1. SEITEN-KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel Killer", page_icon="📄", layout="wide")
 
-# 2. TESSERACT PFAD-FIX
+# 2. API INITIALISIERUNG (Daten aus Secrets laden)
+try:
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    stripe.api_key = st.secrets["STRIPE_API_KEY"]
+except Exception as e:
+    st.error("⚠️ API-Keys fehlen in den Secrets! Bitte in Streamlit Cloud unter Settings -> Secrets eintragen.")
+
+# TESSERACT PFAD-FIX (Für Cloud-Server)
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
-# 3. API INITIALISIERUNG
-try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-except Exception:
-    st.error("⚠️ OpenAI API-Key fehlt in den Secrets!")
-
-# HILFSFUNKTIONEN
+# --- HILFSFUNKTIONEN ---
 def remove_emojis(text):
     if not text: return ""
+    # FPDF kann keine Emojis/Sonderzeichen, daher filtern wir sie für das PDF
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
-def create_full_pdf(erk, fri, ant, ste, meta):
+def create_full_pdf(erk, fri, ant, ste, meta, fehler):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=10)
-    
-    logo_path = "icon_final_blau.png"
-    header_y = 20
-    if os.path.exists(logo_path):
-        try: 
-            pdf.image(logo_path, x=10, y=8, w=20)
-            header_y = 35 
-        except: pass
-
-    pdf.set_font("Arial", size=8)
-    pdf.set_xy(150, 10)
-    zeit = datetime.now().strftime("%d.%m.%Y %H:%M")
-    pdf.cell(50, 10, f"Erstellt am: {zeit}", ln=1, align='R')
-
-    pdf.set_xy(10, header_y)
-    pdf.set_font("Arial", "B", 10)
-    pdf.set_text_color(50, 50, 50)
-    pdf.cell(0, 6, f"Behoerde: {remove_emojis(meta.get('behoerde', '-'))}", ln=1)
-    pdf.cell(0, 6, f"Referenz/AZ: {remove_emojis(meta.get('az', '-'))}", ln=1)
-    
-    pdf.set_draw_color(30, 58, 138)
-    pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
-    pdf.ln(10)
-
     pdf.set_font("Arial", "B", 16)
-    pdf.set_text_color(30, 58, 138)
+    pdf.set_text_color(30, 58, 138) # Dunkelblau
     pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=1, align='C')
-    pdf.ln(5)
+    pdf.set_font("Arial", size=10)
     pdf.set_text_color(0, 0, 0)
-
-    sections = [("Zusammenfassung", erk), ("Fristen", fri), ("Steuer", ste), ("Antwort", ant)]
+    pdf.ln(5)
+    
+    sections = [
+        ("Behoerde", meta.get('behoerde', '-')),
+        ("Aktenzeichen", meta.get('az', '-')),
+        ("Zusammenfassung", erk),
+        ("Fristen & Termine", fri),
+        ("Formfehler-Analyse", fehler),
+        ("Antwortentwurf", ant)
+    ]
+    
     for title, content in sections:
         pdf.set_font("Arial", "B", 11)
         pdf.set_fill_color(240, 240, 245)
@@ -72,121 +59,158 @@ def create_full_pdf(erk, fri, ant, ste, meta):
         pdf.set_font("Arial", size=10)
         pdf.ln(2)
         pdf.multi_cell(0, 6, txt=remove_emojis(content))
-        pdf.ln(6)
-
+        pdf.ln(4)
+        
     return pdf.output(dest='S').encode('latin-1')
 
-# 4. UI & SIDEBAR (FIX: Logo-Code repariert)
-st.title("Amtsschimmel-Killer 📄🚀")
-ist_pro = st.query_params.get("payment") == "success"
+# --- 3. ZAHLUNGSPRÜFUNG (SICHERHEIT) ---
+# Wir schauen in die URL, ob Stripe eine session_id mitgeschickt hat
+session_id = st.query_params.get("session_id")
+ist_pro = False
 
+if session_id:
+    try:
+        # Prüfung direkt bei Stripe, ob diese Session bezahlt wurde
+        checkout_session = stripe.checkout.Session.retrieve(session_id)
+        if checkout_session.payment_status == "paid":
+            ist_pro = True
+            st.toast("✨ PRO-Modus erfolgreich aktiviert!", icon="✅")
+    except Exception:
+        st.sidebar.warning("Zahlungsverifizierung fehlgeschlagen.")
+
+# --- 4. UI & SIDEBAR ---
 with st.sidebar:
-    # REPARATUR: Logo wird jetzt korrekt als Bild geladen, nicht als Text
     logo_file = "icon_final_blau.png"
     if os.path.exists(logo_file):
         st.image(logo_file, width=150)
-    else:
-        st.info("📄 Amtsschimmel-Killer")
     
-    st.header("Menü")
+    st.header("Dein Account")
     if ist_pro: 
         st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
-        st.markdown("[👉 Pro freischalten](https://buy.stripe.com)")
+        # Hier ist dein Bezahl-Link
+        st.markdown(f'''
+            <a href="https://buy.stripe.com" target="_blank">
+                <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:10px; cursor:pointer;">
+                    👉 Pro freischalten
+                </button>
+            </a>
+        ''', unsafe_allow_html=True)
     
     st.divider()
     if "kosten" not in st.session_state: st.session_state.kosten = 0.0
-    st.caption(f"Kosten dieser Sitzung: ${st.session_state.kosten:.4f}")
-    st.caption("v9.6 - Sidebar Fix & Cost Control")
+    st.caption(f"KI-Verbrauch: ${st.session_state.kosten:.4f}")
+    st.caption("v10.0 - Secure Payment & Signature Check")
 
-# 5. HAUPT-LOGIK
-upload = st.file_uploader("Behördenbrief hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+# --- 5. HAUPT-LOGIK ---
+st.title("Amtsschimmel-Killer 📄🚀")
+st.markdown("Lade deinen Behördenbrief hoch. Wir checken Fristen, Formfehler und schreiben die Antwort.")
+
+upload = st.file_uploader("Datei hochladen (PDF, JPG, PNG)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
-    col_img, col_ana = st.columns(2)
+    col_img, col_ana = st.columns([1, 1])
     
     with col_img:
-        st.subheader("📸 Dokument")
+        st.subheader("📸 Dokument-Vorschau")
         if upload.type == "application/pdf":
-            preview = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
-            st.image(preview, use_container_width=True)
+            try:
+                preview = convert_from_bytes(upload.getvalue(), first_page=1, last_page=1, dpi=100)
+                st.image(preview[0], use_container_width=True)
+            except:
+                st.info("PDF-Vorschau nicht verfügbar, Analyse bereit.")
         else:
             st.image(upload, use_container_width=True)
 
     with col_ana:
-        st.subheader("🧠 Analyse-Dashboard")
+        st.subheader("🧠 Analyse-Zentrale")
         if st.button("🚀 Vollanalyse starten", use_container_width=True):
-            with st.status("Verarbeite Dokument...", expanded=True) as status:
-                try:
-                    status.write("📑 Text-Extraktion...")
-                    full_text = ""
-                    if upload.type == "application/pdf":
-                        pages = convert_from_bytes(upload.getvalue(), dpi=150)
-                        for page in pages:
-                            full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
-                    else:
-                        full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
+            with st.status("Dokument wird gelesen...", expanded=True) as status:
+                
+                # Schritt 1: OCR (Texterkennung)
+                full_text = ""
+                if upload.type == "application/pdf":
+                    pages = convert_from_bytes(upload.getvalue(), dpi=150)
+                    for page in pages:
+                        full_text += pytesseract.image_to_string(page, lang='deu') + "\n"
+                else:
+                    full_text = pytesseract.image_to_string(Image.open(upload), lang='deu')
+                
+                if len(full_text.strip()) < 10:
+                    st.error("Kein Text erkannt. Bitte ein schärferes Foto hochladen!")
+                    st.stop()
+
+                # Schritt 2: KI-Analyse (Prompt mit Killer-Feature)
+                status.write("🤖 KI prüft Formfehler und Fristen...")
+                prompt = f"""
+                Verhalte dich wie ein Experte für deutsches Verwaltungsrecht.
+                Analysiere diesen Text:
+                ---
+                {full_text}
+                ---
+                GIB DEINE ANTWORT STRENG IN DIESEM FORMAT:
+                BEHOERDE: [Name der Behörde]
+                AZ: [Aktenzeichen/Referenz]
+                ERKLÄRUNG: [Einfache Zusammenfassung des Inhalts]
+                FRISTEN: [Wichtige Daten und Fristende]
+                FORMFEHLER: [Prüfe: Fehlt die Unterschrift? Fehlt die Rechtsbehelfsbelehrung? Ist die Frist falsch berechnet? Antworte konkret!]
+                ANTWORT: [Höflicher, rechtssicherer Antwortentwurf]
+                STEUER: [Falls Beträge genannt werden: Betrag | Grund]
+                """
+                
+                res = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "system", "content": "Du bist der Amtsschimmel-Killer. Hilf Bürgern, Behördenbriefe zu verstehen."}, 
+                              {"role": "user", "content": prompt}]
+                )
+                
+                # Kosten-Tracker
+                st.session_state.kosten += (res.usage.total_tokens / 1000) * 0.00015
+                raw = res.choices[0].message.content
+
+                # Hilfsfunktion zum Zerlegen der KI-Antwort
+                def ext(tag, src):
+                    m = re.search(rf"{tag}:(.*?)(?=\n[A-Z]+:|$)", src, re.DOTALL | re.IGNORECASE)
+                    return m.group(1).strip() if m else "Nicht gefunden"
+
+                meta = {"behoerde": ext("BEHOERDE", raw), "az": ext("AZ", raw)}
+                erk, fri, fehler, ant, ste = ext("ERKLÄRUNG", raw), ext("FRISTEN", raw), ext("FORMFEHLER", raw), ext("ANTWORT", raw), ext("STEUER", raw)
+                
+                status.update(label="✅ Analyse abgeschlossen!", state="complete")
+
+                # ERGEBNIS-ANZEIGE
+                st.header(meta['behoerde'])
+                st.info(f"**Aktenzeichen:** {meta['az']}")
+                
+                with st.expander("💡 Zusammenfassung (Was wollen die?)", expanded=True):
+                    st.write(erk)
+                
+                # Das Killer-Feature: Formfehler-Warnung
+                if "Keine" not in fehler and "nicht gefunden" not in fehler.lower():
+                    st.error(f"🚨 **MÖGLICHER FORMFEHLER ENTDECKT:**\n\n{fehler}")
+                else:
+                    st.success("✅ Formale Prüfung: Keine offensichtlichen Fehler bei Unterschrift oder Belehrung gefunden.")
+
+                st.warning(f"📅 **Fristen:** {fri}")
+
+                # PRO-Bereich
+                st.divider()
+                if ist_pro:
+                    st.subheader("✍️ Dein Pro-Antwortentwurf")
+                    final_a = st.text_area("Du kannst den Brief hier noch anpassen:", value=ant, height=250)
                     
-                    if len(full_text.strip()) < 10:
-                        st.error("Text zu kurz oder unscharf. Bitte erneut versuchen!")
-                        st.stop()
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        pdf_data = create_full_pdf(erk, fri, final_a, ste, meta, fehler)
+                        st.download_button("📥 PDF-Gutachten speichern", data=pdf_data, file_name=f"Analyse_{meta['az']}.pdf", mime="application/pdf", use_container_width=True)
+                    with c2:
+                        st.button("✉️ Per E-Mail senden (Coming Soon)", disabled=True, use_container_width=True)
+                else:
+                    st.subheader("🔒 Pro-Features")
+                    st.text_area("Antwortentwurf (Vorschau)", value="Bezahle Pro, um den fertigen Antwortentwurf zu sehen und als PDF zu laden.", height=100, disabled=True)
+                    st.info("Schalte PRO frei, um den kompletten Antwortbrief und das PDF-Gutachten zu erhalten.")
 
-                    status.write("🤖 KI-Analyse...")
-                    prompt = f"Analysiere:\n{full_text}\n\nBEHOERDE: [Name]\nAKTENZEICHEN: [Nummer]\nBETREFF: [Thema]\n\nERKLÄRUNG_START\n[Zusammenfassung]\nERKLÄRUNG_ENDE\n\nANTWORT_START\n[Briefentwurf]\nANTWORT_ENDE\n\nFRISTEN_START\n[Datum/Frist]\nFRISTEN_ENDE\n\nSTEUER_START\n[Betrag] | [Kategorie] | [Grund]\nSTEUER_ENDE"
-                    
-                    res = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Du bist Behörden-Experte. Antworte ohne Emojis."}, 
-                                  {"role": "user", "content": prompt}]
-                    )
-                    
-                    # Kosten-Zähler (gpt-4o-mini Preise)
-                    tokens = res.usage.total_tokens
-                    st.session_state.kosten += (tokens / 1000) * 0.00015 
-                    
-                    raw = res.choices[0].message.content
-
-                    def ext(s, e, src):
-                        m = re.search(rf"{s}(.*?){e}", src, re.DOTALL | re.IGNORECASE)
-                        return m.group(1).strip() if m else ""
-
-                    meta = {"behoerde": ext("BEHOERDE:", "\n", raw), "az": ext("AKTENZEICHEN:", "\n", raw), "betreff": ext("BETREFF:", "\n", raw)}
-                    erk, ant, fri, ste = ext("ERKLÄRUNG_START", "ERKLÄRUNG_ENDE", raw), ext("ANTWORT_START", "ANTWORT_ENDE", raw), ext("FRISTEN_START", "FRISTEN_ENDE", raw), ext("STEUER_START", "STEUER_ENDE", raw)
-                    
-                    status.update(label="✅ Fertig!", state="complete", expanded=False)
-
-                    st.header(meta['behoerde'] if meta['behoerde'] else "Behörde")
-                    m1, m2 = st.columns(2)
-                    m1.metric("Aktenzeichen", meta['az'][:20] + "..." if len(meta['az']) > 20 else meta['az'])
-                    frist_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", fri)
-                    m2.metric("Frist", frist_match.group(1) if frist_match else "Prüfen")
-
-                    with st.container(border=True):
-                        st.subheader("💡 Analyse")
-                        st.write(erk)
-
-                    if ist_pro:
-                        st.divider()
-                        final_a = st.text_area("✍️ Antwortentwurf:", value=ant, height=250)
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            pdf_data = create_full_pdf(erk, fri, final_a, ste, meta)
-                            st.download_button("📥 PDF Gutachten", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf", use_container_width=True)
-                        with c2:
-                            if ste:
-                                buf = io.BytesIO()
-                                with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-                                    lines = [l.strip() for l in ste.split("\n") if "|" in l]
-                                    rows = [line.split("|") for line in lines]
-                                    if rows:
-                                        df = pd.DataFrame(rows, columns=["Betrag", "Kategorie", "Grund"])
-                                        df.to_excel(wr, index=False, sheet_name='Steuer')
-                                        ws = wr.sheets['Steuer']
-                                        for i, col in enumerate(df.columns):
-                                            ws.set_column(i, i, max(df[col].astype(str).str.len().max(), len(col)) + 5)
-                                st.download_button("📊 Excel Export", data=buf.getvalue(), file_name="Steuer.xlsx", use_container_width=True)
-                    else:
-                        st.warning("🔒 PRO freischalten für Export.")
-                except Exception as e:
-                    st.error(f"Fehler: {e}")
+# FUSSZEILE
+st.divider()
+st.caption("Rechtlicher Hinweis: Diese KI-Analyse ersetzt keine Rechtsberatung durch einen Anwalt.")
