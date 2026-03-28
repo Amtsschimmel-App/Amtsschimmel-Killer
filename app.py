@@ -22,7 +22,7 @@ try:
 except Exception:
     st.error("⚠️ API-Keys fehlen in den Secrets! Bitte unter Settings -> Secrets eintragen.")
 
-# TESSERACT PFAD-FIX (Für Cloud-Server)
+# TESSERACT PFAD-FIX
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -41,7 +41,7 @@ def create_full_pdf(erk, fri, ant, ste, meta, fehler):
     pdf.ln(10)
     
     sections = [
-        ("Behörde", meta.get('behoerde', '-')),
+        ("Behoerde", meta.get('behoerde', '-')),
         ("Aktenzeichen", meta.get('az', '-')),
         ("Zusammenfassung", erk),
         ("Fristen & Termine", fri),
@@ -85,7 +85,7 @@ with st.sidebar:
         st.success("✨ PRO-Modus aktiv")
     else:
         st.info("🔓 Basis-Modus")
-        # KORREKTE EINRÜCKUNG DES BUTTONS
+        # DEIN EINGEBAUTER STRIPE-LINK
         st.markdown(f'''
             <a href="https://buy.stripe.com" target="_blank">
                 <button style="width:100%; border-radius:5px; background-color:#303a8a; color:white; border:none; padding:12px; cursor:pointer; font-weight:bold;">
@@ -173,4 +173,4 @@ if upload:
                     st.info("🔓 Schalte PRO frei für den Antwortbrief & PDF-Download.")
 
 st.divider()
-st.caption("Keine Rechtsberatung. v10.6 - Secure Fixed")
+st.caption("Keine Rechtsberatung. v10.7 - Fixed Indentation & Link")
