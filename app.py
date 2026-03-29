@@ -10,30 +10,38 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. SETUP & ZAHLUNGSLOGIK (PRIORITÄT)
+# 1. SETUP & ABSOLUTE ZAHLUNGSSICHERHEIT
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
+# Initialisierung der Session States
 if "credits" not in st.session_state:
     st.session_state.credits = 0
 if "full_res" not in st.session_state:
     st.session_state.full_res = ""
+if "processed_session" not in st.session_state:
+    st.session_state.processed_session = ""
 
-# GUTHABEN-AKTIVIERUNG NACH KAUF (URL Parameter)
+# ZAHLUNGSERKENNUNG (FIX): Liest "pack" und "session_id" aus der URL
 params = st.query_params
-if "p" in params:
-    val = params["p"]
+current_session = params.get("session_id", "")
+
+if "pack" in params and current_session != st.session_state.processed_session:
+    val = params["pack"]
     if val == "1": st.session_state.credits += 1
     elif val == "2": st.session_state.credits += 3
     elif val == "3": st.session_state.credits += 10
-    st.query_params.clear()
+    
+    # Markiert diese Session als verarbeitet, um Dopplung bei Refresh zu verhindern
+    st.session_state.processed_session = current_session
+    st.toast("✅ Zahlung erfolgreich! Guthaben wurde hinzugefügt.", icon="💰")
 
-# ADMIN ZUGANG (SAdmin scan 999)
+# SADMIN CHECK (999 Scans)
 if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
 # ==========================================
-# 2. STRIPE LINKS & DESIGN
+# 2. DESIGN & STRIPE LINKS (EXAKT)
 # ==========================================
 STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
 STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
@@ -48,7 +56,7 @@ st.markdown("""
         }
         .price-tag { font-size: 15px; font-weight: bold; color: #0d47a1; margin: 2px; }
         .no-abo-text { font-size: 11px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
-        .paket-title { font-size: 13px; font-weight: bold; color: #333; margin-bottom: 2px; }
+        .paket-title { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 2px; }
         .stLinkButton a {
             width: 100% !important; background-color: #0d47a1 !important;
             color: white !important; border-radius: 6px !important;
@@ -166,7 +174,7 @@ with c_pak:
     st.link_button("Jetzt kaufen", STRIPE_3)
 
 with c_up:
-    # EXAKTE POSITIONIERUNG NEBEN DEN PAKETEN
+    # EXAKTE POSITIONIERUNG (145px tief)
     st.markdown("<div style='height: 145px;'></div>", unsafe_allow_html=True)
     st.subheader("📄 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Dokumente**")
@@ -190,14 +198,14 @@ with c_up:
         
         if st.button("🚀 JETZT ANALYSIEREN"):
             if st.session_state.credits > 0:
-                with st.spinner("Amtsschimmel wird bekämpft..."):
+                with st.spinner("Analyse läuft..."):
                     try:
                         res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted}"}])
                         st.session_state.full_res = res.choices.message.content
                         st.session_state.credits -= 1
                         st.rerun()
                     except Exception as e: st.error(f"Fehler: {e}")
-            else: st.error("Bitte erst Guthaben kaufen!")
+            else: st.error("Guthaben leer! Bitte Paket kaufen.")
 
 with c_res:
     st.subheader("🔍 Analyse & Antwort")
