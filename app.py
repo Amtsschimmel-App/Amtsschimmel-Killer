@@ -15,9 +15,9 @@ from datetime import datetime
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
 # DEINE EXAKTEN STRIPE LINKS
-STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
-STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
-STRIPE_3 = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
+STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" # 1 Dokument
+STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03" # 3 Dokumente
+STRIPE_3 = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04" # 10 Dokumente
 
 st.markdown("""
     <style>
@@ -26,9 +26,9 @@ st.markdown("""
             border: 1px solid #0d47a1; padding: 8px; border-radius: 10px;
             background-color: #f8fbff; margin-bottom: 2px; text-align: center;
         }
-        .price-tag { font-size: 16px; font-weight: bold; color: #0d47a1; margin: 0px; }
+        .price-tag { font-size: 15px; font-weight: bold; color: #0d47a1; margin: 0px; }
         .no-abo-text { font-size: 10px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
-        .paket-title { font-size: 13px; font-weight: bold; color: #333; }
+        .paket-title { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 2px; }
         .stLinkButton a {
             width: 100% !important; background-color: #0d47a1 !important;
             color: white !important; border-radius: 6px !important;
@@ -52,16 +52,16 @@ if "credits" not in st.session_state:
 if "full_res" not in st.session_state:
     st.session_state.full_res = ""
 
-# PRÜFUNG DER URL-PARAMETER (SOFORT NACH DEM KAUF)
+# Gutschrift nach Kauf via URL-Parameter
 params = st.query_params
 if "p" in params:
     val = params["p"]
-    if val == "1": st.session_state.credits = 1
-    elif val == "2": st.session_state.credits = 3
-    elif val == "3": st.session_state.credits = 7
+    if val == "1": st.session_state.credits += 1
+    elif val == "2": st.session_state.credits += 3
+    elif val == "3": st.session_state.credits += 10 # 10 Dokumente
     st.query_params.clear()
 
-# SADMIN MODUS (999 SCANS)
+# SADMIN MODUS
 if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
@@ -141,7 +141,7 @@ st.divider()
 # ==========================================
 # 4. HAUPTBEREICH
 # ==========================================
-c_pak, c_up, c_res = st.columns([0.8, 1.2, 1.5])
+c_pak, c_up, c_res = st.columns([0.9, 1.1, 1.5])
 
 with c_pak:
     st.subheader("🌐 Sprachen")
@@ -150,50 +150,53 @@ with c_pak:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, width=110)
     
     st.write("---")
-    # PAKETE MIT EINMALPREIS IN DER BOX
-    st.markdown(f'<div class="paket-card"><div class="paket-title">📦 Basis Paket</div><div class="price-tag">Einmalpreis 3,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    
+    # PAKET 1: Analyse
+    st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Analyse<br>(1 Dokument)</div><div class="price-tag">Einmalpreis 3,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_1)
     
-    st.markdown(f'<div class="paket-card"><div class="paket-title">🎁 Spar Paket</div><div class="price-tag">Einmalpreis 9,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    # PAKET 2: Spar-Paket
+    st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Spar-Paket<br>(3 Dokumente)</div><div class="price-tag">Einmalpreis 9,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_2)
     
-    st.markdown(f'<div class="paket-card"><div class="paket-title">💎 Premium Paket</div><div class="price-tag">Einmalpreis 19,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    # PAKET 3: Sorglos-Paket
+    st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Sorglos-Paket<br>(10 Dokumente)</div><div class="price-tag">Einmalpreis 19,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_3)
 
 with c_up:
-    # ABSTAND FÜR MITTIGE AUSRICHTUNG
+    # ABSTAND FÜR MITTIGE AUSRICHTUNG NEBEN DEN PAKETEN
     st.markdown("<div style='height: 58px;'></div>", unsafe_allow_html=True)
     st.subheader("📄 Upload & Vorschau")
-    st.info(f"Guthaben: **{st.session_state.credits} Scans**")
+    st.info(f"Guthaben: **{st.session_state.credits} Dokumente**")
     
     upped = st.file_uploader("Datei", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
-    extracted = ""
+    extracted_text = ""
     if upped:
         if upped.type == "application/pdf":
             try:
                 raw_pdf = upped.read()
                 with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
-                    for page in pdf.pages: extracted += (page.extract_text() or "") + "\n"
+                    for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
                 imgs = convert_from_bytes(raw_pdf, first_page=1, last_page=1)
                 st.image(imgs, caption="Vorschau", use_container_width=True)
             except: st.info("Vorschau lädt...")
         else:
             img = Image.open(upped)
             st.image(img, caption="Vorschau", use_container_width=True)
-            extracted = pytesseract.image_to_string(img)
+            extracted_text = pytesseract.image_to_string(img)
         
         if st.button("🚀 JETZT ANALYSIEREN"):
             if st.session_state.credits > 0:
                 with st.spinner("Analyse läuft..."):
                     try:
-                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted}"}])
+                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted_text}"}])
                         st.session_state.full_res = res.choices.message.content
                         st.session_state.credits -= 1
                         st.rerun()
                     except Exception as e: st.error(f"Fehler: {e}")
             else:
-                st.error("Guthaben: 0 Scans. Bitte ein Paket kaufen.")
+                st.error("Guthaben: 0 Dokumente. Bitte ein Paket kaufen.")
 
 with c_res:
     st.subheader("🔍 Analyse & Antwort")
