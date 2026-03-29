@@ -77,7 +77,7 @@ def get_xlsx_bytes(data):
     return bio.getvalue()
 
 def get_ics_bytes(data):
-    content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Frist: Amtsschimmel-Killer\nDESCRIPTION:{data.get('Fristen', 'Termin prüfen')}\nEND:VEVENT\nEND:VCALENDAR"
+    content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Frist: Amtsschimmel-Killer\nDESCRIPTION:{data.get('Fristen', 'Frist prüfen')}\nEND:VEVENT\nEND:VCALENDAR"
     return content.encode('utf-8')
 
 # ==========================================
@@ -85,21 +85,19 @@ def get_ics_bytes(data):
 # ==========================================
 st.markdown("""
     <style>
-        .block-container { padding-top: 5rem !important; }
+        .block-container { padding-top: 3rem !important; }
         .paket-card { 
             border: 1px solid #dee2e6; padding: 15px; border-radius: 12px; 
             background-color: #ffffff; margin-bottom: 10px; text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        .price-tag { font-size: 18px; font-weight: bold; color: #0d47a1; }
-        .result-box { 
-            background-color: #f8fbff; padding: 15px; border-radius: 10px; 
-            border-left: 5px solid #0d47a1; margin-bottom: 10px; 
-        }
+        .price-tag { font-size: 16px; font-weight: bold; color: #0d47a1; margin-top: 5px; }
+        .no-abo-text { font-size: 11px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
+        .result-box { background-color: #f8fbff; padding: 15px; border-radius: 10px; border-left: 5px solid #0d47a1; margin-bottom: 10px; }
         .stLinkButton a {
             background-color: #0d47a1 !important; color: white !important;
             border-radius: 6px !important; width: 100% !important; display: block;
-            text-align: center; padding: 10px; font-weight: bold; text-decoration: none;
+            text-align: center; padding: 8px; font-weight: bold; text-decoration: none;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -107,7 +105,7 @@ st.markdown("""
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ==========================================
-# 4. INFOS & RECHTLICHES (EXPANDER MIT ABSTÄNDEN)
+# 4. INFOS & RECHTLICHES (EXPANDER)
 # ==========================================
 st.title("Amtsschimmel-Killer 🪓")
 
@@ -125,74 +123,82 @@ with t1:
         st.write("")
         st.write("**Haftung:**")
         st.write("Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.")
+
 with t2:
     with st.expander("🛡️ Datenschutz"):
         st.write("**1. Datenschutz auf einen Blick**")
         st.write("Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).")
         st.write("")
         st.write("**2. Datenerfassung & Hosting**")
-        st.write("Diese App wird auf Streamlit Cloud gehostet. Logfiles werden automatisch vom Hoster erfasst.")
+        st.write("Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.")
         st.write("")
         st.write("**3. Dokumentenverarbeitung**")
-        st.write("Übertragung an OpenAI (USA) via TLS. Keine dauerhafte Speicherung der Briefe.")
+        st.write("Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.")
         st.write("")
-        st.write("**4. Zahlungsabwicklung**")
-        st.write("Abwicklung via Stripe. Wir erhalten nur die Zahlungsbestätigung.")
+        st.write("**4. Zahlungsabwicklung (Stripe)**")
+        st.write("Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung.")
         st.write("")
         st.write("**5. Ihre Rechte**")
-        st.write("Recht auf Auskunft & Löschung via amtsschimmel-killer@proton.me.")
+        st.write("Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontakt unter amtsschimmel-killer@proton.me.")
+
 with t3:
     with st.expander("❓ FAQ"):
         st.write("**Ist das ein Abonnement?**")
-        st.write("Nein. Jede Zahlung ist eine Einmalzahlung. Wir hassen Abos!")
+        st.write("Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung.")
         st.write("")
         st.write("**Wie sicher sind meine Dokumente?**")
-        st.write("Verschlüsselte Verarbeitung, Löschung nach dem Scan.")
+        st.write("Verschlüsselte Übertragung, keine dauerhafte Speicherung auf unseren Servern. Löschung nach dem Scan.")
         st.write("")
         st.write("**Ersetzt die App eine Rechtsberatung?**")
-        st.write("Nein. Wir bieten eine Formulierungshilfe.")
+        st.write("Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis.")
         st.write("")
-        st.write("**Was passiert bei Fehlern?**")
-        st.write("Nur erfolgreiche Analysen verbrauchen Guthaben.")
+        st.write("**Was passiert, wenn der Scan fehlschlägt?**")
+        st.write("Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.")
+        st.write("")
+        st.write("**Wie erreiche ich Elisabeth Reinecke?**")
+        st.write("Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me.")
+
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.info("Fristverlängerung")
-        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung...")
-        st.info("Widerspruch")
-        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein...")
-        st.info("Akteneinsicht")
-        st.code("Sehr geehrte Damen und Herren, beantrage ich hiermit gemäß § 25 SGB X Akteneinsicht.")
+        st.write("**Fristverlängerung:**")
+        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.")
+        st.write("")
+        st.write("**Widerspruch:**")
+        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein.")
+        st.write("")
+        st.write("**Akteneinsicht:**")
+        st.code("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X Akteneinsicht.")
 
 st.divider()
 
 # ==========================================
-# 5. HAUPTBEREICH (3 SPALTEN FIXIERT)
+# 5. HAUPTBEREICH (3 SPALTEN)
 # ==========================================
-col_links, col_mitte, col_rechts = st.columns([1, 1.2, 1.4])
+col_paks, col_up, col_res = st.columns([1, 1.2, 1.4])
 
-# --- SPALTE LINKS: PAKETE ---
-with col_links:
+# --- SPALTE 1: PAKETE ---
+with col_paks:
     st.subheader("🌐 Sprachen")
-    lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇺🇦 Ukrainska"], label_visibility="collapsed")
-    st.write("")
-    if os.path.exists("icon_final_blau.png"): 
-        st.image("icon_final_blau.png", width=100)
+    lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇺🇦 Ukrainska"], label_visibility="collapsed")
     st.write("---")
+    
     paks = [
-        ("📄", "Analyse (1 Dok)", "3,99 €", STRIPE_1),
-        ("📦", "Spar-Paket (3 Dok)", "9,99 €", STRIPE_2),
-        ("👑", "Sorglos-Paket (10 Dok)", "19,99 €", STRIPE_3)
+        ("📄", "Analyse (1 Dokument)", "3,99 €", STRIPE_1),
+        ("📦", "Spar Paket (3 Dokumente)", "9,99 €", STRIPE_2),
+        ("👑", "Sorglos Paket (10 Dokumente)", "19,99 €", STRIPE_3)
     ]
     for icon, t, p, l in paks:
-        st.markdown(f'<div class="paket-card"><span style="font-size: 24px;">{icon}</span><br><b>{t}</b><br><span class="price-tag">{p}</span><br><small>❌ KEIN ABO</small></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="paket-card"><span style="font-size: 24px;">{icon}</span><br>Amtsschimmel Killer: {t}<br><div class="price-tag">Einmalpreis {p}</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", l)
         st.write("")
 
-# --- SPALTE MITTE: UPLOAD ---
-with col_mitte:
+# --- SPALTE 2: UPLOAD (TIEFER GESETZT) ---
+with col_up:
+    # Der Abstandshalter, um den Upload nach unten neben die Pakete zu schieben
+    st.write("<div style='height: 110px;'></div>", unsafe_allow_html=True)
     st.subheader("📑 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Scans**")
-    upped = st.file_uploader("Upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+    upped = st.file_uploader("Datei hier reinziehen", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
     if upped:
         if upped.type == "application/pdf":
@@ -202,13 +208,12 @@ with col_mitte:
         else:
             st.image(Image.open(upped), use_container_width=True)
 
-# --- SPALTE RECHTS: ANALYSE & EXPORT ---
-with col_rechts:
+# --- SPALTE 3: ANALYSE ---
+with col_res:
     st.subheader("🔍 Analyse & Antwort")
-    
     if upped and st.button("🚀 JETZT ANALYSIEREN", type="primary", use_container_width=True):
         if st.session_state.credits > 0:
-            with st.spinner("Analyse läuft..."):
+            with st.spinner("KI liest den Amtsschimmel..."):
                 try:
                     text = ""
                     if upped.type == "application/pdf":
@@ -217,7 +222,7 @@ with col_rechts:
                     else:
                         text = pytesseract.image_to_string(Image.open(upped))
                     
-                    prompt = f"Analysiere auf {lang}. ###SUM### Zusammenfassung, ###FRIST### Fristen, ###ANTWORT### Entwurf. Text: {text}"
+                    prompt = f"Analysiere auf {lang}. Trenne: ###SUM### Zusammenfassung, ###FRIST### Fristen, ###ANTWORT### Antwortentwurf. Text: {text}"
                     res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
                     full = res.choices[0].message.content
                     
@@ -233,16 +238,15 @@ with col_rechts:
         else: st.warning("Bitte erst links Guthaben kaufen!")
 
     if st.session_state.full_res:
-        for title, text in st.session_state.full_res.items():
-            st.markdown(f'<div class="result-box"><b>{title.upper()}</b><br>{text}</div>', unsafe_allow_html=True)
+        for title, content in st.session_state.full_res.items():
+            st.markdown(f'<div class="result-box"><b>{title.upper()}</b><br>{content}</div>', unsafe_allow_html=True)
         
         st.write("---")
-        st.write("📥 **Export-Optionen:**")
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", get_pdf_bytes(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", get_docx_bytes(st.session_state.full_res), "Analyse.docx")
         with ex3: st.download_button("📊 Excel", get_xlsx_bytes(st.session_state.full_res), "Analyse.xlsx")
-        with ex4: st.download_button("📅 Kalender", get_ics_bytes(st.session_state.full_res), "frist.ics")
+        with ex4: st.download_button("📅 iCal", get_ics_bytes(st.session_state.full_res), "frist.ics")
         
         if st.button("🔄 Neuer Scan", use_container_width=True):
             st.session_state.full_res = None
