@@ -6,7 +6,7 @@ from datetime import datetime
 # --- 1. SEITEN-LAYOUT ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide")
 
-# --- 2. EXPORT-FUNKTIONEN (Stabil & Ohne Absturz-Gefahr) ---
+# --- 2. EXPORT-FUNKTIONEN (Stabil & Sicher) ---
 def create_excel(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -23,62 +23,62 @@ def create_ics_manual(summary, date_str):
     formatted_date = f"{clean_date[4:]}{clean_date[2:4]}{clean_date[:2]}" if len(clean_date) == 8 else datetime.now().strftime("%Y%m%d")
     return f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:{formatted_date}\nSUMMARY:Frist: {summary[:30]}...\nEND:VEVENT\nEND:VCALENDAR"
 
-# --- 3. RECHTLICHES & VORLAGEN (Oben fixiert, zusammengeklappt) ---
+# --- 3. RECHTLICHES & VORLAGEN (Ganz oben fixiert) ---
 c_re1, c_re2, c_re3, c_re4 = st.columns(4)
 
 with c_re1:
     with st.expander("⚖️ Impressum"):
         st.markdown("""
-**Amtsschimmel-Killer**  
-Betreiberin: Elisabeth Reinecke  
-Ringelsweide 9  
-40223 Düsseldorf  
+        **Amtsschimmel-Killer**  
+        Betreiberin: Elisabeth Reinecke  
+        Ringelsweide 9  
+        40223 Düsseldorf  
 
-**Kontakt:**  
-Telefon: +49 211 15821329  
-E-Mail: amtsschimmel-killer@proton.me  
-Web: amtsschimmel-killer.streamlit.app  
+        **Kontakt:**  
+        Telefon: +49 211 15821329  
+        E-Mail: amtsschimmel-killer@proton.me  
+        Web: amtsschimmel-killer.streamlit.app  
 
-**Haftung:**  
-Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
+        **Haftung:**  
+        Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
         """)
 
 with c_re2:
     with st.expander("🛡️ Datenschutz"):
         st.markdown("""
-**1. Datenschutz auf einen Blick**  
-Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
+        **1. Datenschutz auf einen Blick**  
+        Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
-**2. Datenerfassung & Hosting**  
-Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
+        **2. Datenerfassung & Hosting**  
+        Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
 
-**3. Dokumentenverarbeitung**  
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
+        **3. Dokumentenverarbeitung**  
+        Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
 
-**4. Zahlungsabwicklung (Stripe)**  
-Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
+        **4. Zahlungsabwicklung (Stripe)**  
+        Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
 
-**5. Ihre Rechte**  
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
+        **5. Ihre Rechte**  
+        Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
         """)
 
 with c_re3:
     with st.expander("❓ FAQ"):
         st.markdown("""
-**Ist das ein Abonnement?**  
-Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
+        **Ist das ein Abonnement?**  
+        Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
-**Wie sicher sind meine Dokumente?**  
-Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
+        **Wie sicher sind meine Dokumente?**  
+        Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
 
-**Ersetzt die App eine Rechtsberatung?**  
-Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
+        **Ersetzt die App eine Rechtsberatung?**  
+        Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
 
-**Was passiert, wenn der Scan fehlschlägt?**  
-Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
+        **Was passiert, wenn der Scan fehlschlägt?**  
+        Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
 
-**Wie erreiche ich Elisabeth Reinecke?**  
-Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
+        **Wie erreiche ich Elisabeth Reinecke?**  
+        Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
         """)
 
 with c_re4:
@@ -97,34 +97,55 @@ col_left, col_mid, col_right = st.columns([1, 1.5, 1.5])
 
 # LINKS: Logo, Sprachen & Stripe Pakete
 with col_left:
-    st.image("icon_final_blau.png", width=120)
+    st.image("icon_final_blau.png", width=140)
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "AR العربية"], label_visibility="collapsed")
+    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "AR العربية", "FR Français", "IT Italiano", "ES Español", "RO Română", "NL Nederlands", "EL Ελληνικά"], label_visibility="collapsed")
     
     st.write("") # Abstand
     
-    # Paket 1 (Bronze)
-    st.success("🥉 **1. Paket 3,99 €**\n\n(1 Analyse-Scan)\n\n❌ Kein Abo")
+    # Paket 1: Analyse
+    st.markdown("""
+    <div style="background-color: #fdebd0; padding: 15px; border-radius: 10px; border: 1px solid #f8c471; margin-bottom: 10px;">
+        <h4 style="color: #af601a; margin-top: 0;">📄 Amtsschimmel-Killer: Analyse</h4>
+        <p style="margin-bottom: 5px;">(1 Dokument)</p>
+        <b style="font-size: 1.2em;">3,99 €</b><br>
+        <span style="color: #e74c3c;">❌ Einmalzahlung / Kein Abo</span>
+    </div>
+    """, unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
     
-    # Paket 2 (Silber)
-    st.info("🥈 **2. Paket 9,99 €**\n\n(3 Analyse-Scans)\n\n❌ Kein Abo")
+    # Paket 2: Spar-Paket
+    st.markdown("""
+    <div style="background-color: #ebf5fb; padding: 15px; border-radius: 10px; border: 1px solid #a9cce3; margin-bottom: 10px; margin-top: 20px;">
+        <h4 style="color: #2e86c1; margin-top: 0;">🥈 Amtsschimmel-Killer: Spar-Paket</h4>
+        <p style="margin-bottom: 5px;">(3 Dokumente)</p>
+        <b style="font-size: 1.2em;">9,99 €</b><br>
+        <span style="color: #e74c3c;">❌ Einmalzahlung / Kein Abo</span>
+    </div>
+    """, unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
     
-    # Paket 3 (Gold)
-    st.warning("🥇 **3. Paket 19,99 €**\n\n(10 Analyse-Scans)\n\n❌ Kein Abo")
+    # Paket 3: Sorglos-Paket
+    st.markdown("""
+    <div style="background-color: #fef9e7; padding: 15px; border-radius: 10px; border: 1px solid #f7dc6f; margin-bottom: 10px; margin-top: 20px;">
+        <h4 style="color: #d4ac0d; margin-top: 0;">🥇 Amtsschimmel-Killer: Sorglos-Paket</h4>
+        <p style="margin-bottom: 5px;">(10 Dokumente)</p>
+        <b style="font-size: 1.2em;">19,99 €</b><br>
+        <span style="color: #e74c3c;">❌ Einmalzahlung / Kein Abo</span>
+    </div>
+    """, unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", use_container_width=True)
 
 # MITTE: Upload
 with col_mid:
     st.markdown("### 📑 Upload & Vorschau")
-    st.success("Guthaben aktiv")
-    uploaded_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+    st.success("Guthaben: aktiv")
+    uploaded_file = st.file_uploader("Datei hochladen", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
     if uploaded_file:
         st.image(uploaded_file, use_column_width=True)
 
-# RECHTS: Ergebnis & Export
+# RECHTS: Analyse & Export
 with col_right:
     st.markdown("### 🔍 Analyse & Antwort")
     ergebnis_demo = "Hier erscheint das Ergebnis nach dem Scan."
@@ -133,10 +154,11 @@ with col_right:
     
     if uploaded_file:
         st.divider()
+        st.write("### 📤 Export-Optionen")
         c_ex, c_cal = st.columns(2)
         with c_ex:
-            excel_data = create_excel({"Analyse": ergebnis_demo, "Frist": frist_demo})
-            st.download_button("📊 Excel Export", excel_data, "Amtsschimmel_Analyse.xlsx", use_container_width=True)
+            excel_data = create_excel({"Inhalt": ergebnis_demo, "Frist": frist_demo})
+            st.download_button("📊 Excel (Auto-Spalten)", excel_data, "Analyse.xlsx", use_container_width=True)
         with c_cal:
             ics_data = create_ics_manual(ergebnis_demo, frist_demo)
-            st.download_button("📅 Frist speichern", ics_data, "Frist.ics", use_container_width=True)
+            st.download_button("📅 Kalender-Termin", ics_data, "Frist.ics", use_container_width=True)
