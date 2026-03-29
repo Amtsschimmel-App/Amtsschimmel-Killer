@@ -12,7 +12,7 @@ import shutil
 import stripe
 from datetime import datetime, timedelta
 import re
-from openpyxl.utils import get_column_letter
+from openpyxl.styles import Alignment
 import streamlit.components.v1 as components
 
 # 1. KONFIGURATION
@@ -32,14 +32,6 @@ st.markdown("""
     }
     .buy-button:hover { transform: scale(1.02); border-color: #1e3a8a; }
     .frist-box { background-color: #fef9c3; border-left: 5px solid #facc15; padding: 15px; border-radius: 8px; color: #854d0e; margin-bottom: 20px; font-weight: bold; }
-    
-    /* Druck-Optimierung: Versteckt UI-Elemente beim Drucken */
-    @media print {
-        .stApp { display: none !important; }
-        .print-content { display: block !important; font-family: Arial, sans-serif; line-height: 1.5; padding: 40px; }
-    }
-    .print-content { display: none; }
-
     @media (max-width: 640px) {
         [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
         .stButton>button, .stDownloadButton>button { margin-bottom: 10px; }
@@ -93,12 +85,27 @@ def get_text_hybrid(uploaded_file):
         text = pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     return text.strip()
 
+def create_ics(fristen_text):
+    now = datetime.now().strftime("%Y%m%dT%H%M%SZ")
+    start_date = (datetime.now() + timedelta(days=14)).strftime("%Y%m%d")
+    ics_content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTAMP:{now}\nDTSTART;VALUE=DATE:{start_date}\nSUMMARY:Fristende (Amtsschimmel-Killer)\nDESCRIPTION:{fristen_text.replace('\\n', ' ')}\nEND:VEVENT\nEND:VCALENDAR"
+    return ics_content
+
 class CustomPDF(FPDF):
     def header(self):
         if os.path.exists(LOGO_DATEI): self.image(LOGO_DATEI, 10, 8, 30)
         self.set_font('helvetica', 'B', 15); self.set_text_color(30, 58, 138)
         self.cell(0, 10, 'AMTSSCHIMMEL-KILLER', ln=True, align='R')
         self.line(10, 30, 200, 30); self.ln(15)
+    
+    def add_signature_field(self):
+        self.ln(20)
+        self.set_font('helvetica', '', 10)
+        self.cell(0, 10, '__________________________, den __________________', ln=True)
+        self.cell(0, 5, '(Ort)                                     (Datum)', ln=True)
+        self.ln(15)
+        self.cell(0, 10, '________________________________________________', ln=True)
+        self.cell(0, 5, '(Unterschrift)', ln=True)
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
@@ -122,7 +129,8 @@ ui = {
     "title": "Amtsschimmel-Killer 📄🚀" if lang == "Deutsch" else "Bureaucracy Killer 📄🚀",
     "upload": "Brief hochladen" if lang == "Deutsch" else "Upload letter",
     "analyze": "🚀 Jetzt analysieren" if lang == "Deutsch" else "🚀 Analyze now",
-    "print": "🖨️ Brief drucken" if lang == "Deutsch" else "🖨️ Print letter"
+    "print": "🖨️ Drucken" if lang == "Deutsch" else "🖨️ Print",
+    "ics": "📅 Termin" if lang == "Deutsch" else "📅 Calendar"
 }
 
 st.title(ui["title"])
@@ -148,11 +156,11 @@ if upload:
                         st.session_state.credits -= 1
                         sys_p = f"Legal expert. Respond in {lang}. Format: ---FRISTEN--- list, then ---BRIEF--- letter."
                         resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-                        full_res = resp.choices.message.content
+                        full_res = resp.choices[0].message.content
                         if "---BRIEF---" in full_res:
                             parts = full_res.split("---BRIEF---")
-                            st.session_state.last_fristen = parts.replace("---FRISTEN---", "").strip()
-                            st.session_state.last_brief = parts.strip()
+                            st.session_state.last_fristen = parts[0].replace("---FRISTEN---", "").strip()
+                            st.session_state.last_brief = parts[1].strip()
                         else: st.session_state.last_brief = full_res
                         st.rerun()
             else: st.warning("No credits.")
@@ -160,34 +168,31 @@ if upload:
         if st.session_state.last_brief:
             st.subheader("⚠️ Fristen")
             st.markdown(f'<div class="frist-box">{st.session_state.last_fristen}</div>', unsafe_allow_html=True)
+            st.download_button(ui["ics"], create_ics(st.session_state.last_fristen), "Frist.ics", "text/calendar")
+            
             st.subheader("📝 Musterschreiben")
             st.code(st.session_state.last_brief, language="text")
             
             st.divider()
-            # Buttons
             c_p, c_d, c_x, c_r = st.columns(4)
             with c_p:
                 if st.button(ui["print"]):
-                    components.html(f"""
-                        <script>
-                        var win = window.open('', '', 'height=700,width=700');
-                        win.document.write('<html><head><title>Drucken</title></head><body>');
-                        win.document.write('<pre style="white-space: pre-wrap; font-family: Arial;">' + `{st.session_state.last_brief}` + '</pre>');
-                        win.document.write('</body></html>');
-                        win.document.close();
-                        win.print();
-                        </script>
-                    """, height=0)
+                    components.html(f"<script>var win = window.open('', '', 'height=700,width=700'); win.document.write('<pre style=\"white-space: pre-wrap; font-family: Arial;\">' + `{st.session_state.last_brief}` + '</pre>'); win.document.close(); win.print();</script>", height=0)
             with c_d:
                 pdf = CustomPDF()
-                pdf.add_page(); pdf.set_font("helvetica", size=10); pdf.multi_cell(0, 7, txt=st.session_state.last_brief.encode('latin-1','replace').decode('latin-1'))
-                st.download_button("📩 PDF", bytes(pdf.output()), "Antwort.pdf")
+                pdf.add_page(); pdf.set_font("helvetica", size=11); pdf.multi_cell(0, 7, txt=st.session_state.last_brief.encode('latin-1','replace').decode('latin-1'))
+                pdf.add_signature_field()
+                st.download_button("📩 PDF", bytes(pdf.output()), "Amtsschimmel_Brief.pdf")
             with c_x:
-                df = pd.DataFrame([{"Inhalt": st.session_state.last_brief}])
+                df = pd.DataFrame([{"Fristen": st.session_state.last_fristen, "Musterschreiben": st.session_state.last_brief}])
                 out = io.BytesIO()
                 with pd.ExcelWriter(out, engine='openpyxl') as wr:
-                    df.to_excel(wr, index=False)
-                st.download_button("📊 Excel", out.getvalue(), "Analyse.xlsx")
+                    df.to_excel(wr, index=False, sheet_name="Analyse")
+                    ws = wr.sheets["Analyse"]
+                    ws.column_dimensions['A'].width = 30
+                    ws.column_dimensions['B'].width = 80
+                    for cell in ws[2]: cell.alignment = Alignment(wrap_text=True, vertical="top")
+                st.download_button("📊 Excel", out.getvalue(), "Analyse_Bericht.xlsx")
             with c_r:
                 if st.button("🗑️ Neu"):
-                    st.session_state.last_brief = ""; st.rerun()
+                    st.session_state.last_brief = ""; st.session_state.last_fristen = ""; st.rerun()
