@@ -11,3 +11,4 @@ openpyxl
 gspread
 gspread-dataframe
 xlsxwriter
+python-docx
