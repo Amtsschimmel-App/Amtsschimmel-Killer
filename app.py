@@ -11,7 +11,7 @@ import os
 import shutil
 import stripe
 from datetime import datetime, timedelta
-from openpyxl.styles import Alignment
+import re
 
 # 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
@@ -29,6 +29,7 @@ st.markdown("""
     }
     .buy-button:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #1e3a8a; }
     .frist-box { background-color: #fef9c3; border-left: 5px solid #facc15; padding: 15px; border-radius: 5px; color: #854d0e; margin-bottom: 20px; font-weight: bold; font-size: 1.1em; }
+    .error-msg { background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; }
     [data-testid="stMetricValue"] { color: #1e3a8a; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
@@ -40,7 +41,7 @@ stripe.api_key = st.secrets["STRIPE_API_KEY"]
 if shutil.which("tesseract"):
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
 
-# --- 4. SESSION STATE & ZAHLUNGSLOGIK ---
+# --- 4. SESSION STATE ---
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 if "last_fristen" not in st.session_state: st.session_state.last_fristen = ""
@@ -54,19 +55,20 @@ if is_admin and st.session_state.credits < 100:
     st.session_state.credits = 999
     st.toast("🔓 ADMIN-MODUS AKTIV", icon="🛠️")
 
-if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
-    try:
-        session = stripe.checkout.Session.retrieve(params["session_id"])
-        if session.payment_status in ["paid", "no_payment_required"]:
-            pack_size = int(params.get("pack", 1))
-            st.session_state.credits += pack_size
-            st.session_state.processed_sessions.append(params["session_id"])
-            st.balloons()
-            st.success(f"✨ {pack_size} Analyse(n) freigeschaltet.")
-            st.query_params.clear()
-    except: pass
+# --- 5. HILFSFUNKTIONEN ---
+def check_text_quality(text):
+    """Prüft auf Leere oder unleserlichen Datenmüll (OCR-Fehler)."""
+    text = text.strip()
+    if not text or len(text) < 50:
+        return False, "Das Dokument scheint leer zu sein oder der Text konnte nicht erkannt werden. Bitte achte darauf, dass das ganze Blatt sichtbar ist."
+    
+    # Sonderzeichen-Quote (viele kryptische Zeichen deuten auf Unschärfe hin)
+    special_chars = len(re.findall(r'[^a-zA-Z0-9\säöüÄÖÜß.,!?\-]', text))
+    if len(text) > 0 and (special_chars / len(text)) > 0.25:
+        return False, "Der Text ist leider zu unscharf oder verwackelt. Bitte nochmal mit ruhiger Hand und bei besserem Licht fotografieren."
+    
+    return True, ""
 
-# --- HILFSFUNKTIONEN ---
 def get_text_hybrid(uploaded_file):
     text = ""
     file_bytes = uploaded_file.getvalue()
@@ -74,7 +76,7 @@ def get_text_hybrid(uploaded_file):
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             text = "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
         if len(text.strip()) < 50:
-            images = convert_from_bytes(file_bytes, dpi=150)
+            images = convert_from_bytes(file_bytes, dpi=200)
             text = "\n".join([pytesseract.image_to_string(img, lang='deu') for img in images])
     else:
         text = pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
@@ -82,35 +84,32 @@ def get_text_hybrid(uploaded_file):
 
 def create_ics(fristen_text):
     now = datetime.now().strftime("%Y%m%dT%H%M%SZ")
-    start_date = (datetime.now() + timedelta(days=14)).strftime("%Y%m%d")
-    ics_content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTAMP:{now}\nDTSTART;VALUE=DATE:{start_date}\nSUMMARY:Fristende (Amtsschimmel-Killer)\nDESCRIPTION:{fristen_text.replace('\\n', ' ')}\nEND:VEVENT\nEND:VCALENDAR"
+    # Einfache Extraktion eines Datums aus dem Fristentext (falls vorhanden)
+    dates = re.findall(r'\d{2}\.\d{2}\.\d{4}', fristen_text)
+    start_date = dates[0].replace(".", "") if dates else (datetime.now() + timedelta(days=14)).strftime("%Y%m%d")
+    ics_content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTAMP:{now}\nDTSTART;VALUE=DATE:{start_date}\nSUMMARY:Behördenfrist (Amtsschimmel-Killer)\nDESCRIPTION:{fristen_text.replace('\\n', ' ')}\nEND:VEVENT\nEND:VCALENDAR"
     return ics_content
 
-# --- 5. SIDEBAR ---
+# --- 6. SIDEBAR ---
 with st.sidebar:
     st.image("https://img.icons8.com", width=80)
     st.title("Dein Konto")
     st.metric("Guthaben", f"{st.session_state.credits} Scans")
-    if is_admin: st.info("🔓 Admin-Zugriff aktiv")
     st.divider()
     st.subheader("💳 Guthaben laden")
-    packages = [("📄 Basis-Check", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"),
-                ("🚀 Spar-Paket", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"),
-                ("💎 Profi-Paket", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
+    packages = [("📄 Basis-Check", st.secrets.get("STRIPE_LINK_1", "#"), "1 Scan", "3,99 €"),
+                ("🚀 Spar-Paket", st.secrets.get("STRIPE_LINK_3", "#"), "3 Scans", "9,99 €"),
+                ("💎 Profi-Paket", st.secrets.get("STRIPE_LINK_10", "#"), "10 Scans", "19,99 €")]
     for title, link, count, price in packages:
-        st.markdown(f'''
-            <a href="{link}" target="_blank" class="buy-button">
-                <b>{title}</b><br>
-                <small>{price} | {count}<br>KEIN ABO | Einmalzahlung</small>
-            </a>
-        ''', unsafe_allow_html=True)
+        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{title}</b><br><small>{price} | {count}</small></a>', unsafe_allow_html=True)
 
-# --- 6. HAUPTSEITE ---
+# --- 7. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
 upload = st.file_uploader("Behörden-Dokument hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if upload:
     col_v, col_a = st.columns([1, 1.5])
+    
     with col_v:
         if upload.type == "application/pdf":
             try:
@@ -121,84 +120,69 @@ if upload:
             st.image(upload, use_container_width=True)
 
     with col_a:
+        # Erst Text extrahieren
+        raw_text = get_text_hybrid(upload)
+        is_valid, error_msg = check_text_quality(raw_text)
+
+        if not is_valid:
+            st.markdown(f'<div class="error-msg">⚠️ {error_msg}</div>', unsafe_allow_html=True)
+            if st.button("🔄 Nochmal versuchen"): st.rerun()
+        
+        elif st.session_state.credits <= 0:
+            st.warning("Dein Guthaben ist leer. Bitte lade Scans in der Seitenleiste auf.")
+        
+        else:
+            if st.button("🚀 Analyse starten (1 Credit)"):
+                with st.spinner("KI analysiert das Dokument..."):
+                    st.session_state.credits -= 1
+                    prompt = f"""
+                    Analysiere dieses Behördenschreiben:
+                    {raw_text}
+                    
+                    Gib deine Antwort STRENG in diesem Format aus:
+                    ---FRISTEN---
+                    (Liste hier kurz alle Fristen oder Termine mit Datum)
+                    ---BRIEF---
+                    (Schreibe hier ein höfliches, rechtssicheres Antwortschreiben an die Behörde, das der Nutzer direkt verwenden kann. Nutze Platzhalter wie [Name] für fehlende Daten.)
+                    """
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": "Du bist ein Experte für deutsche Bürokratie."},
+                                  {"role": "user", "content": prompt}]
+                    )
+                    
+                    res_text = response.choices.message.content
+                    if "---FRISTEN---" in res_text and "---BRIEF---" in res_text:
+                        parts = res_text.split("---BRIEF---")
+                        st.session_state.last_fristen = parts[0].replace("---FRISTEN---", "").strip()
+                        st.session_state.last_brief = parts[1].strip()
+                    else:
+                        st.session_state.last_brief = res_text
+                    st.rerun()
+
+        # Ergebnisse anzeigen
         if st.session_state.last_brief:
             st.subheader("⚠️ Wichtige Fristen")
             st.markdown(f'<div class="frist-box">{st.session_state.last_fristen}</div>', unsafe_allow_html=True)
             
-            # Kalender-Button direkt unter Fristen
             ics_data = create_ics(st.session_state.last_fristen)
-            st.download_button("📅 Termin in Kalender speichern", ics_data, "Frist-Termin.ics", "text/calendar")
+            st.download_button("📅 Frist in Kalender speichern", ics_data, "Frist.ics", "text/calendar")
             
             st.subheader("📝 Entwurf Antwortschreiben")
             st.markdown(st.session_state.last_brief)
+            
+            # Export Sektion
             st.divider()
-            
             c1, c2 = st.columns(2)
-            # PDF DOWNLOAD
             with c1:
-                try:
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("helvetica", style="B", size=14)
-                    pdf.cell(0, 10, txt="WICHTIGE FRISTEN", ln=True)
-                    pdf.set_font("helvetica", size=11)
-                    clean_f = st.session_state.last_fristen.replace("€", "Euro").replace("✅", "OK")
-                    pdf.multi_cell(0, 8, txt=clean_f.encode('latin-1', 'replace').decode('latin-1'))
-                    pdf.ln(10)
-                    pdf.set_font("helvetica", style="B", size=14)
-                    pdf.cell(0, 10, txt="ANTWORTSCHREIBEN", ln=True)
-                    pdf.set_font("helvetica", size=11)
-                    clean_b = st.session_state.last_brief.replace("€", "Euro").replace("✅", "OK")
-                    pdf.multi_cell(0, 8, txt=clean_b.encode('latin-1', 'replace').decode('latin-1'))
-                    st.download_button("📩 PDF laden", bytes(pdf.output()), "Amtsschimmel-Antwort.pdf", "application/pdf")
-                except Exception as e: st.error(f"PDF-Fehler: {e}")
-            
-            # EXCEL DOWNLOAD
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("helvetica", size=12)
+                pdf.multi_cell(0, 10, txt=st.session_state.last_brief.encode('latin-1', 'replace').decode('latin-1'))
+                st.download_button("📩 Brief als PDF", bytes(pdf.output()), "Antwort.pdf", "application/pdf")
             with c2:
-                try:
-                    datum = datetime.now().strftime("%d.%m.%Y")
-                    df = pd.DataFrame([
-                        {"Datum": datum, "Bereich": "FRISTEN", "Inhalt": st.session_state.last_fristen},
-                        {"Datum": datum, "Bereich": "BRIEF", "Inhalt": st.session_state.last_brief}
-                    ])
-                    buf = io.BytesIO()
-                    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-                        df.to_excel(writer, index=False, sheet_name='Amtsschimmel-Analyse')
-                        ws = writer.sheets['Amtsschimmel-Analyse']
-                        ws.column_dimensions['C'].width = 100
-                        for row in ws.iter_rows(min_row=2, max_col=3):
-                            for cell in row: cell.alignment = Alignment(wrap_text=True, vertical='top')
-                    st.download_button("📊 Excel laden", buf.getvalue(), "Amtsschimmel_Analyse.xlsx")
-                except Exception as e: st.error(f"Excel-Fehler: {e}")
-            
-            if st.button("🔄 Nächstes Dokument analysieren"):
-                st.session_state.last_fristen = ""; st.session_state.last_brief = ""; st.rerun()
-
-        elif st.session_state.credits > 0:
-            if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("KI knackt den Amtsschimmel..."):
-                    text = get_text_hybrid(upload)
-                    # VERBESSERTER PROMPT FÜR SAUBERE TRENNUNG
-                    prompt = f"""
-                    Analysiere dieses Behördenschreiben: {text}
-                    Erstelle zwei klare Bereiche:
-                    1. Eine Liste aller relevanten Fristen und Termine.
-                    2. Einen rechtlich präzisen und höflichen Antwortbrief-Entwurf.
-                    
-                    WICHTIG: Trenne beide Bereiche EXAKT mit der Zeichenfolge ###TRENNUNG###
-                    """
-                    res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                    antwort = res.choices[0].message.content
-                    
-                    if "###TRENNUNG###" in antwort:
-                        parts = antwort.split("###TRENNUNG###")
-                        st.session_state.last_fristen = parts[0].strip()
-                        st.session_state.last_brief = parts[1].strip()
-                    else:
-                        st.session_state.last_fristen = "Fristen im Brief enthalten."
-                        st.session_state.last_brief = antwort
-                    
-                    st.session_state.credits -= 1
+                if st.button("🗑️ Alles löschen & Neu"):
+                    st.session_state.last_brief = ""
+                    st.session_state.last_fristen = ""
                     st.rerun()
-        else:
-            st.warning("⚠️ Dein Guthaben ist aufgebraucht. Bitte lade neue Scans in der Sidebar nach.")
