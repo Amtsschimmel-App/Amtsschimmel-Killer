@@ -37,7 +37,7 @@ if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
 # ==========================================
-# 2. STRIPE LINKS & DESIGN (EXAKT)
+# 2. STRIPE LINKS (FIXIERT) & DESIGN
 # ==========================================
 STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
 STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
@@ -72,7 +72,7 @@ st.markdown("""
 LOGO_DATEI = "icon_final_blau.png"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# PDF GENERIERUNG FIX (Gibt Bytes zurück)
+# PDF GENERIERUNG FIX (Bytes Rückgabe ohne .encode Fehler)
 def generate_pdf(data_dict):
     pdf = FPDF()
     pdf.add_page()
@@ -83,77 +83,76 @@ def generate_pdf(data_dict):
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 10, title.upper(), ln=True)
         pdf.set_font("Arial", size=11)
-        pdf.multi_cell(0, 7, txt=str(content).encode('latin-1', 'replace').decode('latin-1'))
+        # Fix für Latin-1 Encoding
+        txt_safe = str(content).encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, txt=txt_safe)
         pdf.ln(5)
     return pdf.output(dest='S')
 
 # ==========================================
-# 3. OBERE ZEILE: EINGEKLAPPTE INFOS (EXAKT)
+# 3. OBERE ZEILE: EINGEKLAPPTE INFOS (WORTWÖRTLICH)
 # ==========================================
 st.title("Amtsschimmel-Killer 🪓")
 
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum", expanded=False):
-        st.write("""**Amtsschimmel-Killer**
+        st.write("""Amtsschimmel-Killer
 Betreiberin: Elisabeth Reinecke
 Ringelsweide 9
 40223 Düsseldorf
 
-**Kontakt:**
+Kontakt:
 Telefon: +49 211 15821329
 E-Mail: amtsschimmel-killer@proton.me
 Web: amtsschimmel-killer.streamlit.app
 
-**Haftung:**
+Haftung:
 Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.""")
 with t2:
     with st.expander("🛡️ Datenschutz", expanded=False):
-        st.write("""**1. Datenschutz auf einen Blick**
+        st.write("""1. Datenschutz auf einen Blick
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
-**2. Datenerfassung & Hosting**
-Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
+2. Datenerfassung & Hosting
+Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
 
-**3. Dokumentenverarbeitung**
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
+3. Dokumentenverarbeitung
+Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.
 
-**4. Zahlungsabwicklung (Stripe)**
-Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
+4. Zahlungsabwicklung (Stripe)
+Bei Käufen werden Sie zu Stripe weitergeleitet. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
 
-**5. Ihre Rechte**
+5. Ihre Rechte
 Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.""")
 with t3:
     with st.expander("❓ FAQ", expanded=False):
-        st.write("""**Ist das ein Abonnement?**
+        st.write("""Ist das ein Abonnement?
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
-**Wie sicher sind meine Dokumente?**
-Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
+Wie sicher sind meine Dokumente?
+Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert.
 
-**Ersetzt die App eine Rechtsberatung?**
-Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
+Ersetzt die App eine Rechtsberatung?
+Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis.
 
-**Was passiert, wenn der Scan fehlschlägt?**
-Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
-
-**Wie erreiche ich Elisabeth Reinecke?**
-Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.""")
+Was passiert, wenn der Scan fehlschlägt?
+Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.""")
 with t4:
     with st.expander("📝 Vorlagen", expanded=False):
-        st.write("""**Fristverlängerung:**
-Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
+        st.write("""Fristverlängerung:
+Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum]...
 
-**Widerspruch einlegen (Fristwahrend):**
-Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
+Widerspruch einlegen (Fristwahrend):
+Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein...
 
-**Akteneinsicht einfordern:**
-Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]""")
+Akteneinsicht einfordern:
+Sehr geehrte Damen und Herren, ich beantrage hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht.""")
 
 st.divider()
 
 # ==========================================
-# 4. HAUPTBEREICH
+# 4. HAUPTBEREICH (LAYOUT EXAKT WIE IM SCREENSHOT)
 # ==========================================
 c_pak, c_up, c_res = st.columns([0.9, 1.2, 1.5])
 
@@ -162,11 +161,13 @@ with c_pak:
     lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇺🇦 Українська"], label_visibility="collapsed")
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, width=110)
     st.write("---")
+    
     for t, p, l in [("Analyse (1 Dokument)", "3,99 €", STRIPE_1), ("Spar-Paket (3 Dokumente)", "9,99 €", STRIPE_2), ("Sorglos-Paket (10 Dokumente)", "19,99 €", STRIPE_3)]:
         st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: {t}</div><div class="price-tag">Einmalpreis {p}</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", l)
 
 with c_up:
+    # EXAKTE POSITIONIERUNG (155px tief für mittiges Alignment)
     st.markdown("<div style='height: 155px;'></div>", unsafe_allow_html=True)
     st.subheader("📄 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Dokumente**")
@@ -179,8 +180,7 @@ with c_up:
                 raw = upped.read()
                 with pdfplumber.open(io.BytesIO(raw)) as pdf:
                     for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
-                imgs = convert_from_bytes(raw, first_page=1, last_page=1)
-                st.image(imgs, caption="Vorschau", use_container_width=True)
+                st.image(convert_from_bytes(raw, first_page=1, last_page=1), caption="Vorschau", use_container_width=True)
             except: st.info("PDF wird verarbeitet...")
         else:
             img = Image.open(upped)
@@ -191,15 +191,14 @@ with c_up:
             if st.session_state.credits > 0:
                 with st.spinner("Amtsschimmel wird bekämpft..."):
                     try:
-                        prompt = f"Analysiere auf {lang}. Gib das Ergebnis exakt so aus: ZUSAMMENFASSUNG: FRISTEN: ANTWORTENTWURF:. Text: {extracted_text}"
+                        prompt = f"Analysiere auf {lang}. Gib mir strikt getrennt aus: [START_SUM] Zusammenfassung [END_SUM] [START_FRIST] Fristen [END_FRIST] [START_ANTWORT] Antwortschreiben [END_ANTWORT]. Text: {extracted_text}"
                         res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                        full = res.choices[0].message.content
+                        full = res.choices.message.content
                         
-                        # Einfaches Parsing für Boxen
                         st.session_state.full_res = {
-                            "Zusammenfassung": full.split("FRISTEN")[0].replace("ZUSAMMENFASSUNG:", "").strip(),
-                            "Fristen": full.split("ANTWORTENTWURF")[0].split("FRISTEN")[-1].replace(":", "").strip(),
-                            "Antwort-Entwurf": full.split("ANTWORTENTWURF")[-1].replace(":", "").strip()
+                            "Zusammenfassung": full.split("[START_SUM]")[-1].split("[END_SUM]")[0].strip(),
+                            "Fristen": full.split("[START_FRIST]")[-1].split("[END_FRIST]")[0].strip(),
+                            "Antwort-Entwurf": full.split("[START_ANTWORT]")[-1].split("[END_ANTWORT]")[0].strip()
                         }
                         st.session_state.credits -= 1
                         st.balloons()
@@ -219,4 +218,4 @@ with c_res:
             st.session_state.full_res = None
             st.rerun()
     else:
-        st.info("Das Ergebnis erscheint hier rechts neben der Vorschau.")
+        st.info("Hier erscheint das Ergebnis nach dem Scan.")
