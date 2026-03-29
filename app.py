@@ -8,13 +8,13 @@ import io
 import os
 import pandas as pd
 import re
-from fpdf import FPDF
+from fpdf import FPDF 
 from docx import Document
 from docx.shared import Inches
 from datetime import datetime
 
 # ==========================================
-# 1. FESTE TEXTE & KONSTANTEN (UNVERÄNDERLICH)
+# 1. RECHTSTEXTE & KONSTANTEN (FEST FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -52,14 +52,37 @@ Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderliche
 Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
 """
 
+FAQ_TEXT = """
+**Ist das ein Abonnement?**  
+Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
+
+**Wie sicher sind meine Dokumente?**  
+Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
+
+**Ersetzt die App eine Rechtsberatung?**  
+Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
+
+**Was passiert, wenn der Scan fehlschlägt?**  
+Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
+
+**Wie erreiche ich Elisabeth Reinecke?**  
+Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
+"""
+
+VORLAGEN = [
+    ("Fristverlängerung", "Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]"),
+    ("Widerspruch einlegen (Fristwahrend)", "Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]"),
+    ("Akteneinsicht einfordern", "Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+]
+
 # ==========================================
-# 2. SESSION STATE (GUTHABEN & ERGEBNIS-SICHERUNG)
+# 2. SESSION STATE
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
+if "last_mode" not in st.session_state: st.session_state.last_mode = "S"
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# Admin & Stripe Check
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
@@ -72,57 +95,58 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN (PDF, WORD, EXCEL, ICS)
+# 3. EXPORT FUNKTIONEN (PDF MIT ROTEM WIDERSPRUCH)
 # ==========================================
-def create_docx(text):
+def create_docx(text, mode):
     doc = Document()
     if os.path.exists(LOGO_DATEI): doc.add_picture(LOGO_DATEI, width=Inches(1.5))
-    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
+    header = "WIDERSPRUCH GEGEN BESCHEID" if mode == "W" else "Amtsschimmel-Killer Analyse"
+    doc.add_heading(header, 0)
     doc.add_paragraph(text.replace("###", "").replace("**", ""))
     bio = io.BytesIO(); doc.save(bio); return bio.getvalue()
 
-def create_pdf(text):
+def create_pdf_final(text, mode):
     pdf = FPDF()
     pdf.add_page()
-    if os.path.exists(LOGO_DATEI): pdf.image(LOGO_DATEI, 10, 8, 33); pdf.ln(25)
+    if os.path.exists(LOGO_DATEI): 
+        pdf.image(LOGO_DATEI, x=10, y=8, w=33)
+        pdf.ln(25)
+    
+    # Rote Überschrift bei Widerspruch
+    if mode == "W":
+        pdf.set_text_color(200, 0, 0) # Rot
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 10, "OFFIZIELLER WIDERSPRUCH", ln=True)
+    else:
+        pdf.set_text_color(30, 58, 138) # Blau
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True)
+    
+    pdf.set_text_color(0, 0, 0) # Zurück zu Schwarz
     pdf.set_font("Arial", size=11)
-    clean = text.replace("###", "").replace("**", "").encode('latin-1', 'replace').decode('latin-1')
-    pdf.multi_cell(0, 8, txt=clean); return pdf.output(dest='S').encode('latin-1')
+    pdf.ln(5)
+    clean = text.replace("###", "").replace("**", "")
+    pdf.multi_cell(0, 8, txt=clean)
+    return pdf.output()
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    # Hier wird der komplette Text der Analyse in die Spalte "Inhalt" geschrieben
     df = pd.DataFrame({
-        "Datum": dates if dates else ["Kein Datum gefunden"], 
-        "Vorgang": ["Frist aus Behördenbrief" for _ in range(max(1, len(dates)))],
-        "Analyse-Details": [text.replace("\n", " ") for _ in range(max(1, len(dates)))]
+        "Datum": dates if dates else [datetime.now().strftime("%d.%m.%Y")],
+        "Info": [text.replace("\n", " ") for _ in range(max(1, len(dates)))]
     })
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Fristen')
-        worksheet = writer.sheets['Fristen']
-        # Automatische Spaltenbreite (sehr breit für den Text)
-        worksheet.set_column(0, 0, 15)
-        worksheet.set_column(1, 1, 30)
-        worksheet.set_column(2, 2, 100)
+        df.to_excel(writer, index=False)
+        writer.sheets['Sheet1'].set_column(1, 1, 120)
     return output.getvalue()
 
-def create_ics(text):
-    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    ics = "BEGIN:VCALENDAR\nVERSION:2.0\n"
-    for d in dates:
-        try:
-            c_d = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{c_d}\nDTEND:{c_d}\nDESCRIPTION:Erinnerung durch Amtsschimmel-Killer\nEND:VEVENT\n"
-        except: pass
-    ics += "END:VCALENDAR"; return ics.encode('utf-8')
-
 # ==========================================
-# 4. KI-LOGIK & OCR
+# 4. KI-LOGIK
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-def process_file(file):
+def get_text(file):
     text = ""
     try:
         if file.type == "application/pdf":
@@ -138,81 +162,76 @@ def process_file(file):
 
 def run_ai(raw_text, lang, mode):
     if len(raw_text.strip()) < 40: return "FEHLER_UNSCHARF"
+    label = "Widerspruch" if mode == "W" else "Antwortbrief"
     sys_p = f"""Rechtsexperte. Sprache: {lang}. Struktur IMMER:
-    ### AMPEL ### Dringlichkeit: [Status] + Grund: [Satz]
-    ### GLOSSAR ### (Begriffe)
-    ### FRISTEN ### (Datum | Aktion)
-    ### ANTWORTBRIEF ### (Erstelle einen {'Widerspruch' if mode == 'W' else 'Antwortbrief'})
-    ### CHECKLISTE ### (Versand)"""
+    ### 🚦 DRINGLICHKEITS-AMPEL ### Dringlichkeit: [Status] + Grund: [Satz]
+    ### 📖 BEHÖRDEN-DOLMETSCHER ### (Begriffe erklären)
+    ### 📅 WICHTIGE FRISTEN ### (Datum | Aktion)
+    ### ✍️ DEIN {label.upper()} ### (Erstelle einen rechtlich fundierten {label})
+    ### 📋 VERSAND-CHECKLISTE ### (Genau: Einschreiben etc.)"""
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
     return resp.choices[0].message.content
 
 # ==========================================
-# 5. HAUPTBEREICH & SIDEBAR
+# 5. UI (LAYOUT & TABS)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
-    lang_choice = st.selectbox("🌍 Sprache", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
+    lang_choice = st.selectbox("🌍 Sprache wählen", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
     st.divider()
-    st.subheader("Guthaben aufladen")
     for n, l, c, p in [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]:
         st.markdown(f'<a href="{l}" target="_blank" style="text-decoration:none;"><div style="background:white; border:1px solid #e2e8f0; padding:10px; border-radius:10px; margin-bottom:10px; color:#1e3a8a; text-align:center;"><b>{n}</b><br>{p} | {c}<br><b>KEIN ABO | Einmalzahlung</b></div></a>', unsafe_allow_html=True)
 
 t1, t2, t3, t4, t5 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ", "⚖️ Impressum", "🔒 Datenschutz"])
 
 with t1:
-    col_v, col_a = st.columns([1, 1.2])
-    
-    with col_v:
+    col_l, col_r = st.columns([1, 1.3])
+    with col_l:
         st.subheader("1. Dokument hochladen")
-        upload = st.file_uploader("Bild oder PDF wählen:", type=['pdf','png','jpg','jpeg'], key="up_v3")
+        upload = st.file_uploader("Bild oder PDF:", type=['pdf','png','jpg','jpeg'], key="main_v_final")
         if upload:
+            # VORSCHAU LINKS
             if upload.type.startswith("image"):
-                st.image(upload, caption="Deine Vorschau", use_container_width=True)
+                st.image(upload, caption="Vorschau deines Briefes", use_container_width=True)
             else:
                 st.success("✅ PDF geladen.")
 
-    with col_a:
-        st.subheader("2. Ergebnis")
+    with col_r:
+        st.subheader("2. Analyse & Entwurf")
         if upload and st.session_state.credits > 0:
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("🚀 ANALYSE STARTEN"):
                     with st.spinner("Analyse läuft..."):
-                        res = run_ai(process_file(upload), lang_choice, "S")
+                        txt = get_text(upload)
+                        res = run_ai(txt, lang_choice, "S")
                         if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf!")
-                        else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
+                        else: st.session_state.full_res = res; st.session_state.last_mode = "S"; st.session_state.credits -= 1; st.rerun()
             with c2:
                 if st.button("⚖️ WIDERSPRUCH"):
-                    with st.spinner("Erstelle Widerspruch..."):
-                        res = run_ai(process_file(upload), lang_choice, "W")
+                    with st.spinner("Wird erstellt..."):
+                        txt = get_text(upload)
+                        res = run_ai(txt, lang_choice, "W")
                         if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf!")
-                        else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
+                        else: st.session_state.full_res = res; st.session_state.last_mode = "W"; st.session_state.credits -= 1; st.rerun()
         
         if st.session_state.full_res:
             st.markdown(f'<div style="background:#f8fafc; padding:20px; border-radius:10px; border-left:5px solid #1e3a8a;">{st.session_state.full_res}</div>', unsafe_allow_html=True)
             st.divider()
             st.subheader("📥 Downloads")
-            d1, d2, d3, d4 = st.columns(4)
-            with d1: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Antwort.docx")
-            with d2: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
+            d1, d2, d3 = st.columns(3)
+            with d1: st.download_button("📝 Word", create_docx(st.session_state.full_res, st.session_state.last_mode), "Antwort.docx")
+            with d2: st.download_button("📄 PDF", create_pdf_final(st.session_state.full_res, st.session_state.last_mode), "Analyse.pdf")
             with d3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
-            with d4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Fristen.ics")
 
 with t2:
     st.header("⚡ Vorlagen")
-    st.info("**Fristverlängerung:** Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der Frist bis zum [Datum]...")
-    st.info("**Widerspruch:** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein...")
-with t3:
-    st.header("❓ FAQ")
-    st.write("**Ist das ein Abo?** Nein. Einmalzahlung. Kein Abo.")
-    st.write("**Sicherheit?** Keine Speicherung auf Servern.")
-with t4:
-    st.header("⚖️ Impressum")
-    st.markdown(IMPRESSUM_TEXT)
-with t5:
-    st.header("🔒 Datenschutz")
-    st.markdown(DATENSCHUTZ_TEXT)
+    for title, text in VORLAGEN:
+        st.markdown(f"**{title}:**"); st.info(text)
+
+with t3: st.header("❓ FAQ"); st.markdown(FAQ_TEXT)
+with t4: st.header("⚖️ Impressum"); st.markdown(IMPRESSUM_TEXT)
+with t5: st.header("🔒 Datenschutz"); st.markdown(DATENSCHUTZ_TEXT)
 
 st.sidebar.caption(f"© {datetime.now().year} Elisabeth Reinecke")
