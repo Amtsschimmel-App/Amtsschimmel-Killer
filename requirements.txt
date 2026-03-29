@@ -8,3 +8,5 @@ Pillow
 fpdf2
 pandas
 openpyxl
+gspread
+gspread-dataframe
