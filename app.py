@@ -18,12 +18,12 @@ import gc
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 LOGO_DATEI = "icon_final_blau.png"
 
-# 2. SESSION STATE & ADMIN
+# 2. SESSION STATE & GUTHABEN-LOGIK (PRIORISIERT)
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# Guthaben-Check (Stripe & Admin)
+# --- GUTHABEN-CHECK BEIM START ---
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
@@ -31,6 +31,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
         if pack_size > 0:
             st.session_state.credits += pack_size
             st.session_state.processed_sessions.append(params["session_id"])
+            st.balloons()
             st.toast(f"✅ {pack_size} Scan(s) gutgeschrieben!")
     except: pass
 
@@ -68,9 +69,19 @@ def get_text_hybrid(uploaded_file):
     return text.strip()
 
 def analyze_letter(raw_text, lang):
-    sys_p = f"Du bist Rechtsexperte. Sprache: {lang}. Analysiere den Brief extrem genau. Liste FRISTEN auf und erstelle einen professionellen ANTWORTTEXT mit Platzhaltern."
+    # Vor-Prüfung auf Lesbarkeit
+    if len(raw_text) < 25:
+        return "FEHLER_UNSCHARF"
+    
+    sys_p = f"""Rechtsexperte. Sprache: {lang}. 
+    Falls der Text völlig unleserlich oder sinnlos ist, antworte NUR mit dem Wort: FEHLER_UNSCHARF.
+    Ansonsten analysiere strikt in diesem Format:
+    ### FRISTEN & TERMINE ###
+    ...
+    ### ANTWORTBRIEF ###
+    ..."""
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices[0].message.content
+    return resp.choices.message.content
 
 def create_excel_clean(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
@@ -88,7 +99,7 @@ def create_ical(text):
     for d in dates:
         try:
             dt = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ical += f"BEGIN:VEVENT\nDTSTART;VALUE=DATE:{dt}\nSUMMARY:Behörden-Frist (Amtsschimmel-Killer)\nDESCRIPTION:Erinnerung an Frist aus Brief.\nEND:VEVENT\n"
+            ical += f"BEGIN:VEVENT\nDTSTART;VALUE=DATE:{dt}\nSUMMARY:Behörden-Frist (Amtsschimmel-Killer)\nEND:VEVENT\n"
         except: pass
     ical += "END:VCALENDAR"
     return ical.encode('utf-8')
@@ -105,8 +116,9 @@ def create_pdf_bytes(text):
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
-    lang_choice = st.radio("Sprache", ["Deutsch", "English"], horizontal=True)
+    lang_choice = st.radio("Antwort-Sprache", ["Deutsch", "English"], horizontal=True)
     st.divider()
+    st.subheader("Guthaben aufladen")
     pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), 
             ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), 
             ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
@@ -136,23 +148,26 @@ with t1:
             if st.button("🚀 Analyse starten"):
                 with st.spinner("Amtsschimmel wird vertrieben..."):
                     raw = get_text_hybrid(upload)
-                    st.session_state.full_res = analyze_letter(raw, lang_choice)
-                    st.session_state.credits -= 1
-                    st.rerun()
+                    ergebnis = analyze_letter(raw, lang_choice)
+                    
+                    if "FEHLER_UNSCHARF" in ergebnis:
+                        st.error("⚠️ **Text ist zu unscharf oder unleserlich.**")
+                        st.info("Bitte fotografiere den Brief nochmal mit **mehr Licht** und achte darauf, dass die Kamera **scharfstellt**. Es wurde **kein Scan** abgezogen!")
+                    else:
+                        st.session_state.full_res = ergebnis
+                        st.session_state.credits -= 1
+                        st.rerun()
         
         if st.session_state.full_res:
             st.success("Analyse abgeschlossen!")
             st.markdown(f'<div class="result-section">{st.session_state.full_res}</div>', unsafe_allow_html=True)
-            
-            st.subheader("📥 Export & Kalender")
+            st.divider()
             d1, d2, d3, d4 = st.columns(4)
-            with d1: st.download_button("💾 Text (.txt)", st.session_state.full_res, "antwort.txt")
-            with d2: st.download_button("📊 Excel (.xlsx)", create_excel_clean(st.session_state.full_res), "fristen.xlsx")
-            with d3: st.download_button("📄 PDF Brief", create_pdf_bytes(st.session_state.full_res), "antwort.pdf")
-            with d4: st.download_button("📅 iCal Kalender", create_ical(st.session_state.full_res), "termin.ics")
-            
-            if st.button("🔄 Nächsten Brief bearbeiten"):
-                st.session_state.full_res = ""; st.rerun()
+            with d1: st.download_button("💾 Text", st.session_state.full_res, "antwort.txt")
+            with d2: st.download_button("📊 Excel", create_excel_clean(st.session_state.full_res), "fristen.xlsx")
+            with d3: st.download_button("📄 PDF", create_pdf_bytes(st.session_state.full_res), "antwortbrief.pdf")
+            with d4: st.download_button("📅 iCal", create_ical(st.session_state.full_res), "termin.ics")
+            if st.button("🔄 Nächster Brief"): st.session_state.full_res = ""; st.rerun()
 
 with t2:
     st.subheader("Vorlagen")
@@ -162,12 +177,18 @@ with t2:
 
 with t3:
     st.subheader("FAQ")
-    st.markdown("<span class='faq-q'>Ist das ein Abonnement?</span><div class='faq-a'>Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Wie sicher sind meine Dokumente?</span><div class='faq-a'>Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Ersetzt die App eine Rechtsberatung?</span><div class='faq-a'>Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Was passiert, wenn der Scan fehlschlägt?</span><div class='faq-a'>Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Wie erreiche ich Elisabeth Reinecke?</span><div class='faq-a'>Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>", unsafe_allow_html=True)
+    faq_data = [
+        ("Ist das ein Abonnement?", "Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung."),
+        ("Wie sicher sind meine Dokumente?", "Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht."),
+        ("Ersetzt die App eine Rechtsberatung?", "Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt."),
+        ("Was passiert, wenn der Scan fehlschlägt?", "Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen."),
+        ("Wie erreiche ich Elisabeth Reinecke?", "Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
+    ]
+    for q, a in faq_data:
+        st.markdown(f'<span class="faq-q">{q}</span>', unsafe_allow_html=True)
+        st.markdown(f'<div class="faq-a">{a}</div>', unsafe_allow_html=True)
 
+# 7. FOOTER
 st.divider()
 c_imp, c_dat = st.columns(2)
 with c_imp:
