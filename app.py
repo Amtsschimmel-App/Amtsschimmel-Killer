@@ -13,7 +13,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. RECHTSTEXTE & KONSTANTEN (FIXIERT)
+# 1. RECHTSTEXTE & KONSTANTEN (FEST VERANKERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -86,20 +86,8 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# Admin & Stripe Handling
-params = st.query_params
-if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
-    st.session_state.credits = 999
-
-if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
-    try:
-        st.session_state.credits += int(params.get("pack", 0))
-        st.session_state.processed_sessions.append(params["session_id"])
-        st.balloons()
-    except: pass
-
 # ==========================================
-# 3. EXPORT FUNKTIONEN (PDF, WORD, EXCEL, ICS)
+# 3. EXPORT FUNKTIONEN (STABILISIERT)
 # ==========================================
 def clean_txt(t):
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
@@ -173,7 +161,7 @@ def run_ai(raw_text, lang, mode):
     return resp.choices.message.content
 
 # ==========================================
-# 5. UI - OBERE LEISTE (RECHTLICHES & VORLAGEN)
+# 5. UI - OBERE LEISTE (FIXIERT)
 # ==========================================
 c1, c2, c3, c4 = st.columns(4)
 with c1: 
@@ -188,7 +176,7 @@ with c4:
 st.divider()
 
 # ==========================================
-# 6. SIDEBAR - SPRACHEN & SHOP (FIXIERT)
+# 6. SIDEBAR - SHOP & SPRACHE
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
@@ -204,25 +192,19 @@ with st.sidebar:
     st.subheader("🛒 2. Scans kaufen")
     st.metric("Guthaben", f"{st.session_state.credits} Scans")
 
-    # PAKET BASIS
-    st.markdown('<div style="background-color:#f8f9fa; padding:12px; border-radius:8px; border:1px solid #ddd; margin-bottom:5px;">'
-                '<h4 style="margin:0;">BASIS</h4>'
-                '<b>3,99 €</b> für <b>1 Scan</b><br>'
-                '<small style="color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</small></div>', unsafe_allow_html=True)
+    # BASIS
+    st.markdown('<div style="background-color:#f8f9fa; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:5px;">'
+                '<b>BASIS</b>: 1 Scan | 3,99 €<br><small>EINMALZAHLUNG - KEIN ABO</small></div>', unsafe_allow_html=True)
     st.link_button("Basis kaufen", "DEIN_STRIPE_URL_1", use_container_width=True)
 
-    # PAKET SPAR
-    st.markdown('<div style="background-color:#e3f2fd; padding:12px; border-radius:8px; border:1px solid #bbdefb; margin-top:15px; margin-bottom:5px;">'
-                '<h4 style="margin:0;">SPAR-PAKET</h4>'
-                '<b>9,99 €</b> für <b>5 Scans</b><br>'
-                '<small style="color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</small></div>', unsafe_allow_html=True)
+    # SPAR
+    st.markdown('<div style="background-color:#e3f2fd; padding:10px; border-radius:8px; border:1px solid #bbdefb; margin-top:10px; margin-bottom:5px;">'
+                '<b>SPAR-PAKET</b>: 5 Scans | 9,99 €<br><small>EINMALZAHLUNG - KEIN ABO</small></div>', unsafe_allow_html=True)
     st.link_button("Spar-Paket kaufen", "DEIN_STRIPE_URL_5", use_container_width=True)
 
-    # PAKET PREMIUM
-    st.markdown('<div style="background-color:#e8f5e9; padding:12px; border-radius:8px; border:1px solid #c8e6c9; margin-top:15px; margin-bottom:5px;">'
-                '<h4 style="margin:0;">PREMIUM</h4>'
-                '<b>19,99 €</b> für <b>10 Scans</b><br>'
-                '<small style="color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</small></div>', unsafe_allow_html=True)
+    # PREMIUM
+    st.markdown('<div style="background-color:#e8f5e9; padding:10px; border-radius:8px; border:1px solid #c8e6c9; margin-top:10px; margin-bottom:5px;">'
+                '<b>PREMIUM</b>: 10 Scans | 19,99 €<br><small>EINMALZAHLUNG - KEIN ABO</small></div>', unsafe_allow_html=True)
     st.link_button("Premium kaufen", "DEIN_STRIPE_URL_10", use_container_width=True)
 
 # ==========================================
@@ -238,34 +220,32 @@ with col_left:
     
     if u_file:
         if u_file.type == "application/pdf":
-            st.info("📄 PDF-Datei bereit zur Analyse.")
+            st.info("📄 PDF bereit.")
         else:
-            st.image(u_file, caption="Dokument Vorschau", use_container_width=True)
+            st.image(u_file, caption="Vorschau", use_container_width=True)
     
-    mode = st.radio("Was soll erstellt werden?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
+    mode = st.radio("Ziel:", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
     
-    if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
+    if u_file and st.button("🚀 Analyse starten"):
         if st.session_state.credits > 0:
-            with st.spinner("KI liest Amtsschimmel..."):
+            with st.spinner("KI arbeitet..."):
                 raw = get_text(u_file)
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
         else:
-            st.error("Guthaben leer! Bitte links ein Paket kaufen.")
+            st.error("Guthaben leer! Bitte links aufladen.")
 
 with col_right:
     st.subheader("2. Analyse & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.write("📥 **Ergebnis speichern:**")
-        
-        # Export Buttons
+        st.write("📥 **Download:**")
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf_final(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", create_docx_final(st.session_state.full_res), "Analyse.docx")
         with ex3: st.download_button("📊 Excel", create_excel_final(st.session_state.full_res), "Fristen.xlsx")
         with ex4: st.download_button("📅 Kalender", create_ics_final(st.session_state.full_res), "Fristen.ics")
     else:
-        st.info("Hier erscheint die Analyse, sobald ein Dokument hochgeladen wurde.")
+        st.info("Das Ergebnis erscheint hier.")
