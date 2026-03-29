@@ -6,49 +6,35 @@ import pdfplumber
 from pdf2image import convert_from_bytes
 from docx import Document
 import io
+import os
 import pandas as pd
 import re
 from fpdf import FPDF 
 from datetime import datetime
-import os
 
 # ==========================================
-# 1. KONFIGURATION & TEXTE (FEST VERANKERT)
+# 1. KONFIGURATION & OPTIK (STRENG FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] { background-color: #f0f7ff; }
+        .stDownloadButton button { width: 100%; background-color: #e1f5fe; border: 1px solid #01579b; font-weight: bold; }
+        .stButton button { width: 100%; background-color: #0d47a1; color: white; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
+
 LOGO_DATEI = "icon_final_blau.png"
 
+# ==========================================
+# 2. RECHTSTEXTE & INHALTE (WORTGENAU)
+# ==========================================
 IMPRESSUM_TEXT = """
 **Amtsschimmel-Killer**  
-Betreiberin: Elisabeth Reinecke  
-Ringelsweide 9  
-40223 Düsseldorf  
-
-**Kontakt:**  
-Telefon: +49 211 15821329  
-E-Mail: amtsschimmel-killer@proton.me  
-Web: amtsschimmel-killer.streamlit.app  
-
-**Haftung:**  
-Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
-"""
-
-DATENSCHUTZ_TEXT = """
-**1. Datenschutz auf einen Blick**  
-Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
-
-**2. Datenerfassung & Hosting**  
-Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
-
-**3. Dokumentenverarbeitung**  
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
-
-**4. Zahlungsabwicklung (Stripe)**  
-Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
-
-**5. Ihre Rechte**  
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
+Betreiberin: Elisabeth Reinecke, Ringelsweide 9, 40223 Düsseldorf  
+**Kontakt:** Telefon: +49 211 15821329 | E-Mail: amtsschimmel-killer@proton.me  
+**Haftung:** Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
 """
 
 FAQ_TEXT = """
@@ -80,7 +66,7 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 """
 
 # ==========================================
-# 2. LOGIK & STRIPE (FESTE LINKS)
+# 3. SESSION STATE & STRIPE
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -88,21 +74,29 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# DEINE STRIPE CODES
-STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"    # 3,99€
-STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"     # 9,99€
-STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"  # 19,99€
+STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
+STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
+STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
+
+# Payment-Check über URL Parameter
+params = st.query_params
+if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
+    try:
+        st.session_state.credits += int(params.get("pack", 0))
+        st.session_state.processed_sessions.append(params["session_id"])
+        st.balloons()
+    except: pass
 
 # ==========================================
-# 3. FUNKTIONEN (OCR & EXPORT)
+# 4. FUNKTIONEN (OCR & EXPORT)
 # ==========================================
 def extract_text(file):
     text = ""
     if file.type == "application/pdf":
         with pdfplumber.open(file) as pdf:
             for page in pdf.pages:
-                content = page.extract_text()
-                if content: text += content + "\n"
+                c = page.extract_text()
+                if c: text += c + "\n"
         if not text.strip():
             images = convert_from_bytes(file.read())
             for img in images: text += pytesseract.image_to_string(img, lang='deu') + "\n"
@@ -120,7 +114,7 @@ def create_pdf(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Kategorie": ["Fristen", "Zusammenfassung"], "Inhalt": [", ".join(dates) if dates else "Keine", text[:800]]})
+    df = pd.DataFrame({"Kategorie": ["Gefundene Fristen", "Brief-Inhalt"], "Daten": [", ".join(dates) if dates else "Keine", text]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -135,79 +129,79 @@ def create_docx(text):
     return bio.getvalue()
 
 # ==========================================
-# 4. LAYOUT OBEN (LOGO, FAQ, VORLAGEN)
+# 5. SEITE 1: ALLES OBEN (FIXIERT)
 # ==========================================
 if os.path.exists(LOGO_DATEI):
     st.image(LOGO_DATEI, width=280)
 
 st.title("Amtsschimmel-Killer 🪓")
 
-c1, c2 = st.columns(2)
-with c1:
-    with st.expander("❓ FAQ", expanded=True): st.markdown(FAQ_TEXT)
-with c2:
-    with st.expander("📝 Vorlagen", expanded=True): st.markdown(VORLAGEN_TEXT)
+st.subheader("FAQ")
+st.markdown(FAQ_TEXT)
+
+st.divider()
+
+st.subheader("Pakete & Preise (Einmalzahlung)")
+p1, p2, p3 = st.columns(3)
+with p1: st.markdown(f"**1. Paket 3,99€**\n[Hier kaufen]({STRIPE_BASIS})")
+with p2: st.markdown(f"**2. Paket 9,99€**\n[Hier kaufen]({STRIPE_SPAR})")
+with p3: st.markdown(f"**3. Paket 19,99€**\n[Hier kaufen]({STRIPE_PREMIUM})")
+
+st.divider()
+
+st.subheader("Vorlagen")
+st.markdown(VORLAGEN_TEXT)
 
 st.divider()
 
 # ==========================================
-# 5. HAUPTBEREICH (LINKS: VORSCHAU | RECHTS: ANALYSE)
+# 6. ARBEITSBEREICH (UNTEN)
 # ==========================================
-col_links, col_rechts = st.columns([1, 1.2])
+col_l, col_r = st.columns([1, 1.2])
 
-with col_links:
-    st.subheader("1. Paket & Dokument")
-    s1, s2, s3 = st.columns(3)
-    with s1: st.link_button("1 Paket\n3,99€", STRIPE_BASIS)
-    with s2: st.link_button("2 Paket\n9,99€", STRIPE_SPAR)
-    with s3: st.link_button("3 Paket\n19,99€", STRIPE_PREMIUM)
+with col_l:
+    st.subheader("Brief hochladen")
+    st.info(f"Aktuelles Guthaben: **{st.session_state.credits} Scans**")
     
-    st.info(f"Guthaben: **{st.session_state.credits} Scans**")
+    upped = st.file_uploader("Datei wählen (PDF oder Bild)", type=["pdf", "jpg", "png", "jpeg"])
     
-    upped = st.file_uploader("Brief (Foto oder PDF) wählen", type=["pdf", "jpg", "png"])
-    
-    if upped:
-        if upped.type != "application/pdf":
-            st.image(upped, caption="Vorschau des Uploads", use_container_width=True)
-        else:
-            st.success(f"📄 PDF geladen: {upped.name}")
+    if upped and st.session_state.credits > 0:
+        if st.button("🚀 JETZT ANALYSIEREN"):
+            with st.spinner("Amtsschimmel wird verjagt..."):
+                raw_text = extract_text(upped)
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": "Analysiere den Brief. Trenne in: 🚦 WICHTIGKEIT, 📖 ZUSAMMENFASSUNG, 📅 FRISTEN, ✍️ ANTWORT-ENTWURF."},
+                              {"role": "user", "content": raw_text}]
+                )
+                st.session_state.full_res = resp.choices.message.content
+                st.session_state.credits -= 1
+                st.rerun()
 
-        if st.session_state.credits > 0:
-            if st.button("🚀 JETZT ANALYSIEREN"):
-                with st.spinner("Amtsschimmel wird verjagt..."):
-                    raw = extract_text(upped)
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[{"role": "system", "content": "Analysiere strikt: 🚦 WICHTIGKEIT, 📖 ZUSAMMENFASSUNG, 📅 FRISTEN, ✍️ ANTWORT-ENTWURF."},
-                                  {"role": "user", "content": raw}]
-                    )
-                    st.session_state.full_res = response.choices.message.content
-                    st.session_state.credits -= 1
-                    st.rerun()
-
-with col_rechts:
-    st.subheader("2. Analyse-Boxen")
+with col_r:
+    st.subheader("Analyse-Ergebnis")
     if st.session_state.full_res:
         res = st.session_state.full_res
+        
+        # Abgegrenzte Boxen für die Übersicht
         st.info(f"### 🚦 Wichtigkeit\n{re.search(r'🚦(.*?)(?=📖|📅|✍️|$)', res, re.S).group(1) if '🚦' in res else 'Siehe Text'}")
         st.write(f"### 📖 Zusammenfassung\n{re.search(r'📖(.*?)(?=📅|✍️|$)', res, re.S).group(1) if '📖' in res else 'Siehe Text'}")
         st.warning(f"### 📅 Fristen\n{re.search(r'📅(.*?)(?=✍️|$)', res, re.S).group(1) if '📅' in res else 'Keine Fristen erkannt'}")
         st.success(f"### ✍️ Antwort-Entwurf\n{re.search(r'✍️(.*)', res, re.S).group(1) if '✍️' in res else 'Entwurf im Text'}")
+        
+        st.divider()
+        st.subheader("Downloads")
+        d1, d2, d3, d4 = st.columns(4)
+        with d1: st.download_button("📄 PDF", create_pdf(res), "Analyse.pdf")
+        with d2: st.download_button("📝 Word", create_docx(res), "Analyse.docx")
+        with d3: st.download_button("📊 Excel", create_excel(res), "Fristen.xlsx")
+        with d4: st.download_button("📅 .ics", b"BEGIN:VCALENDAR\nEND:VCALENDAR", "Termin.ics")
     else:
-        st.info("Hier erscheinen die Daten nach der Analyse.")
+        st.info("Hier erscheint das Ergebnis nach dem Upload.")
 
-# ==========================================
-# 6. DOWNLOADS GANZ UNTEN (KOMPLETT)
-# ==========================================
-if st.session_state.full_res:
-    st.divider()
-    st.subheader("3. Alle Dokumente herunterladen")
-    d1, d2, d3, d4 = st.columns(4)
-    with d1: st.download_button("📄 PDF Export", create_pdf(st.session_state.full_res), "Analyse.pdf")
-    with d2: st.download_button("📝 Word Export", create_docx(st.session_state.full_res), "Analyse.docx")
-    with d3: st.download_button("📊 Excel Liste", create_excel(st.session_state.full_res), "Fristen.xlsx")
-    with d4: st.download_button("📅 Kalender", b"BEGIN:VCALENDAR\nEND:VCALENDAR", "Termin.ics")
-
+# Sidebar für das Kleingedruckte
 with st.sidebar:
+    st.markdown("### Impressum & Datenschutz")
     with st.expander("⚖️ Impressum"): st.markdown(IMPRESSUM_TEXT)
-    with st.expander("🛡️ Datenschutz"): st.markdown(DATENSCHUTZ_TEXT)
+    with st.expander("🛡️ Datenschutz"): st.markdown(re.sub(r'\n\d\.', '\n\n\g<0>', st.secrets.get("DS_TEXT", "Datenschutz siehe oben")))
+
