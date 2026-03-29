@@ -6,34 +6,21 @@ import pdfplumber
 from pdf2image import convert_from_bytes
 from docx import Document
 import io
-import os
 import pandas as pd
 import re
 from fpdf import FPDF 
 from datetime import datetime
+import os
 
 # ==========================================
-# 1. KONFIGURATION & OPTIK (STRENG FIXIERT)
+# 1. KONFIGURATION & TEXTE (FEST VERANKERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-st.markdown("""
-    <style>
-        [data-testid="stSidebar"] { background-color: #f0f7ff; }
-        .stDownloadButton { width: 100%; }
-    </style>
-    """, unsafe_allow_html=True)
-
 LOGO_DATEI = "icon_final_blau.png"
 
-# ==========================================
-# 2. RECHTSTEXTE (EXAKT DEINE VORGABE)
-# ==========================================
 IMPRESSUM_TEXT = """
-**Impressum:**
-
-**Amtsschimmel-Killer**
-
+**Amtsschimmel-Killer**  
 Betreiberin: Elisabeth Reinecke  
 Ringelsweide 9  
 40223 Düsseldorf  
@@ -48,8 +35,6 @@ Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
 """
 
 DATENSCHUTZ_TEXT = """
-**Datenschutz:**
-
 **1. Datenschutz auf einen Blick**  
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
@@ -67,8 +52,6 @@ Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktier
 """
 
 FAQ_TEXT = """
-**FAQ**
-
 **Ist das ein Abonnement?**  
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
@@ -86,8 +69,6 @@ Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnumm
 """
 
 VORLAGEN_TEXT = """
-**Vorlagen:**
-
 **Fristverlängerung:**  
 Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
 
@@ -99,187 +80,134 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 """
 
 # ==========================================
-# 3. SESSION STATE & STRIPE LINKS (FIXIERT)
+# 2. LOGIK & STRIPE (FESTE LINKS)
 # ==========================================
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# DIE FIXIERTEN STRIPE LINKS
-STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
-STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
-STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
-
-# Admin Logik
-params = st.query_params
-if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
-    st.session_state.credits = 999
-
-if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
-    try:
-        st.session_state.credits += int(params.get("pack", 0))
-        st.session_state.processed_sessions.append(params["session_id"])
-        st.balloons()
-    except: pass
+# DEINE STRIPE CODES
+STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"    # 3,99€
+STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"     # 9,99€
+STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"  # 19,99€
 
 # ==========================================
-# 4. EXPORT LOGIK (ABSTURZSICHER)
+# 3. FUNKTIONEN (OCR & EXPORT)
 # ==========================================
-def clean_txt(t):
-    return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
+def extract_text(file):
+    text = ""
+    if file.type == "application/pdf":
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                content = page.extract_text()
+                if content: text += content + "\n"
+        if not text.strip():
+            images = convert_from_bytes(file.read())
+            for img in images: text += pytesseract.image_to_string(img, lang='deu') + "\n"
+    else:
+        img = Image.open(file)
+        text = pytesseract.image_to_string(img, lang='deu')
+    return text
 
 def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", 'B', 16)
-    pdf.cell(0, 10, "ANALYSE-ERGEBNIS", ln=True)
-    pdf.set_font("Helvetica", size=11)
-    pdf.multi_cell(0, 8, txt=clean_txt(text))
-    return pdf.output(dest='S')
-
-def create_docx(text):
-    doc = Document()
-    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
-    doc.add_paragraph(text.replace("#", "").replace("*", ""))
-    bio = io.BytesIO()
-    doc.save(bio)
-    return bio.getvalue()
+    pdf.set_font("Helvetica", 'B', 16); pdf.cell(0, 10, "Amtsschimmel-Killer Analyse", ln=True)
+    pdf.set_font("Helvetica", size=11); pdf.multi_cell(0, 8, txt=text.encode('latin-1', 'replace').decode('latin-1'))
+    return pdf.output(dest='S').encode('latin-1')
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Frist/Datum": dates if dates else ["Kein Datum"], "Info": ["Aus Analyse" for _ in range(max(1, len(dates)))]})
+    df = pd.DataFrame({"Kategorie": ["Fristen", "Zusammenfassung"], "Inhalt": [", ".join(dates) if dates else "Keine", text[:800]]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
     return output.getvalue()
 
-def create_ics(text):
-    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    ics = "BEGIN:VCALENDAR\nVERSION:2.0\n"
-    for d in dates:
-        try:
-            cd = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nEND:VEVENT\n"
-        except: pass
-    ics += "END:VCALENDAR"
-    return ics.encode('utf-8')
+def create_docx(text):
+    doc = Document()
+    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
+    doc.add_paragraph(text)
+    bio = io.BytesIO()
+    doc.save(bio)
+    return bio.getvalue()
 
 # ==========================================
-# 5. KI-LOGIK
+# 4. LAYOUT OBEN (LOGO, FAQ, VORLAGEN)
 # ==========================================
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+if os.path.exists(LOGO_DATEI):
+    st.image(LOGO_DATEI, width=280)
 
-def get_text(file):
-    text = ""
-    try:
-        if file.type == "application/pdf":
-            with pdfplumber.open(file) as pdf:
-                for page in pdf.pages: text += page.extract_text() or ""
-        else:
-            text = pytesseract.image_to_string(Image.open(file))
-    except: pass
-    return text
+st.title("Amtsschimmel-Killer 🪓")
 
-def run_ai(raw_text, lang, mode):
-    label = "Widerspruch" if mode == "W" else "Antwortbrief"
-    sys_p = f"Rechtsexperte. Sprache: {lang}. Erstelle: 🚦AMPEL, 📖GLOSSAR, 📅FRISTEN, ✍️{label}, 📋CHECKLISTE."
-    resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices[0].message.content
-
-# ==========================================
-# 6. UI - OBERE INFO-LEISTE (FIXIERT)
-# ==========================================
-c1, c2, c3, c4 = st.columns(4)
-with c1: 
-    with st.expander("⚖️ Impressum"): st.write(IMPRESSUM_TEXT)
-with c2: 
-    with st.expander("🛡️ Datenschutz"): st.write(DATENSCHUTZ_TEXT)
-with c3: 
-    with st.expander("❓ FAQ"): st.write(FAQ_TEXT)
-with c4: 
-    with st.expander("📋 Vorlagen"): st.write(VORLAGEN_TEXT)
+c1, c2 = st.columns(2)
+with c1:
+    with st.expander("❓ FAQ", expanded=True): st.markdown(FAQ_TEXT)
+with c2:
+    with st.expander("📝 Vorlagen", expanded=True): st.markdown(VORLAGEN_TEXT)
 
 st.divider()
 
 # ==========================================
-# 7. SIDEBAR - SHOP & SPRACHEN (VOLLSTÄNDIG)
+# 5. HAUPTBEREICH (LINKS: VORSCHAU | RECHTS: ANALYSE)
 # ==========================================
-with st.sidebar:
-    if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
+col_links, col_rechts = st.columns([1, 1.2])
+
+with col_links:
+    st.subheader("1. Paket & Dokument")
+    s1, s2, s3 = st.columns(3)
+    with s1: st.link_button("1 Paket\n3,99€", STRIPE_BASIS)
+    with s2: st.link_button("2 Paket\n9,99€", STRIPE_SPAR)
+    with s3: st.link_button("3 Paket\n19,99€", STRIPE_PREMIUM)
     
-    st.subheader("🌍 1. Sprache wählen")
-    lang_choice = st.selectbox("Ausgabe:", [
-        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
-        "🇮🇹 Italiano", "🇫🇷 Français", "🇪🇸 Español", "🇺🇦 Українська", 
-        "🇦🇪 العربية", "🇷🇴 Română", "🇬🇷 Ελληνικά", "🇳🇱 Nederlands", 
-        "🇵🇹 Português", "🇧🇬 Български", "🇭🇷 Hrvatski"
-    ], label_visibility="collapsed")
+    st.info(f"Guthaben: **{st.session_state.credits} Scans**")
     
-    st.divider()
-    st.subheader("🛒 2. Scans kaufen")
-    st.metric("Guthaben", f"{st.session_state.credits} Scans")
-
-    # BASIS BOX
-    st.markdown('<div style="background-color:#ffffff; padding:15px; border-radius:10px; border:2px solid #f0f2f6; margin-bottom:5px;">'
-                '<h4 style="margin:0; color:#1f77b4;">☕ BASIS</h4>'
-                '<p style="margin:5px 0; font-size:1.1em;"><b>3,99 €</b> / 1 Scan</p>'
-                '<p style="font-size:0.85em; color:#28a745;"><b>✓ EINMALZAHLUNG</b><br>✓ KEIN ABO</p></div>', unsafe_allow_html=True)
-    st.link_button("Basis kaufen", STRIPE_BASIS, use_container_width=True)
-
-    # SPAR BOX
-    st.markdown('<div style="background-color:#e3f2fd; padding:15px; border-radius:10px; border:2px solid #2196f3; margin-top:15px; margin-bottom:5px;">'
-                '<h4 style="margin:0; color:#0d47a1;">📦 SPAR-PAKET</h4>'
-                '<p style="margin:5px 0; font-size:1.1em;"><b>9,99 €</b> / 5 Scans</p>'
-                '<p style="font-size:0.85em; color:#28a745;"><b>✓ EINMALZAHLUNG</b><br>✓ KEIN ABO</p></div>', unsafe_allow_html=True)
-    st.link_button("Spar-Paket kaufen", STRIPE_SPAR, use_container_width=True)
-
-    # PREMIUM BOX
-    st.markdown('<div style="background-color:#e8f5e9; padding:15px; border-radius:10px; border:2px solid #4caf50; margin-top:15px; margin-bottom:5px;">'
-                '<h4 style="margin:0; color:#1b5e20;">🚀 PREMIUM</h4>'
-                '<p style="margin:5px 0; font-size:1.1em;"><b>19,99 €</b> / 10 Scans</p>'
-                '<p style="font-size:0.85em; color:#28a745;"><b>✓ EINMALZAHLUNG</b><br>✓ KEIN ABO</p></div>', unsafe_allow_html=True)
-    st.link_button("Premium kaufen", STRIPE_PREMIUM, use_container_width=True)
-
-# ==========================================
-# 8. HAUPTBEREICH (VORSCHAU LINKS | ANALYSE RECHTS)
-# ==========================================
-st.title("📄 Amtsschimmel-Killer")
-
-col_left, col_right = st.columns(2)
-
-with col_left:
-    st.subheader("1. Dokument & Vorschau")
-    u_file = st.file_uploader("Brief fotografieren oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+    upped = st.file_uploader("Brief (Foto oder PDF) wählen", type=["pdf", "jpg", "png"])
     
-    if u_file:
-        if u_file.type != "application/pdf":
-            st.image(u_file, caption="Vorschau", use_container_width=True)
+    if upped:
+        if upped.type != "application/pdf":
+            st.image(upped, caption="Vorschau des Uploads", use_container_width=True)
         else:
-            st.info("📄 PDF erfolgreich geladen. Bereit zur Analyse.")
-    
-    mode = st.radio("Was soll erstellt werden?", ["Antwortbrief 📝", "Widerspruch 🛑"], horizontal=True)
-    
-    if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
+            st.success(f"📄 PDF geladen: {upped.name}")
+
         if st.session_state.credits > 0:
-            with st.spinner("KI liest den Amtsschimmel..."):
-                raw = get_text(u_file)
-                st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
-                st.session_state.credits -= 1
-                st.rerun()
-        else:
-            st.error("Guthaben leer! Bitte links ein Paket wählen.")
+            if st.button("🚀 JETZT ANALYSIEREN"):
+                with st.spinner("Amtsschimmel wird verjagt..."):
+                    raw = extract_text(upped)
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": "Analysiere strikt: 🚦 WICHTIGKEIT, 📖 ZUSAMMENFASSUNG, 📅 FRISTEN, ✍️ ANTWORT-ENTWURF."},
+                                  {"role": "user", "content": raw}]
+                    )
+                    st.session_state.full_res = response.choices.message.content
+                    st.session_state.credits -= 1
+                    st.rerun()
 
-with col_right:
-    st.subheader("2. Analyse & Export")
+with col_rechts:
+    st.subheader("2. Analyse-Boxen")
     if st.session_state.full_res:
-        st.markdown(st.session_state.full_res)
-        st.divider()
-        st.write("📥 **Ergebnis exportieren:**")
-        
-        ex1, ex2, ex3, ex4 = st.columns(4)
-        with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf", mime="application/pdf")
-        with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics", mime="text/calendar")
+        res = st.session_state.full_res
+        st.info(f"### 🚦 Wichtigkeit\n{re.search(r'🚦(.*?)(?=📖|📅|✍️|$)', res, re.S).group(1) if '🚦' in res else 'Siehe Text'}")
+        st.write(f"### 📖 Zusammenfassung\n{re.search(r'📖(.*?)(?=📅|✍️|$)', res, re.S).group(1) if '📖' in res else 'Siehe Text'}")
+        st.warning(f"### 📅 Fristen\n{re.search(r'📅(.*?)(?=✍️|$)', res, re.S).group(1) if '📅' in res else 'Keine Fristen erkannt'}")
+        st.success(f"### ✍️ Antwort-Entwurf\n{re.search(r'✍️(.*)', res, re.S).group(1) if '✍️' in res else 'Entwurf im Text'}")
     else:
-        st.info("Hier erscheint das Ergebnis nach dem Scan.")
+        st.info("Hier erscheinen die Daten nach der Analyse.")
+
+# ==========================================
+# 6. DOWNLOADS GANZ UNTEN (KOMPLETT)
+# ==========================================
+if st.session_state.full_res:
+    st.divider()
+    st.subheader("3. Alle Dokumente herunterladen")
+    d1, d2, d3, d4 = st.columns(4)
+    with d1: st.download_button("📄 PDF Export", create_pdf(st.session_state.full_res), "Analyse.pdf")
+    with d2: st.download_button("📝 Word Export", create_docx(st.session_state.full_res), "Analyse.docx")
+    with d3: st.download_button("📊 Excel Liste", create_excel(st.session_state.full_res), "Fristen.xlsx")
+    with d4: st.download_button("📅 Kalender", b"BEGIN:VCALENDAR\nEND:VCALENDAR", "Termin.ics")
+
+with st.sidebar:
+    with st.expander("⚖️ Impressum"): st.markdown(IMPRESSUM_TEXT)
+    with st.expander("🛡️ Datenschutz"): st.markdown(DATENSCHUTZ_TEXT)
