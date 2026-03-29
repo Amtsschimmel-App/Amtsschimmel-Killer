@@ -20,18 +20,14 @@ st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="w
 LOGO_DATEI = "icon_final_blau.png"
 
 IMPRESSUM_TEXT = """
-**Impressum:**
-
-**Amtsschimmel-Killer**
-
+**Amtsschimmel-Killer**  
 Betreiberin: Elisabeth Reinecke  
-Ringelsweide 9  
-40223 Düsseldorf
+Ringelsweide 9, 40223 Düsseldorf  
 
 **Kontakt:**  
 Telefon: +49 211 15821329  
 E-Mail: amtsschimmel-killer@proton.me  
-Web: amtsschimmel-killer.streamlit.app
+Web: amtsschimmel-killer.streamlit.app  
 
 **Haftung:**  
 Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
@@ -42,24 +38,44 @@ DATENSCHUTZ_TEXT = """
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
 **2. Datenerfassung & Hosting**  
-Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch vom Hoster erfasst.
+Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
 
 **3. Dokumentenverarbeitung**  
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) übertragen. Wir speichern keine Briefe.
+Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
+
+**4. Zahlungsabwicklung (Stripe)**  
+Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
+
+**5. Ihre Rechte**  
+Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
 """
 
 FAQ_TEXT = """
 **Ist das ein Abonnement?**  
-Nein. Jede Zahlung ist eine **Einmalzahlung** für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
+Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
 **Wie sicher sind meine Dokumente?**  
-Ihre Dokumente werden verschlüsselt verarbeitet und niemals dauerhaft gespeichert. Nach der Analyse werden die Daten gelöscht.
+Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
+
+**Ersetzt die App eine Rechtsberatung?**  
+Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
+
+**Was passiert, wenn der Scan fehlschlägt?**  
+Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
+
+**Wie erreiche ich Elisabeth Reinecke?**  
+Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
 """
 
 VORLAGEN_TEXT = """
-**Fristverlängerung:** "Ich bitte um Verlängerung bis [Datum]..."  
-**Widerspruch:** "Hiermit lege ich Widerspruch gegen [Bescheid] ein..."  
-**Akteneinsicht:** "Ich beantrage Akteneinsicht gemäß § 25 SGB X."
+**Fristverlängerung:**  
+Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
+
+**Widerspruch einlegen (Fristwahrend):**  
+Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
+
+**Akteneinsicht einfordern:**  
+Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]
 """
 
 # ==========================================
@@ -81,7 +97,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN (PDF, WORD, EXCEL, ICS)
+# 3. EXPORT FUNKTIONEN
 # ==========================================
 def clean_txt(t):
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
@@ -98,7 +114,7 @@ def create_pdf(text):
 
 def create_docx(text):
     doc = Document()
-    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
+    doc.add_heading('Analyse-Ergebnis', 0)
     doc.add_paragraph(text.replace("#", ""))
     bio = io.BytesIO()
     doc.save(bio)
@@ -106,7 +122,7 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Gefundene Fristen": dates if dates else ["Keine"], "Typ": ["Frist" for _ in range(len(dates)) if dates] or ["Info"]})
+    df = pd.DataFrame({"Fristen": dates if dates else ["Keine gefunden"], "Info": ["Aus Analyse" for _ in range(max(1, len(dates)))]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -145,7 +161,7 @@ def get_text(file):
 def run_ai(raw_text, lang, mode):
     if len(raw_text.strip()) < 40: return "FEHLER_UNSCHARF"
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
-    sys_p = f"""Sprache: {lang}. Erstelle: 
+    sys_p = f"""Rechtsexperte. Sprache: {lang}. Erstelle: 
     1. ### 🚦 AMPEL ### (Dringlichkeit)
     2. ### 📖 GLOSSAR ### (Begriffe erklärt)
     3. ### 📅 FRISTEN ### (Alle Termine)
@@ -155,7 +171,7 @@ def run_ai(raw_text, lang, mode):
     return resp.choices.message.content
 
 # ==========================================
-# 5. UI - OBERE LEISTE (FIXIERT)
+# 5. UI - OBERE INFO-LEISTE (FIXIERT)
 # ==========================================
 c1, c2, c3, c4 = st.columns(4)
 with c1: 
@@ -170,65 +186,59 @@ with c4:
 st.divider()
 
 # ==========================================
-# 6. SIDEBAR - SPRACHE & SHOP UNTEREINANDER
+# 6. SIDEBAR - SHOP (KOMPAKT)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI)
     
-    st.subheader("🌍 1. Sprache wählen")
-    lang_choice = st.selectbox("Ausgabe:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski"], label_visibility="collapsed")
+    st.subheader("🌍 Sprache")
+    lang_choice = st.selectbox("Wählen:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski"], label_visibility="collapsed")
     
     st.divider()
-    st.subheader("🛒 2. Scans kaufen")
+    st.subheader("🛒 Scans kaufen")
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
 
-    # PAKET 1
-    st.markdown('<div style="background-color:#f0f2f6; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:10px;">'
-                '<h4 style="margin:0;">☕ PAKET S</h4>'
-                '<p style="margin:5px 0;"><b>2,99 €</b> für <b>1 Scan</b></p>'
-                '<p style="font-size:0.8em; color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</p></div>', unsafe_allow_html=True)
-    st.link_button("1 Scan kaufen", "DEIN_LINK_1", use_container_width=True)
+    # PAKET BASIS
+    st.markdown('<div style="background-color:#f0f2f6; padding:10px; border-radius:5px; border:1px solid #ddd;">'
+                '<b>BASIS</b>: 1 Scan | 2,99 €<br><small>Einmalzahlung - Kein Abo</small></div>', unsafe_allow_html=True)
+    st.link_button("Basis kaufen", "DEIN_LINK_1", use_container_width=True)
+    st.write("")
 
-    # PAKET 2
-    st.markdown('<div style="background-color:#e1f5fe; padding:15px; border-radius:10px; border:1px solid #b3e5fc; margin-bottom:10px;">'
-                '<h4 style="margin:0;">📦 PAKET M</h4>'
-                '<p style="margin:5px 0;"><b>9,99 €</b> für <b>5 Scans</b></p>'
-                '<p style="font-size:0.8em; color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</p></div>', unsafe_allow_html=True)
-    st.link_button("5 Scans kaufen", "DEIN_LINK_5", use_container_width=True)
+    # PAKET SPAR
+    st.markdown('<div style="background-color:#e1f5fe; padding:10px; border-radius:5px; border:1px solid #b3e5fc;">'
+                '<b>SPAR-PAKET</b>: 5 Scans | 9,99 €<br><small>Einmalzahlung - Kein Abo</small></div>', unsafe_allow_html=True)
+    st.link_button("Spar-Paket kaufen", "DEIN_LINK_5", use_container_width=True)
+    st.write("")
 
-    # PAKET 3
-    st.markdown('<div style="background-color:#e8f5e9; padding:15px; border-radius:10px; border:1px solid #c8e6c9; margin-bottom:10px;">'
-                '<h4 style="margin:0;">🚀 PAKET L</h4>'
-                '<p style="margin:5px 0;"><b>14,99 €</b> für <b>10 Scans</b></p>'
-                '<p style="font-size:0.8em; color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</p></div>', unsafe_allow_html=True)
-    st.link_button("10 Scans kaufen", "DEIN_LINK_10", use_container_width=True)
+    # PAKET PREMIUM
+    st.markdown('<div style="background-color:#e8f5e9; padding:10px; border-radius:5px; border:1px solid #c8e6c9;">'
+                '<b>PREMIUM</b>: 10 Scans | 14,99 €<br><small>Einmalzahlung - Kein Abo</small></div>', unsafe_allow_html=True)
+    st.link_button("Premium kaufen", "DEIN_LINK_10", use_container_width=True)
 
 # ==========================================
-# 7. HAUPTBEREICH - ANALYSE & ERGEBNIS
+# 7. HAUPTBEREICH
 # ==========================================
 st.title("📄 Amtsschimmel-Killer")
 
 m1, m2 = st.columns(2)
 with m1:
-    st.subheader("1. Brief hochladen")
+    st.subheader("1. Dokument hochladen")
     u_file = st.file_uploader("Bild oder PDF", type=['png', 'jpg', 'pdf'])
     mode = st.radio("Ziel:", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
-    if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
+    if u_file and st.button("🚀 Analyse starten"):
         if st.session_state.credits > 0:
-            with st.spinner("KI liest Amtsschimmel-Deutsch..."):
+            with st.spinner("KI arbeitet..."):
                 raw = get_text(u_file)
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
-        else: st.error("Bitte Guthaben links aufladen!")
+        else: st.error("Guthaben leer! Bitte links aufladen.")
 
 with m2:
     st.subheader("2. Ergebnis & Downloads")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.write("📥 **Ergebnis sichern:**")
-        # Export-Buttons nebeneinander
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
