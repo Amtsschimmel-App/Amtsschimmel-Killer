@@ -12,3 +12,4 @@ gspread
 gspread-dataframe
 xlsxwriter
 python-docx
+ics
