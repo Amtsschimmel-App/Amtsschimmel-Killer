@@ -13,7 +13,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. RECHTSTEXTE & KONSTANTEN (STRENG FIXIERT)
+# 1. RECHTSTEXTE & KONSTANTEN (FEST FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -95,12 +95,10 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# Deine Stripe Links
-STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
-STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
-STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
+STRIPE_BASIS = "https://buy.stripe.com"
+STRIPE_SPAR = "https://buy.stripe.com"
+STRIPE_PREMIUM = "https://buy.stripe.com"
 
-# Admin-Backdoor
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
@@ -113,7 +111,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN
+# 3. EXPORT FUNKTIONEN (REPARIERT)
 # ==========================================
 def clean_txt(t):
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
@@ -125,11 +123,12 @@ def create_pdf(text):
     pdf.cell(0, 10, "ANALYSE-ERGEBNIS", ln=True)
     pdf.set_font("Helvetica", size=11)
     pdf.multi_cell(0, 8, txt=clean_txt(text))
-    return pdf.output(dest='S').encode('latin-1')
+    # FEHLER BEHOBEN: Direkte Rückgabe der Bytes
+    return pdf.output(dest='S')
 
 def create_docx(text):
     doc = Document()
-    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
+    doc.add_heading('Analyse-Ergebnis', 0)
     doc.add_paragraph(text.replace("#", "").replace("*", ""))
     bio = io.BytesIO()
     doc.save(bio)
@@ -137,10 +136,15 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Fristen": dates if dates else ["Kein Datum"], "Typ": ["Frist" for _ in range(len(dates)) if dates] or ["Info"]})
+    df = pd.DataFrame({
+        "Datum/Frist": dates if dates else ["Kein Datum"], 
+        "Info": ["Termin aus Analyse" for _ in range(max(1, len(dates)))]
+    })
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
+        writer.sheets['Sheet1'].set_column(0, 0, 20)
+        writer.sheets['Sheet1'].set_column(1, 1, 50)
     return output.getvalue()
 
 def create_ics(text):
@@ -155,7 +159,7 @@ def create_ics(text):
     return ics.encode('utf-8')
 
 # ==========================================
-# 4. KI-LOGIK (REPARIERT)
+# 4. KI-LOGIK
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -177,7 +181,7 @@ def run_ai(raw_text, lang, mode):
     return resp.choices[0].message.content
 
 # ==========================================
-# 5. UI - OBERE INFO-LEISTE
+# 5. UI - OBERE INFO-LEISTE (FIXIERT)
 # ==========================================
 c1, c2, c3, c4 = st.columns(4)
 with c1: 
@@ -192,7 +196,7 @@ with c4:
 st.divider()
 
 # ==========================================
-# 6. SIDEBAR - SHOP & SPRACHE
+# 6. SIDEBAR - SHOP (AUFGEMOTZT)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
@@ -230,20 +234,19 @@ with st.sidebar:
     st.link_button("Premium kaufen", STRIPE_PREMIUM, use_container_width=True)
 
 # ==========================================
-# 7. HAUPTBEREICH
+# 7. HAUPTBEREICH (VORSCHAU LINKS | ANALYSE RECHTS)
 # ==========================================
 st.title("📄 Amtsschimmel-Killer")
 
-col_left, col_right = st.columns(2)
-
-with col_left:
+m1, m2 = st.columns(2)
+with m1:
     st.subheader("1. Dokument & Vorschau")
-    u_file = st.file_uploader("Bild oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+    u_file = st.file_uploader("Brief fotografieren oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
     if u_file:
         if u_file.type != "application/pdf":
-            st.image(u_file, caption="Vorschau", use_container_width=True)
+            st.image(u_file, caption="Vorschau deines Briefs", use_container_width=True)
         else:
-            st.info("📄 PDF erfolgreich geladen.")
+            st.info("📄 PDF erfolgreich geladen. Bereit für die Analyse.")
     
     mode = st.radio("Was soll erstellt werden?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
@@ -253,14 +256,13 @@ with col_left:
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
-        else: st.error("Guthaben leer! Bitte links ein Paket wählen.")
+        else: st.error("Guthaben leer! Bitte wähle links ein Paket.")
 
-with col_right:
+with m2:
     st.subheader("2. Analyse & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.write("📥 **Ergebnis exportieren:**")
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
