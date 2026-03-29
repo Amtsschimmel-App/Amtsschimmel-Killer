@@ -62,7 +62,7 @@ VORLAGEN = {
 }
 
 # ==========================================
-# 2. SESSION STATE (GUTHABEN-SICHERUNG)
+# 2. SESSION STATE (STABILISIERUNG)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -70,7 +70,7 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# Admin & Stripe Check (Bleibt stabil im Session State)
+# Admin & Stripe Check
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
@@ -133,9 +133,13 @@ with st.sidebar:
     lang = st.selectbox("🌍 Sprache", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
     st.divider()
     st.subheader("Guthaben aufladen")
-    pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
+    pkgs = [
+        ("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"),
+        ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"),
+        ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
+    ]
     for n, l, c, p in pkgs:
-        st.markdown(f'<a href="{l}" target="_blank" style="text-decoration:none;"><div style="background:white; border:1px solid #e2e8f0; padding:10px; border-radius:10px; margin-bottom:10px; color:#1e3a8a; text-align:center;"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung</small></div></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{l}" target="_blank" style="text-decoration:none;"><div style="background:white; border:1px solid #e2e8f0; padding:10px; border-radius:10px; margin-bottom:10px; color:#1e3a8a; text-align:center;"><b>{n}</b><br>{p} | {c}<br><b>Einmalzahlung | KEIN ABO</b></div></a>', unsafe_allow_html=True)
 
 # ==========================================
 # 5. HAUPTBEREICH (TABS)
@@ -147,7 +151,7 @@ with t1:
     col1, col2 = st.columns(2)
     with col1:
         upload = st.file_uploader("Datei wählen:", type=['pdf', 'png', 'jpg', 'jpeg'], key="up")
-        if upload: # VORSCHAU FIX
+        if upload: 
             if upload.type.startswith("image"): st.image(upload, caption="Vorschau", use_container_width=True)
             else: st.info("PDF geladen.")
     with col2:
