@@ -15,42 +15,46 @@ import gc
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 LOGO_DATEI = "icon_final_blau.png"
 
-# 2. DESIGN (CSS)
+# 2. DESIGN & STYLING
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; border: none; }
-    .stButton>button:hover { background-color: #2563eb; transform: translateY(-2px); }
+    .stButton>button:hover { background-color: #2563eb; transform: translateY( -2px); }
     .buy-button { 
         text-decoration: none; display: block; padding: 12px; background: #ffffff; border: 1px solid #e2e8f0; 
         border-radius: 10px; margin-bottom: 10px; color: #1e3a8a !important; text-align: center; 
         box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s;
     }
     .buy-button:hover { border-color: #1e3a8a; background: #f8fafc; scale: 1.02; }
-    .legal-box { font-size: 0.85em; color: #334155; line-height: 1.6; background: #f1f5f9; padding: 25px; border-radius: 10px; border: 1px solid #cbd5e1; }
-    .step-box { background: #eff6ff; padding: 15px; border-radius: 10px; border: 1px solid #bfdbfe; text-align: center; min-height: 100px; }
+    .legal-box { font-size: 0.85em; color: #334155; line-height: 1.6; background: #f8fafc; padding: 25px; border-radius: 10px; border: 1px solid #e2e8f0; }
+    .faq-q { font-weight: bold; color: #1e3a8a; margin-top: 15px; font-size: 1.1em; display: block; }
+    .faq-a { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #cbd5e1; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. SESSION STATE & ADMIN LOGIK (999 GUTHABEN FIX)
-if "credits" not in st.session_state:
-    st.session_state.credits = 0
-if "last_analysis" not in st.session_state:
-    st.session_state.last_analysis = ""
+# 3. SESSION STATE & LOGIK
+if "credits" not in st.session_state: st.session_state.credits = 0
+if "last_analysis" not in st.session_state: st.session_state.last_analysis = ""
+if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# --- ADMIN FREISCHALTUNG (ERZWUNGEN) ---
-# WICHTIG: Die URL muss exakt so aussehen: 
-# https://amtsschimmel-killer.streamlit.app!
-try:
-    query_params = st.query_params
-    if "admin" in query_params and query_params["admin"] == "GeheimAmt2024!":
-        st.session_state.credits = 999
-        st.toast("🔓 ADMIN-MODUS AKTIV: 999 Scans freigeschaltet")
-except Exception as e:
-    pass
+# --- GUTHABEN-LOGIK (STRIPE & ADMIN) ---
+params = st.query_params
+
+# A) ADMIN-CHECK (999 Scans)
+if params.get("admin") == "GeheimAmt2024!":
+    st.session_state.credits = 999
+    st.toast("🔓 ADMIN-MODUS AKTIV")
+
+# B) STRIPE-RÜCKKEHR VERARBEITEN
+if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
+    pack = int(params.get("pack", 1))
+    st.session_state.credits += pack
+    st.session_state.processed_sessions.append(params["session_id"])
+    st.balloons()
+    st.toast(f"✅ {pack} Scan(s) erfolgreich aufgeladen!")
 
 # 4. API INITIALISIERUNG
-if "OPENAI_API_KEY" in st.secrets:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -65,91 +69,87 @@ with st.sidebar:
             ("💎 Profi-Paket", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
         ]
         for name, link, count, price in pkgs:
-            st.markdown(f'''<a href="{link}" target="_blank" class="buy-button"><b>{name}</b><br>{price} | {count}<br><small style="color: #16a34a;">✔ Einmalzahlung | Kein Abo</small></a>''', unsafe_allow_html=True)
-    except: st.error("Fehler: Stripe-Links nicht konfiguriert.")
+            st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{name}</b><br>{price} | {count}<br><small style="color:#16a34a;">✔ Einmalzahlung | Kein Abo</small></a>', unsafe_allow_html=True)
+    except: st.error("Stripe-Konfiguration fehlt.")
 
-# --- 6. HAUPTBEREICH ---
-t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Sofort-Antworten", "❓ FAQ & Hilfe"])
+# --- 6. HAUPTBEREICH (Tabs) ---
+tab1, tab2, tab3 = st.tabs(["🚀 Brief-Killer", "⚡ Sofort-Antworten", "❓ FAQ & Hilfe"])
 
-with t1:
+with tab1:
     st.title("Amtsschimmel-Killer 📄🚀")
-    c1, c2, c3 = st.columns(3)
-    with c1: st.markdown('<div class="step-box"><b>1. Guthaben</b><br><small>Paket links wählen.<br>Kein Abo.</small></div>', unsafe_allow_html=True)
-    with c2: st.markdown('<div class="step-box"><b>2. Upload</b><br><small>Brief hochladen.<br>PDF oder Foto.</small></div>', unsafe_allow_html=True)
-    with c3: st.markdown('<div class="step-box"><b>3. Antwort</b><br><small>Text kopieren &<br>verschicken.</small></div>', unsafe_allow_html=True)
+    st.write("Verwandle Behördendeutsch in klare Antworten.")
     
-    st.divider()
-
     if st.session_state.last_analysis:
         if st.button("🔄 Nächsten Brief bearbeiten"):
-            st.session_state.last_analysis = ""
-            st.rerun()
+            st.session_state.last_analysis = ""; st.rerun()
 
     if not st.session_state.last_analysis:
-        st.info("💡 **Sicherheit:** Schwärze private Daten vor dem Upload. Aktenzeichen sollten lesbar bleiben.")
-        upload = st.file_uploader("Behördenbrief wählen", type=['pdf', 'png', 'jpg', 'jpeg'])
+        st.info("💡 **Sicherheit:** Private Daten können vor dem Upload geschwärzt werden.")
+        upload = st.file_uploader("Brief hochladen", type=['pdf', 'png', 'jpg', 'jpeg'])
         if upload and st.session_state.credits > 0:
-            if st.button("🚀 Analyse starten"):
+            if st.button("🚀 Analyse & Antwort erstellen"):
                 with st.spinner("Amtsschimmel wird vertrieben..."):
-                    # Simulierter Erfolg (Reale Logik hier einfügen)
-                    st.session_state.last_analysis = "Sehr geehrte Damen und Herren,\n\nhiermit nehme ich Bezug auf Ihr Schreiben..." 
-                    st.session_state.credits -= 1
-                    st.rerun()
-        elif upload: st.error("Guthaben leer. Bitte Paket in der Sidebar wählen.")
+                    # Hier reale KI-Logik einsetzen
+                    st.session_state.last_analysis = "Muster-Antwort: Hiermit lege ich Widerspruch ein..."
+                    st.session_state.credits -= 1; st.rerun()
+        elif upload: st.warning("Guthaben leer. Bitte Paket wählen.")
 
     if st.session_state.last_analysis:
         st.success("Analyse abgeschlossen!")
         st.code(st.session_state.last_analysis, language="text")
-        st.download_button("💾 Download als Textdatei", st.session_state.last_analysis, "antwortbrief.txt")
+        st.download_button("💾 Als Textdatei speichern", st.session_state.last_analysis, "antwort.txt")
 
-with t2:
+with tab2:
     st.subheader("⚡ Sofort-Antworten")
     with st.expander("⏳ Fristverlängerung"):
-        st.code("Sehr geehrte Damen und Herren,\nin der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der Frist bis zum [Datum]...", language="text")
+        st.code("Sehr geehrte Damen und Herren,\nin der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der Frist bis zum [Datum].\n\nMit freundlichen Grüßen,\n[Name]", language="text")
 
-with t3:
+with tab3:
     st.subheader("❓ Häufig gestellte Fragen (FAQ)")
-    faqs = [
-        ("Ist das wirklich kein Abo?", "Ja. Jede Zahlung ist eine Einmalzahlung. Es gibt keine automatische Verlängerung."),
-        ("Datensicherheit?", "Dokumente werden verschlüsselt verarbeitet und nach der Analyse sofort gelöscht."),
-        ("Rechtsberatung?", "Nein. Die App ist eine Formulierungshilfe und kein Ersatz für einen Anwalt.")
+    faq = [
+        ("Ist das ein Abonnement?", "Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung."),
+        ("Wie sicher sind meine Dokumente?", "Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht."),
+        ("Ersetzt die App eine Rechtsberatung?", "Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt."),
+        ("Was passiert, wenn der Scan fehlschlägt?", "Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen."),
+        ("Wie erreiche ich Elisabeth Reinecke?", "Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
     ]
-    for q, a in faqs:
-        st.markdown(f"**{q}**\n\n{a}")
+    for q, a in faq:
+        st.markdown(f'<span class="faq-q">{q}</span>', unsafe_allow_html=True)
+        st.markdown(f'<div class="faq-a">{a}</div>', unsafe_allow_html=True)
 
-# --- 7. FOOTER (VOLLES IMPRESSUM & LANGER DATENSCHUTZ) ---
+# --- 7. FOOTER (VOLLES IMPRESSUM & AUSFÜHRLICHE DSGVO) ---
 st.divider()
-col_imp, col_dat = st.columns(2)
+c1, c2 = st.columns(2)
 
-with col_imp:
+with c1:
     with st.expander("🏢 Impressum"):
         st.markdown(f"""
         <div class="legal-box">
         <strong>Angaben gemäß § 5 TMG:</strong><br>
         Elisabeth Reinecke<br>
-        Ringelsweide 9<br>
-        40223 Düsseldorf<br><br>
+        Ringelsweide 9, 40223 Düsseldorf<br><br>
         <strong>Kontakt:</strong><br>
         Telefon: +49 211 15821329<br>
         E-Mail: amtsschimmel-killer@proton.me<br>
         Web: amtsschimmel-killer.streamlit.app<br><br>
-        <strong>Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV:</strong><br>
-        Elisabeth Reinecke (Anschrift wie oben)
+        <strong>Umsatzsteuer-ID:</strong><br>
+        Entfällt gemäß Kleinunternehmerregelung § 19 UStG.
         </div>
         """, unsafe_allow_html=True)
 
-with col_dat:
+with c2:
     with st.expander("⚖️ Datenschutzerklärung (DSGVO)"):
         st.markdown(f"""
         <div class="legal-box">
         <strong>1. Datenschutz auf einen Blick</strong><br>
-        Die Betreiberin dieser Anwendung nimmt den Schutz Ihrer persönlichen Daten sehr ernst. Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Datenschutzvorschriften sowie dieser Datenschutzerklärung.<br><br>
-        <strong>2. Datenerfassung in dieser App</strong><br>
-        <strong>Dokumentenverarbeitung:</strong> Hochgeladene Dokumente werden verschlüsselt an die OpenAI-Schnittstelle zur Analyse übertragen. Wir speichern keine Dokumente dauerhaft. Sobald die Browsersitzung beendet wird, werden die Daten gelöscht.<br>
-        <strong>Zahlungen:</strong> Wir nutzen Stripe für Zahlungen. Ihre Kreditkartendaten werden direkt von Stripe verarbeitet; wir haben keinen Zugriff darauf.<br><br>
-        <strong>3. Hosting</strong><br>
-        Diese App wird auf Streamlit Cloud gehostet. Dabei werden Server-Logfiles erfasst, auf die wir keinen direkten Einfluss haben.<br><br>
-        <strong>4. Ihre Rechte</strong><br>
-        Sie haben das Recht auf Auskunft, Berichtigung, Sperrung oder Löschung Ihrer Daten. Kontaktieren Sie uns hierzu unter der im Impressum angegebenen E-Mail.
+        Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).<br><br>
+        <strong>2. Datenerfassung & Hosting</strong><br>
+        Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.<br><br>
+        <strong>3. Dokumentenverarbeitung</strong><br>
+        Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.<br><br>
+        <strong>4. Zahlungsabwicklung (Stripe)</strong><br>
+        Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.<br><br>
+        <strong>5. Ihre Rechte</strong><br>
+        Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
         </div>
         """, unsafe_allow_html=True)
