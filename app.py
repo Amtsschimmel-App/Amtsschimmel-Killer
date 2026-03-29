@@ -13,12 +13,24 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. RECHTSTEXTE & KONSTANTEN (FEST FIXIERT)
+# 1. KONFIGURATION & CSS (OPTIK FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
+# Sidebar-Hintergrundfarbe passend zu den blauen Boxen
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #f0f7ff;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
 LOGO_DATEI = "icon_final_blau.png"
 
+# ==========================================
+# 2. RECHTSTEXTE (STRENG FIXIERT MIT ABSTÄNDEN)
+# ==========================================
 IMPRESSUM_TEXT = """
 **Impressum:**
 
@@ -89,16 +101,18 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 """
 
 # ==========================================
-# 2. SESSION STATE & STRIPE LINKS (FEST)
+# 3. SESSION STATE & STRIPE LINKS (FIXIERT)
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-STRIPE_BASIS = "https://buy.stripe.com"
-STRIPE_SPAR = "https://buy.stripe.com"
-STRIPE_PREMIUM = "https://buy.stripe.com"
+# DEINE STRIPE LINKS (BASIS, SPAR, PREMIUM)
+STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
+STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
+STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
 
+# Admin Logik (999 Scans)
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
@@ -111,7 +125,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN (REPARIERT)
+# 4. EXPORT FUNKTIONEN (FEHLERFREI)
 # ==========================================
 def clean_txt(t):
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
@@ -123,8 +137,7 @@ def create_pdf(text):
     pdf.cell(0, 10, "ANALYSE-ERGEBNIS", ln=True)
     pdf.set_font("Helvetica", size=11)
     pdf.multi_cell(0, 8, txt=clean_txt(text))
-    # FEHLER BEHOBEN: Direkte Rückgabe der Bytes
-    return pdf.output(dest='S')
+    return pdf.output(dest='S') # Gibt Bytes direkt zurück
 
 def create_docx(text):
     doc = Document()
@@ -143,8 +156,6 @@ def create_excel(text):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
-        writer.sheets['Sheet1'].set_column(0, 0, 20)
-        writer.sheets['Sheet1'].set_column(1, 1, 50)
     return output.getvalue()
 
 def create_ics(text):
@@ -159,7 +170,7 @@ def create_ics(text):
     return ics.encode('utf-8')
 
 # ==========================================
-# 4. KI-LOGIK
+# 5. KI-LOGIK
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -181,7 +192,7 @@ def run_ai(raw_text, lang, mode):
     return resp.choices[0].message.content
 
 # ==========================================
-# 5. UI - OBERE INFO-LEISTE (FIXIERT)
+# 6. UI - OBERE INFO-LEISTE (FIXIERT)
 # ==========================================
 c1, c2, c3, c4 = st.columns(4)
 with c1: 
@@ -196,7 +207,7 @@ with c4:
 st.divider()
 
 # ==========================================
-# 6. SIDEBAR - SHOP (AUFGEMOTZT)
+# 7. SIDEBAR - SHOP & SPRACHE
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
@@ -234,21 +245,24 @@ with st.sidebar:
     st.link_button("Premium kaufen", STRIPE_PREMIUM, use_container_width=True)
 
 # ==========================================
-# 7. HAUPTBEREICH (VORSCHAU LINKS | ANALYSE RECHTS)
+# 8. HAUPTBEREICH (VORSCHAU LINKS | ANALYSE RECHTS)
 # ==========================================
 st.title("📄 Amtsschimmel-Killer")
 
-m1, m2 = st.columns(2)
-with m1:
+col_left, col_right = st.columns(2)
+
+with col_left:
     st.subheader("1. Dokument & Vorschau")
     u_file = st.file_uploader("Brief fotografieren oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+    
     if u_file:
         if u_file.type != "application/pdf":
-            st.image(u_file, caption="Vorschau deines Briefs", use_container_width=True)
+            st.image(u_file, caption="Dokument-Vorschau", use_container_width=True)
         else:
             st.info("📄 PDF erfolgreich geladen. Bereit für die Analyse.")
     
-    mode = st.radio("Was soll erstellt werden?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
+    mode = st.radio("Was soll erstellt werden?", ["Antwortbrief 📝", "Widerspruch 🛑"], horizontal=True)
+    
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
             with st.spinner("KI liest den Amtsschimmel..."):
@@ -256,13 +270,16 @@ with m1:
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
-        else: st.error("Guthaben leer! Bitte wähle links ein Paket.")
+        else:
+            st.error("Guthaben leer! Bitte wähle links ein Paket.")
 
-with m2:
+with col_right:
     st.subheader("2. Analyse & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
+        st.write("📥 **Ergebnis exportieren:**")
+        
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
