@@ -48,7 +48,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. KI-LOGIK & OCR (BEHÖRDEN-ASSISTENT)
+# 3. KI-LOGIK & OCR (FEHLER KORRIGIERT)
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -86,14 +86,16 @@ def analyze_letter(raw_text, lang, mode="Standard"):
         model="gpt-4o", 
         messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}]
     )
-    return resp.choices.message.content
+    # KORREKTUR HIER: .choices[0].message.content (Index 0 hinzugefügt)
+    return resp.choices[0].message.content
 
 # ==========================================
 # 4. EXPORT FUNKTIONEN
 # ==========================================
 def create_docx(text):
     doc = Document(); doc.add_heading('Amtsschimmel-Killer Analyse', 0)
-    doc.add_paragraph(text.replace("###", "").replace("**", "")); bio = io.BytesIO()
+    clean_text = text.replace("###", "").replace("**", "")
+    doc.add_paragraph(clean_text); bio = io.BytesIO()
     doc.save(bio); return bio.getvalue()
 
 def create_pdf(text):
@@ -108,9 +110,6 @@ def create_excel(text):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Fristen')
-        worksheet = writer.sheets['Fristen']
-        for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 25)
     return output.getvalue()
 
 def create_ics(text):
@@ -122,11 +121,14 @@ def create_ics(text):
     return ics.encode('utf-8')
 
 # ==========================================
-# 5. SIDEBAR (LOGO & PREISE)
+# 5. SIDEBAR (LOGO & FLAGGEN)
 # ==========================================
 with st.sidebar:
-    if os.path.exists("icon_final_blau.png"): st.image("icon_final_blau.png", use_container_width=True)
-    else: st.title("📄 Amtsschimmel-Killer")
+    LOGO_PATH = "icon_final_blau.png"
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, use_container_width=True)
+    else:
+        st.title("📄 Amtsschimmel-Killer")
     
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
@@ -143,7 +145,7 @@ with st.sidebar:
         st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. HAUPTBEREICH (TABS MIT FESTEN TEXTEN)
+# 6. HAUPTBEREICH (MIT VORSCHAU & FESTEN TEXTEN)
 # ==========================================
 t1, t2, t3, t4, t5 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ", "⚖️ Impressum", "🔒 Datenschutz"])
 
@@ -152,6 +154,13 @@ with t1:
     c1, c2 = st.columns(2)
     with c1:
         upload = st.file_uploader("Datei wählen (PDF oder Bild):", type=['pdf', 'png', 'jpg', 'jpeg'])
+        # VORSCHAU WIEDER EINGEBAUT
+        if upload:
+            if upload.type.startswith("image"):
+                st.image(upload, caption="Vorschau deines Briefes", use_container_width=True)
+            else:
+                st.success("PDF erfolgreich geladen!")
+
     with c2:
         if upload and st.session_state.credits > 0:
             b1, b2 = st.columns(2)
@@ -160,14 +169,14 @@ with t1:
                     with st.spinner("Analyse läuft..."):
                         txt = get_text_from_file(upload)
                         res = analyze_letter(txt, lang_choice, "Standard")
-                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Text ist zu unscharf, bitte nochmal mit mehr Licht fotografieren. (Kein Guthabensabzug)")
+                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Text ist zu unscharf, bitte nochmal mit mehr Licht fotografieren. (Kein Abzug)")
                         else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
             with b2:
                 if st.button("⚖️ WIDERSPRUCH ERSTELLEN"):
                     with st.spinner("Widerspruch wird generiert..."):
                         txt = get_text_from_file(upload)
                         res = analyze_letter(txt, lang_choice, "Widerspruch")
-                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Text ist zu unscharf, bitte nochmal mit mehr Licht fotografieren. (Kein Guthabensabzug)")
+                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Text ist zu unscharf, bitte nochmal mit mehr Licht fotografieren. (Kein Abzug)")
                         else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
         elif upload: st.warning("Bitte Guthaben aufladen.")
 
@@ -201,8 +210,6 @@ with t3:
     st.markdown('<div class="faq-a">Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.</div>', unsafe_allow_html=True)
     st.markdown('<span class="faq-q">Was passiert, wenn der Scan fehlschlägt?</span>', unsafe_allow_html=True)
     st.markdown('<div class="faq-a">Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.</div>', unsafe_allow_html=True)
-    st.markdown('<span class="faq-q">Wie erreiche ich Elisabeth Reinecke?</span>', unsafe_allow_html=True)
-    st.markdown('<div class="faq-a">Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>', unsafe_allow_html=True)
 
 with t4:
     st.header("⚖️ Impressum")
@@ -210,33 +217,24 @@ with t4:
     **Amtsschimmel-Killer**  
     Betreiberin: Elisabeth Reinecke  
     Ringelsweide 9, 40223 Düsseldorf  
-    
-    **Kontakt:**  
     Telefon: +49 211 15821329  
     E-Mail: amtsschimmel-killer@proton.me  
     Web: amtsschimmel-killer.streamlit.app  
     
-    **Haftung:**  
-    Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
+    Haftung: Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
     """)
 
 with t5:
     st.header("🔒 Datenschutz")
     st.markdown("""
     **1. Datenschutz auf einen Blick**  
-    Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).  
-    
+    Wir behandeln Ihre personenbezogenen Daten vertraulich entsprechend der DSGVO.  
     **2. Datenerfassung & Hosting**  
-    Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.  
-    
+    Diese App wird auf Streamlit Cloud gehostet. Logfiles werden automatisch vom Hoster erfasst.  
     **3. Dokumentenverarbeitung**  
-    Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.  
-    
-    **4. Zahlungsabwicklung (Stripe)**  
-    Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.  
-    
-    **5. Ihre Rechte**  
-    Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
+    Ihre hochgeladenen Briefe werden per TLS an OpenAI (USA) übertragen. Wir speichern keine Briefe.  
+    **4. Zahlungsabwicklung**  
+    Abwicklung über Stripe. Wir erhalten nur Zahlungsbestätigungen.
     """)
 
 st.sidebar.caption(f"© {datetime.now().year} Elisabeth Reinecke")
