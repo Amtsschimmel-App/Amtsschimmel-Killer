@@ -89,18 +89,16 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 """
 
 # ==========================================
-# 2. SESSION STATE & STRIPE LINKS (KORRIGIERT)
+# 2. SESSION STATE & STRIPE LINKS
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# DEINE KORREKTEN LINKS
-STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
-STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
-STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04" # Link-Endung korrigiert auf 04 laut Schema
+STRIPE_BASIS = "https://buy.stripe.com"
+STRIPE_SPAR = "https://buy.stripe.com"
+STRIPE_PREMIUM = "https://buy.stripe.com"
 
-# Admin-Backdoor & Zahlungs-Handling
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
@@ -129,7 +127,7 @@ def create_pdf(text):
 
 def create_docx(text):
     doc = Document()
-    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
+    doc.add_heading('Analyse-Ergebnis', 0)
     doc.add_paragraph(text.replace("#", "").replace("*", ""))
     bio = io.BytesIO()
     doc.save(bio)
@@ -137,7 +135,7 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Frist/Datum": dates if dates else ["Kein Datum"], "Info": ["Termin aus Analyse" for _ in range(max(1, len(dates)))]})
+    df = pd.DataFrame({"Datum/Frist": dates if dates else ["Kein Datum"], "Info": ["Termin aus Analyse" for _ in range(max(1, len(dates)))]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -155,7 +153,7 @@ def create_ics(text):
     return ics.encode('utf-8')
 
 # ==========================================
-# 4. KI-LOGIK
+# 4. KI-LOGIK (FEHLER BEHOBEN)
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -174,10 +172,11 @@ def run_ai(raw_text, lang, mode):
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
     sys_p = f"Rechtsexperte. Sprache: {lang}. Erstelle: 🚦AMPEL, 📖GLOSSAR, 📅FRISTEN, ✍️{label}, 📋CHECKLISTE."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices.message.content
+    # KORREKTUR HIER: .choices[0] hinzugefügt
+    return resp.choices[0].message.content
 
 # ==========================================
-# 5. UI - OBERE INFO-LEISTE
+# 5. UI - OBERE INFO-LEISTE (FIXIERT)
 # ==========================================
 c1, c2, c3, c4 = st.columns(4)
 with c1: 
@@ -192,13 +191,13 @@ with c4:
 st.divider()
 
 # ==========================================
-# 6. SIDEBAR - SHOP & SPRACHE
+# 6. SIDEBAR - SHOP (PAKETE IN BOXEN)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
     
     st.subheader("🌍 1. Sprache wählen")
-    lang_choice = st.selectbox("Ausgabe:", [
+    lang_choice = st.selectbox("Sprache:", [
         "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
         "🇮🇹 Italiano", "🇫🇷 Français", "🇪🇸 Español", "🇺🇦 Українська", 
         "🇦🇪 العربية", "🇷🇴 Română", "🇬🇷 Ελληνικά"
@@ -209,21 +208,21 @@ with st.sidebar:
     st.metric("Guthaben", f"{st.session_state.credits} Scans")
 
     # BASIS BOX
-    st.markdown('<div style="background-color:#ffffff; padding:15px; border-radius:10px; border:2px solid #f0f2f6; margin-bottom:10px;">'
+    st.markdown('<div style="background-color:#ffffff; padding:15px; border-radius:10px; border:2px solid #f0f2f6; margin-bottom:5px;">'
                 '<h4 style="margin:0; color:#1f77b4;">☕ BASIS</h4>'
                 '<p style="margin:5px 0; font-size:1.1em;"><b>3,99 €</b> / 1 Scan</p>'
                 '<p style="font-size:0.85em; color:#28a745;"><b>✓ EINMALZAHLUNG</b><br>✓ KEIN ABO</p></div>', unsafe_allow_html=True)
     st.link_button("Basis kaufen", STRIPE_BASIS, use_container_width=True)
 
     # SPAR BOX
-    st.markdown('<div style="background-color:#e3f2fd; padding:15px; border-radius:10px; border:2px solid #2196f3; margin-top:15px; margin-bottom:10px;">'
+    st.markdown('<div style="background-color:#e3f2fd; padding:15px; border-radius:10px; border:2px solid #2196f3; margin-top:15px; margin-bottom:5px;">'
                 '<h4 style="margin:0; color:#0d47a1;">📦 SPAR-PAKET</h4>'
                 '<p style="margin:5px 0; font-size:1.1em;"><b>9,99 €</b> / 5 Scans</p>'
                 '<p style="font-size:0.85em; color:#28a745;"><b>✓ EINMALZAHLUNG</b><br>✓ KEIN ABO</p></div>', unsafe_allow_html=True)
     st.link_button("Spar-Paket kaufen", STRIPE_SPAR, use_container_width=True)
 
     # PREMIUM BOX
-    st.markdown('<div style="background-color:#e8f5e9; padding:15px; border-radius:10px; border:2px solid #4caf50; margin-top:15px; margin-bottom:10px;">'
+    st.markdown('<div style="background-color:#e8f5e9; padding:15px; border-radius:10px; border:2px solid #4caf50; margin-top:15px; margin-bottom:5px;">'
                 '<h4 style="margin:0; color:#1b5e20;">🚀 PREMIUM</h4>'
                 '<p style="margin:5px 0; font-size:1.1em;"><b>19,99 €</b> / 10 Scans</p>'
                 '<p style="font-size:0.85em; color:#28a745;"><b>✓ EINMALZAHLUNG</b><br>✓ KEIN ABO</p></div>', unsafe_allow_html=True)
@@ -238,33 +237,36 @@ col_left, col_right = st.columns(2)
 
 with col_left:
     st.subheader("1. Dokument & Vorschau")
-    u_file = st.file_uploader("Brief fotografieren oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+    u_file = st.file_uploader("Bild oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+    
     if u_file:
         if u_file.type != "application/pdf":
             st.image(u_file, caption="Vorschau", use_container_width=True)
         else:
-            st.info("📄 PDF erfolgreich geladen.")
+            st.info("📄 PDF geladen.")
     
-    mode = st.radio("Was soll erstellt werden?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
+    mode = st.radio("Ziel:", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
+    
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
-            with st.spinner("KI liest den Amtsschimmel..."):
+            with st.spinner("KI analysiert den Amtsschimmel..."):
                 raw = get_text(u_file)
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
-        else: st.error("Guthaben leer! Bitte wähle links ein Paket.")
+        else:
+            st.error("Guthaben leer! Bitte links ein Paket wählen.")
 
 with col_right:
     st.subheader("2. Analyse & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.write("📥 **Ergebnis exportieren:**")
+        st.write("📥 **Download:**")
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
         with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
         with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics")
     else:
-        st.info("Hier erscheint das Ergebnis nach dem Scan.")
+        st.info("Das Ergebnis erscheint hier nach dem Scan.")
