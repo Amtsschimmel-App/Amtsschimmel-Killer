@@ -10,30 +10,50 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. SETUP & DESIGN (STRENG FIXIERT)
+# 1. SETUP & ZAHLUNGSLOGIK (PRIORITÄT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# DEINE EXAKTEN STRIPE LINKS
-STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" # 1 Dokument
-STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03" # 3 Dokumente
-STRIPE_3 = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04" # 10 Dokumente
+if "credits" not in st.session_state:
+    st.session_state.credits = 0
+if "full_res" not in st.session_state:
+    st.session_state.full_res = ""
+
+# GUTHABEN-AKTIVIERUNG NACH KAUF (URL Parameter)
+params = st.query_params
+if "p" in params:
+    val = params["p"]
+    if val == "1": st.session_state.credits += 1
+    elif val == "2": st.session_state.credits += 3
+    elif val == "3": st.session_state.credits += 10
+    st.query_params.clear()
+
+# ADMIN ZUGANG (SAdmin scan 999)
+if params.get("admin") == "GeheimAmt2024!":
+    st.session_state.credits = 999
+
+# ==========================================
+# 2. STRIPE LINKS & DESIGN
+# ==========================================
+STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
+STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
+STRIPE_3 = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
 
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; }
         .paket-card {
-            border: 1px solid #0d47a1; padding: 8px; border-radius: 10px;
-            background-color: #f8fbff; margin-bottom: 2px; text-align: center;
+            border: 1px solid #0d47a1; padding: 10px; border-radius: 10px;
+            background-color: #f8fbff; margin-bottom: 5px; text-align: center;
         }
-        .price-tag { font-size: 15px; font-weight: bold; color: #0d47a1; margin: 0px; }
-        .no-abo-text { font-size: 10px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
-        .paket-title { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 2px; }
+        .price-tag { font-size: 15px; font-weight: bold; color: #0d47a1; margin: 2px; }
+        .no-abo-text { font-size: 11px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
+        .paket-title { font-size: 13px; font-weight: bold; color: #333; margin-bottom: 2px; }
         .stLinkButton a {
             width: 100% !important; background-color: #0d47a1 !important;
             color: white !important; border-radius: 6px !important;
-            font-weight: bold !important; padding: 5px !important;
-            font-size: 12px !important; text-decoration: none;
+            font-weight: bold !important; padding: 8px !important;
+            font-size: 13px !important; text-decoration: none;
             display: inline-block; text-align: center;
         }
         .stExpander div { line-height: 1.4 !important; white-space: pre-wrap !important; font-size: 12px; }
@@ -44,27 +64,6 @@ st.markdown("""
 LOGO_DATEI = "icon_final_blau.png"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ==========================================
-# 2. GUTHABEN-LOGIK & ZAHLUNGSERKENNUNG
-# ==========================================
-if "credits" not in st.session_state:
-    st.session_state.credits = 0
-if "full_res" not in st.session_state:
-    st.session_state.full_res = ""
-
-# Gutschrift nach Kauf via URL-Parameter
-params = st.query_params
-if "p" in params:
-    val = params["p"]
-    if val == "1": st.session_state.credits += 1
-    elif val == "2": st.session_state.credits += 3
-    elif val == "3": st.session_state.credits += 10 # 10 Dokumente
-    st.query_params.clear()
-
-# SADMIN MODUS
-if params.get("admin") == "GeheimAmt2024!":
-    st.session_state.credits = 999
-
 def generate_pdf(content):
     pdf = FPDF()
     pdf.add_page()
@@ -74,7 +73,7 @@ def generate_pdf(content):
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 3. OBERE ZEILE: EINGEKLAPPTE INFOS (EXAKT)
+# 3. HEADER & INFOS (EXAKT WIE GEWÜNSCHT)
 # ==========================================
 st.title("Amtsschimmel-Killer 🪓")
 
@@ -145,58 +144,60 @@ c_pak, c_up, c_res = st.columns([0.9, 1.1, 1.5])
 
 with c_pak:
     st.subheader("🌐 Sprachen")
-    lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇷🇴 Română", "🇺🇦 Українська", "🇬🇷 Ελληνικά"], label_visibility="collapsed")
+    lang = st.selectbox("Wahl", [
+        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
+        "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇷🇴 Română", 
+        "🇺🇦 Українська", "🇬🇷 Ελληνικά", "🇧🇬 Български", "🇭🇷 Hrvatski", "🇨🇿 Čeština",
+        "🇳🇱 Nederlands", "🇭🇺 Magyar", "🇵🇹 Português", "🇸🇮 Slovenščina", "🇸🇰 Slovenčina",
+        "🇻🇳 Tiếng Việt", "🇨🇳 中文", "🇯🇵 日本語", "🇰🇷 한국어"
+    ], label_visibility="collapsed")
     
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, width=110)
     
     st.write("---")
     
-    # PAKET 1: Analyse
-    st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Analyse<br>(1 Dokument)</div><div class="price-tag">Einmalpreis 3,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Analyse<br>(1 Dokument)</div><div class="price-tag">Einmalpreis 3,99 €</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_1)
     
-    # PAKET 2: Spar-Paket
-    st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Spar-Paket<br>(3 Dokumente)</div><div class="price-tag">Einmalpreis 9,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Spar-Paket<br>(3 Dokumente)</div><div class="price-tag">Einmalpreis 9,99 €</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_2)
     
-    # PAKET 3: Sorglos-Paket
-    st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Sorglos-Paket<br>(10 Dokumente)</div><div class="price-tag">Einmalpreis 19,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: Sorglos-Paket<br>(10 Dokumente)</div><div class="price-tag">Einmalpreis 19,99 €</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_3)
 
 with c_up:
-    # ABSTAND FÜR MITTIGE AUSRICHTUNG NEBEN DEN PAKETEN
-    st.markdown("<div style='height: 58px;'></div>", unsafe_allow_html=True)
+    # EXAKTE POSITIONIERUNG NEBEN DEN PAKETEN
+    st.markdown("<div style='height: 145px;'></div>", unsafe_allow_html=True)
     st.subheader("📄 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Dokumente**")
     
-    upped = st.file_uploader("Datei", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+    upped = st.file_uploader("Upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
-    extracted_text = ""
+    extracted = ""
     if upped:
         if upped.type == "application/pdf":
             try:
-                raw_pdf = upped.read()
-                with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
-                    for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
-                imgs = convert_from_bytes(raw_pdf, first_page=1, last_page=1)
+                raw = upped.read()
+                with pdfplumber.open(io.BytesIO(raw)) as pdf:
+                    for page in pdf.pages: extracted += (page.extract_text() or "") + "\n"
+                imgs = convert_from_bytes(raw, first_page=1, last_page=1)
                 st.image(imgs, caption="Vorschau", use_container_width=True)
-            except: st.info("Vorschau lädt...")
+            except: st.info("PDF wird verarbeitet...")
         else:
             img = Image.open(upped)
             st.image(img, caption="Vorschau", use_container_width=True)
-            extracted_text = pytesseract.image_to_string(img)
+            extracted = pytesseract.image_to_string(img)
         
         if st.button("🚀 JETZT ANALYSIEREN"):
             if st.session_state.credits > 0:
-                with st.spinner("Analyse läuft..."):
+                with st.spinner("Amtsschimmel wird bekämpft..."):
                     try:
-                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted_text}"}])
+                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted}"}])
                         st.session_state.full_res = res.choices.message.content
                         st.session_state.credits -= 1
                         st.rerun()
                     except Exception as e: st.error(f"Fehler: {e}")
-            else:
-                st.error("Guthaben: 0 Dokumente. Bitte ein Paket kaufen.")
+            else: st.error("Bitte erst Guthaben kaufen!")
 
 with c_res:
     st.subheader("🔍 Analyse & Antwort")
@@ -208,4 +209,4 @@ with c_res:
             st.session_state.full_res = ""
             st.rerun()
     else:
-        st.info("Das Ergebnis erscheint hier nach der Analyse.")
+        st.info("Hier erscheint das Ergebnis nach dem Scan.")
