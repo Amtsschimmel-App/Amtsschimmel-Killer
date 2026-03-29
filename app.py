@@ -8,13 +8,15 @@ import io
 import os
 import shutil
 import stripe
+import pandas as pd
 from datetime import datetime
 import gc 
 
-# 1. KONFIGURATION & DESIGN
+# 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 LOGO_DATEI = "icon_final_blau.png"
 
+# 2. DESIGN
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; border: none; }
@@ -27,31 +29,23 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. SESSION STATE & GUTHABEN-LOGIK
+# 3. SESSION STATE
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "last_analysis" not in st.session_state: st.session_state.last_analysis = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# URL-Parameter auslesen (Stripe Rückkehr & Admin)
+# Admin & Stripe Logik
 params = st.query_params
-
-# A) ADMIN-MODUS (999 Scans)
 if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
-    st.toast("🔓 ADMIN-MODUS AKTIV")
-
-# B) STRIPE RÜCKKEHR VERARBEITEN
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
-        pack_size = int(params.get("pack", 0))
-        if pack_size > 0:
-            st.session_state.credits += pack_size
-            st.session_state.processed_sessions.append(params["session_id"])
-            st.balloons()
-            st.toast(f"✅ {pack_size} Scan(s) erfolgreich aufgeladen!")
+        pack = int(params.get("pack", 0))
+        st.session_state.credits += pack
+        st.session_state.processed_sessions.append(params["session_id"])
     except: pass
 
-# 3. FUNKTIONEN
+# 4. FUNKTIONEN
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def get_text_hybrid(uploaded_file):
@@ -68,32 +62,33 @@ def get_text_hybrid(uploaded_file):
     return text.strip()
 
 def analyze_letter(raw_text, language):
-    sys_p = f"Rechtsexperte. Sprache: {language}. Analysiere den Brief, liste Fristen auf und erstelle einen Antworttext mit Platzhaltern."
+    sys_p = f"Rechtsexperte. Sprache: {language}. Analysiere den Brief, liste Fristen (Datum) auf und erstelle einen Antworttext mit Platzhaltern."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices.message.content
+    return resp.choices[0].message.content # KORRIGIERTER ZUGRIFF
 
-def speak_text(text, voice_type):
-    v_map = {"Weiblich": "nova", "Männlich": "onyx"}
-    response = client.audio.speech.create(model="tts-1", voice=v_map.get(voice_type, "nova"), input=text[:4000])
-    return response.content
+def create_excel_calendar(analysis_text):
+    # Einfacher Extraktor für Datumsangaben im Text
+    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', analysis_text)
+    df = pd.DataFrame({"Frist / Termin": dates, "Ereignis": ["Termin aus Brief" for _ in dates]})
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Fristen')
+    return output.getvalue()
 
-# 4. SIDEBAR
+import re
+
+# 5. SIDEBAR
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
-    st.divider()
-    st.subheader("Einstellungen")
-    lang_choice = st.radio("Antwort-Sprache", ["Deutsch", "English"], horizontal=True)
+    lang_choice = st.radio("Sprache", ["Deutsch", "English"], horizontal=True)
     voice_choice = st.selectbox("Vorlese-Stimme", ["Weiblich", "Männlich"])
     st.divider()
-    st.subheader("Guthaben aufladen")
-    pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), 
-            ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), 
-            ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
+    pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
     for n, l, c, p in pkgs:
-        st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small style="color:#16a34a;">✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
 
-# 5. HAUPTBEREICH
+# 6. HAUPTBEREICH
 t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ & Hilfe"])
 
 with t1:
@@ -105,62 +100,49 @@ with t1:
     if not st.session_state.last_analysis:
         upload = st.file_uploader("Brief hochladen", type=['pdf', 'png', 'jpg', 'jpeg'])
         if upload:
-            if upload.type != "application/pdf": st.image(upload, width=350)
+            if upload.type != "application/pdf": st.image(upload, width=300, caption="Vorschau")
             if st.session_state.credits > 0:
                 if st.button("🚀 Analyse starten"):
                     with st.spinner("Amtsschimmel wird vertrieben..."):
                         raw = get_text_hybrid(upload)
                         st.session_state.last_analysis = analyze_letter(raw, lang_choice)
                         st.session_state.credits -= 1; st.rerun()
-            else: st.error("Guthaben leer. Bitte Paket wählen.")
+            else: st.error("Guthaben leer.")
 
     if st.session_state.last_analysis:
-        st.success("Analyse abgeschlossen!")
+        st.success("Ergebnis:")
         st.markdown(f'<div style="white-space: pre-wrap; background: white; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0;">{st.session_state.last_analysis}</div>', unsafe_allow_html=True)
-        if st.button(f"🔊 Antwort vorlesen ({voice_choice})"):
-            st.audio(speak_text(st.session_state.last_analysis, voice_choice))
-        st.code(st.session_state.last_analysis, language="text")
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.download_button("💾 Text download", st.session_state.last_analysis, "antwort.txt")
+        with col_b:
+            excel_data = create_excel_calendar(st.session_state.last_analysis)
+            st.download_button("📅 Fristen-Excel (Kalender)", excel_data, "fristen.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 with t2:
-    st.subheader("⚡ Sofort-Antworten (Vorlagen)")
-    with st.expander("⏳ Fristverlängerung beantragen"):
-        st.code("Sehr geehrte Damen und Herren,\nin der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.\n\nMit freundlichen Grüßen,\n[Name]", language="text")
-    with st.expander("🛑 Widerspruch einlegen (Fristwahrend)"):
-        st.code("Sehr geehrte Damen und Herren,\ngegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben.\n\nMit freundlichen Grüßen,\n[Name]", language="text")
-    with st.expander("📂 Akteneinsicht anfordern"):
-        st.code("Sehr geehrte Damen und Herren,\nzur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht.\n\nMit freundlichen Grüßen,\n[Name]", language="text")
+    st.subheader("⚡ Vorlagen")
+    with st.expander("⏳ Fristverlängerung"):
+        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der Frist...", language="text")
+    with st.expander("🛑 Widerspruch"):
+        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich Widerspruch ein...", language="text")
+    with st.expander("📂 Akteneinsicht"):
+        st.code("Sehr geehrte Damen und Herren, hiermit beantrage ich Akteneinsicht gemäß § 25 SGB X...", language="text")
 
 with t3:
-    st.subheader("❓ Häufig gestellte Fragen (FAQ)")
-    faq_data = [
-        ("Ist das ein Abonnement?", "Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung."),
-        ("Wie sicher sind meine Dokumente?", "Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht."),
-        ("Ersetzt die App eine Rechtsberatung?", "Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt."),
-        ("Was passiert, wenn der Scan fehlschlägt?", "Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen."),
-        ("Wie erreiche ich Elisabeth Reinecke?", "Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
-    ]
+    st.subheader("❓ FAQ")
+    faq_data = [("Ist das ein Abonnement?", "Nein. Wir hassen Abos... Jede Zahlung ist eine Einmalzahlung."), 
+                ("Sicherheit?", "Verschlüsselt via SSL. Keine dauerhafte Speicherung."),
+                ("Rechtsberatung?", "Nein. Wir bieten Formulierungshilfe.")]
     for q, a in faq_data:
-        st.markdown(f'<span class="faq-q">{q}</span>', unsafe_allow_html=True)
-        st.markdown(f'<div class="faq-a">{a}</div>', unsafe_allow_html=True)
+        st.markdown(f"**{q}**\n\n{a}")
 
 # 7. FOOTER
 st.divider()
 c1, c2 = st.columns(2)
 with c1:
     with st.expander("🏢 Impressum"):
-        st.markdown("""
-        <div class="legal-box">
-        <strong>Amtsschimmel-Killer</strong><br>Betreiberin: Elisabeth Reinecke<br>Ringelsweide 9, 40223 Düsseldorf<br><br>
-        <strong>Kontakt:</strong><br>Telefon: +49 211 15821329<br>E-Mail: amtsschimmel-killer@proton.me<br>Web: amtsschimmel-killer.streamlit.app<br><br>
-        <strong>Haftung:</strong><br>Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
-        </div>""", unsafe_allow_html=True)
+        st.markdown("""**Amtsschimmel-Killer**<br>Elisabeth Reinecke<br>Ringelsweide 9, 40223 Düsseldorf<br>+49 211 15821329<br>amtsschimmel-killer@proton.me""", unsafe_allow_html=True)
 with c2:
     with st.expander("⚖️ Datenschutz"):
-        st.markdown("""
-        <div class="legal-box">
-        <strong>1. Datenschutz auf einen Blick</strong><br>Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).<br><br>
-        <strong>2. Datenerfassung & Hosting</strong><br>Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.<br><br>
-        <strong>3. Dokumentenverarbeitung</strong><br>Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.<br><br>
-        <strong>4. Zahlungsabwicklung (Stripe)</strong><br>Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.<br><br>
-        <strong>5. Ihre Rechte</strong><br>Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
-        </div>""", unsafe_allow_html=True)
+        st.markdown("""1. Datenschutz vertraulich (DSGVO). 2. Hosting auf Streamlit. 3. Dokumente an OpenAI (TLS). 4. Stripe Zahlungen (Einmal). 5. Recht auf Löschung.""", unsafe_allow_html=True)
