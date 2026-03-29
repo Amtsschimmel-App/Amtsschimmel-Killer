@@ -3,106 +3,139 @@ import pandas as pd
 from io import BytesIO
 import base64
 
-# --- 1. KONFIGURATION ---
-st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide")
+# --- 1. SEITEN-KONFIGURATION ---
+st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# CSS für exakte Optik wie im Bild
+# --- 2. ELEGANTES DESIGN (CSS) ---
 st.markdown("""
 <style>
-    .pkg-card { padding: 15px; border: 1px solid #2e5a88; border-radius: 8px; text-align: center; margin-bottom: 5px; background: white; }
-    .pkg-title { font-weight: bold; font-size: 0.9em; }
-    .pkg-price { font-size: 1.2em; font-weight: bold; color: #1f77b4; }
-    .pkg-footer { color: red; font-weight: bold; font-size: 0.7em; }
-    div.stButton > button { width: 100% !important; background-color: #004488 !important; color: white !important; }
+    /* Paket-Karten Styling */
+    .pkg-card {
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #d1d8e0;
+        margin-bottom: 10px;
+        text-align: center;
+        transition: transform 0.2s;
+    }
+    .pkg-icon { font-size: 35px; margin-bottom: 10px; }
+    .pkg-title { font-weight: bold; font-size: 0.95em; color: #2c3e50; min-height: 50px; }
+    .pkg-price { font-size: 24px; font-weight: bold; color: #1f77b4; margin: 5px 0; }
+    .pkg-tag { font-size: 0.75em; font-weight: bold; color: #e74c3c; text-transform: uppercase; }
+    
+    /* Buttons */
+    div.stButton > button {
+        width: 100% !important;
+        background-color: #1f77b4 !important;
+        color: white !important;
+        border-radius: 8px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. EXPORT-LOGIK (Ausführlich & Breit) ---
-def create_excel_wide(data_list):
+# --- 3. EXPORT FUNKTIONEN (BREITE SPALTEN & DATEN) ---
+def create_excel_wide(data):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df = pd.DataFrame(data_list)
-        df.to_excel(writer, index=False, sheet_name='Detaillierte Analyse')
-        worksheet = writer.sheets['Detaillierte Analyse']
+        df = pd.DataFrame([data])
+        df.to_excel(writer, index=False, sheet_name='Analyse_Detail')
+        worksheet = writer.sheets['Analyse_Detail']
+        # Setzt alle Spalten auf eine Breite von 100 (extrem breit für viel Text)
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 100) # Extrem breit für ausführliche Texte
+            worksheet.set_column(i, i, 100)
     return output.getvalue()
 
-# --- 3. RECHTLICHES (Exakte Abstände) ---
-with st.sidebar: # Um das 3-Spalten-Bild im Hauptbereich nicht zu stören
-    st.markdown("### 🏛️ Informationen")
+def show_pdf(file):
+    base64_pdf = base64.b64encode(file.read()).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+# --- 4. TOP-BAR: RECHTLICHES & VORLAGEN (NEBENEINANDER & ZUSAMMENGEKLAPPT) ---
+t1, t2, t3, t4 = st.columns(4)
+with t1:
     with st.expander("⚖️ Impressum"):
         st.text("Amtsschimmel-Killer\nBetreiberin: Elisabeth Reinecke\nRingelsweide 9\n40223 Düsseldorf\n\nKontakt:\nTelefon: +49 211 15821329\nE-Mail: amtsschimmel-killer@proton.me\nWeb: amtsschimmel-killer.streamlit.app\n\nHaftung:\nInhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.")
+with t2:
     with st.expander("🛡️ Datenschutz"):
-        st.text("1. Datenschutz auf einen Blick\nWir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).\n\n2. Datenerfassung & Hosting\nDiese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.\n\n3. Dokumentenverarbeitung\nIhre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.\n\n4. Zahlungsabwicklung (Stripe)\nBei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.\n\n5. Ihre Rechte\nSie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.")
+        st.text("1. Datenschutz auf einen Blick\nWir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).\n\n2. Datenerfassung & Hosting\nDiese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch erfasst.\n\n3. Dokumentenverarbeitung\nIhre Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen.\n\n4. Zahlungsabwicklung (Stripe)\nStripe erhebt die Daten zur Abrechnung.\n\n5. Ihre Rechte\nRecht auf Auskunft, Löschung und Sperrung unter amtsschimmel-killer@proton.me.")
+with t3:
+    with st.expander("❓ FAQ"):
+        st.text("Ist das ein Abonnement?\nNein. Wir hassen Abos. Jede Zahlung ist eine Einmalzahlung. Keine automatische Verlängerung.\n\nWie sicher sind meine Dokumente?\nVerschlüsselte Übertragung, keine dauerhafte Speicherung.\n\nErsetzt die App eine Rechtsberatung?\nNein. Wir bieten Formulierungshilfe.\n\nWas passiert bei Fehlern?\nKein Guthabenabzug bei technischem Scheitern.")
+with t4:
     with st.expander("📝 Vorlagen"):
-        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]\n\nWiderspruch einlegen (Fristwahrend)\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]\n\nAkteneinsicht einfordern:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+        st.text("Fristverlängerung:\nIch bitte um Verlängerung der Frist bis zum [Datum]...\n\nWiderspruch:\nHiermit lege ich Widerspruch gegen den Bescheid vom [Datum] ein...\n\nAkteneinsicht:\nIch beantrage Akteneinsicht gemäß § 25 SGB X.")
 
-# --- 4. HAUPT-LAYOUT (Drei Spalten wie im Bild) ---
-col_left, col_mid, col_right = st.columns([1, 1.5, 1.2])
+st.divider()
 
-# LINKS: Sprachen & Pakete
-with col_left:
+# --- 5. HAUPTBEREICH: 3-SPALTEN-LAYOUT (PAKETE | UPLOAD | ANALYSE) ---
+col_pakete, col_upload, col_analyse = st.columns([1, 1.5, 1.2])
+
+# SPALTE 1: SPRACHEN & PAKETE (LINKS)
+with col_pakete:
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español"], label_visibility="collapsed")
-    st.image("https://via.placeholder.com", width=80) # Platzhalter für dein Icon
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "ES Español", "IT Italiano"], label_visibility="collapsed")
+    
+    st.image("https://cdn-icons-png.flaticon.com", width=60) # Beispiel Icon für Amtsschimmel-Killer
     
     # Paket 1
-    st.markdown('<div class="pkg-card"><div class="pkg-title">Amtsschimmel-Killer: Analyse (1 Dokument)</div><div class="pkg-price">3,99 €</div><div class="pkg-footer">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="pkg-card" style="background-color: #f9f9f9;"><div class="pkg-icon">📄</div><div class="pkg-title">Amtsschimmel-Killer: Analyse (1 Dokument)</div><div class="pkg-price">3,99 €</div><div class="pkg-tag">❌ KEIN ABO • EINMALZAHLUNG</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
-    
+
     # Paket 2
-    st.markdown('<div class="pkg-card"><div class="pkg-title">Amtsschimmel-Killer: Spar Paket (3 Dokumente)</div><div class="pkg-price">9,99 €</div><div class="pkg-footer">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="pkg-card" style="background-color: #ebf5fb; border-color: #3498db;"><div class="pkg-icon">🥈</div><div class="pkg-title">Amtsschimmel-Killer: Spar Paket (3 Dokumente)</div><div class="pkg-price">9,99 €</div><div class="pkg-tag">❌ KEIN ABO • EINMALZAHLUNG</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
-    
+
     # Paket 3
-    st.markdown('<div class="pkg-card"><div class="pkg-title">Amtsschimmel-Killer: Sorglos Paket (10 Dokumente)</div><div class="pkg-price">19,99 €</div><div class="pkg-footer">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="pkg-card" style="background-color: #fef9e7; border-color: #f1c40f;"><div class="pkg-icon">🥇</div><div class="pkg-title">Amtsschimmel-Killer: Sorglos Paket (10 Dokumente)</div><div class="pkg-price">19,99 €</div><div class="pkg-tag">❌ KEIN ABO • EINMALZAHLUNG</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
 
-# MITTE: Upload & Vorschau
-with col_mid:
-    st.markdown("### 📄 Upload & Vorschau")
-    st.info("Guthaben: 999 Dokumente")
-    uploaded_file = st.file_uploader("Drag and drop file here", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+# SPALTE 2: UPLOAD & VORSCHAU (MITTE)
+with col_upload:
+    st.markdown("### 📑 Upload & Vorschau")
+    st.info("👑 Guthaben: 999 Dokumente")
     
-    if uploaded_file:
-        st.success(f"Dokument '{uploaded_file.name}' geladen.")
-        if uploaded_file.type == "application/pdf":
-            base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
+    up_file = st.file_uploader("Drag and drop file here", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+    
+    if up_file:
+        st.success(f"Datei '{up_file.name}' geladen.")
+        if up_file.type == "application/pdf":
+            show_pdf(up_file)
         else:
-            st.image(uploaded_file, use_container_width=True)
+            st.image(up_file, use_container_width=True)
 
-# RECHTS: Analyse & Antwort
-with col_right:
+# SPALTE 3: ANALYSE & ANTWORT (RECHTS)
+with col_analyse:
     st.markdown("### 🔍 Analyse & Antwort")
-    if not uploaded_file:
+    if not up_file:
         st.write("Hier erscheint das Ergebnis nach dem Scan.")
     else:
         st.error("📅 Frist erkannt: 24.12.2024")
         
-        ausfuehrlicher_text = """SEHR AUSFÜHRLICHE ANALYSE:
-        Das vorliegende Dokument ist ein Bescheid der Behörde X. 
-        Die Rechtsbehelfsbelehrung ist fehlerhaft, da die Fristangabe unklar ist. 
-        Es wird dringend empfohlen, Akteneinsicht nach § 25 SGB X zu beantragen. 
-        Zudem fehlt eine hinreichende Begründung für die Kürzung der Leistungen nach § 35 SGB X. 
-        Die Behörde hat ihr Ermessen nicht pflichtgemäß ausgeübt."""
+        ausfuehrlich = """**AUSFÜHRLICHE ANALYSE:**
+        Bei dem vorliegenden Dokument handelt es sich um einen Bescheid der Behörde. 
+        Auffällig ist die Rechtsbehelfsbelehrung, die unpräzise Formulierungen zur Fristwahrung enthält. 
+        Es wird empfohlen, innerhalb der nächsten 14 Tage eine ausführliche Stellungnahme abzugeben. 
+        Zudem sollte Akteneinsicht nach § 25 SGB X beantragt werden, um die Sachlage vollumfänglich zu prüfen."""
         
-        st.markdown("**Detaillierte Auswertung:**")
-        st.write(ausfuehrlicher_text)
+        with st.container(border=True):
+            st.markdown("**Ergebnis:**")
+            st.write(ausfuehrlich)
         
-        st.markdown("**Ausführlicher Antwortentwurf:**")
-        antwort_pro = "Sehr geehrte Damen und Herren,\n\nhiermit nehme ich ausführlich Stellung zu Ihrem Schreiben...\n\n(Hier folgen 3-4 Absätze juristisch fundierter Text zur Fristwahrung und Akteneinsicht)..."
+        st.markdown("**Detaillierter Antwortentwurf:**")
+        antwort_pro = """Sehr geehrte Damen und Herren,
+        
+hiermit nehme ich Bezug auf Ihr Schreiben vom [Datum]. Gegen den Bescheid lege ich hiermit form- und fristgerecht WIDERSPRUCH ein. 
+
+Die Begründung erfolgt nach erfolgter Akteneinsicht, welche ich hiermit gemäß § 25 SGB X beantrage. Bitte bestätigen Sie den Eingang dieses Schreibens umgehend."""
         st.code(antwort_pro, language="text")
         
-        # DOWNLOADS GANZ UNTEN RECHTS
+        # DOWNLOAD BEREICH
         st.divider()
-        d_col1, d_col2 = st.columns(2)
-        with d_col1:
-            st.download_button("📄 PDF", antwort_pro, "Analyse.pdf")
-            st.download_button("📝 Word", antwort_pro, "Analyse.doc")
-        with d_col2:
-            excel_pro = create_excel_wide([{"Kategorie": "Analyse", "Inhalt": ausfuehrlicher_text}, {"Kategorie": "Antwort", "Inhalt": antwort_pro}])
-            st.download_button("📊 Excel (Breit)", excel_pro, "Analyse.xlsx")
-            st.download_button("📅 Termin", "BEGIN:VCALENDAR\nSUMMARY:Frist Amtsschimmel\nDTSTART:20241224T090000\nEND:VEVENT\nEND:VCALENDAR", "Termin.ics")
+        d_c1, d_c2 = st.columns(2)
+        with d_c1:
+            st.download_button("📄 PDF Brief", antwort_pro, "Analyse.pdf", use_container_width=True)
+            st.download_button("📝 Word", antwort_pro, "Analyse.doc", use_container_width=True)
+        with d_c2:
+            excel_data = create_excel_wide({"Kategorie": "Detaillierte Analyse", "Inhalt": ausfuehrlich, "Vorschlag": antwort_pro})
+            st.download_button("📊 Excel Breit", excel_data, "Analyse_Breit.xlsx", use_container_width=True)
+            st.download_button("📅 Termin", "BEGIN:VCALENDAR\nSUMMARY:Frist Amtsschimmel\nDTSTART:20241224T090000\nEND:VEVENT\nEND:VCALENDAR", "Frist.ics", use_container_width=True)
