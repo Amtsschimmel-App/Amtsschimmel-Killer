@@ -13,7 +13,7 @@ from docx import Document
 from datetime import datetime
 
 # ==========================================
-# 1. FESTE TEXTE (KONSTANTEN)
+# 1. KONSTANTEN (FEST FIXIERT)
 # ==========================================
 IMPRESSUM_TEXT = """
 **Amtsschimmel-Killer**  
@@ -44,10 +44,10 @@ Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenA
 Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
 
 **5. Ihre Rechte**  
-Sie haben das Recht auf Auskunft,  Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
+Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
 """
 
-FAQ_CONTENT = [
+FAQ_DATA = [
     ("Ist das ein Abonnement?", "Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung."),
     ("Wie sicher sind meine Dokumente?", "Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht."),
     ("Ersetzt die App eine Rechtsberatung?", "Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt."),
@@ -57,38 +57,23 @@ FAQ_CONTENT = [
 
 VORLAGEN = {
     "Fristverlängerung": "Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]",
-    "Widerspruch (Fristwahrend)": "Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]",
-    "Akteneinsicht": "Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]"
+    "Widerspruch einlegen (Fristwahrend)": "Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]",
+    "Akteneinsicht einfordern": "Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]"
 }
 
 # ==========================================
-# 2. DESIGN & SESSION STATE
+# 2. SESSION STATE (GUTHABEN-SICHERUNG)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
-
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; border: none; }
-    .stButton>button:hover { background-color: #2563eb; transform: translateY(-2px); }
-    .buy-button { text-decoration: none; display: block; padding: 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; color: #1e3a8a !important; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; font-size: 0.9em; }
-    .faq-q { font-weight: bold; color: #1e3a8a; margin-top: 15px; display: block; }
-    .faq-a { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #cbd5e1; color: #475569; }
-    </style>
-    """, unsafe_allow_html=True)
 
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
-if "app_logs" not in st.session_state: st.session_state.app_logs = []
 
-def add_log(step, message):
-    st.session_state.app_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {step}: {message}")
-
-# Admin & Stripe
+# Admin & Stripe Check (Bleibt stabil im Session State)
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
-    add_log("ADMIN", "Guthaben auf 999 gesetzt.")
 
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
@@ -99,11 +84,11 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. KI & EXPORT FUNKTIONEN
+# 3. FUNKTIONEN (OCR, KI & EXPORT)
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-def get_text_from_file(file):
+def get_text(file):
     text = ""
     try:
         if file.type == "application/pdf":
@@ -115,68 +100,74 @@ def get_text_from_file(file):
         else:
             img = Image.open(file)
             text = pytesseract.image_to_string(img)
-    except Exception as e: add_log("ERROR", str(e))
+    except: pass
     return text
 
-def analyze_letter(raw_text, lang, mode="Standard"):
+def analyze(raw_text, lang, mode="Standard"):
     if len(raw_text.strip()) < 45: return "FEHLER_UNSCHARF"
     intent = "Antwortbrief" if mode == "Standard" else "WIDERSPRUCH"
-    sys_p = f"""Rechtsexperte. Sprache: {lang}. 
-    Struktur: ### AMPEL ### (Dringlichkeit + Grund), ### GLOSSAR ### (Begriffe), ### FRISTEN ###, ### ANTWORTBRIEF ###, ### CHECKLISTE ###."""
+    sys_p = f"Rechtsexperte. Sprache: {lang}. Struktur: ### AMPEL ###, ### GLOSSAR ###, ### FRISTEN ###, ### ANTWORTBRIEF ###, ### CHECKLISTE ###."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
     return resp.choices[0].message.content
 
 def create_docx(text):
-    doc = Document(); doc.add_heading('Analyse Ergebnis', 0)
+    doc = Document(); doc.add_heading('Amtsschimmel-Killer Analyse', 0)
     doc.add_paragraph(text.replace("###", "").replace("**", "")); bio = io.BytesIO()
     doc.save(bio); return bio.getvalue()
 
 def create_pdf(text):
     pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=10)
     clean = text.replace("###", "").replace("**", "").encode('latin-1', 'replace').decode('latin-1')
-    pdf.multi_cell(0, 8, txt=clean); return pdf.output(dest='S').encode('latin-1')
+    pdf.multi_cell(0, 8, txt=clean); return bytes(pdf.output(dest='S'))
 
 # ==========================================
-# 4. SIDEBAR & HAUPTBEREICH
+# 4. SIDEBAR & DESIGN
 # ==========================================
+st.markdown("<style>.stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; }</style>", unsafe_allow_html=True)
+
 with st.sidebar:
     LOGO_PATH = "icon_final_blau.png"
     if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, use_container_width=True)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
-    lang_choice = st.selectbox("🌍 Sprache", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
+    lang = st.selectbox("🌍 Sprache", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
     st.divider()
     st.subheader("Guthaben aufladen")
     pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
     for n, l, c, p in pkgs:
-        st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung | KEIN ABO</small></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{l}" target="_blank" style="text-decoration:none;"><div style="background:white; border:1px solid #e2e8f0; padding:10px; border-radius:10px; margin-bottom:10px; color:#1e3a8a; text-align:center;"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung</small></div></a>', unsafe_allow_html=True)
 
+# ==========================================
+# 5. HAUPTBEREICH (TABS)
+# ==========================================
 t1, t2, t3, t4, t5 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ", "⚖️ Impressum", "🔒 Datenschutz"])
 
 with t1:
-    st.title("Brief hochladen & killen 🚀")
-    c1, c2 = st.columns(2)
-    with c1:
+    st.title("Brief-Killer 🚀")
+    col1, col2 = st.columns(2)
+    with col1:
         upload = st.file_uploader("Datei wählen:", type=['pdf', 'png', 'jpg', 'jpeg'], key="up")
-        if upload and upload.type.startswith("image"): st.image(upload, caption="Vorschau", use_container_width=True)
-    with c2:
+        if upload: # VORSCHAU FIX
+            if upload.type.startswith("image"): st.image(upload, caption="Vorschau", use_container_width=True)
+            else: st.info("PDF geladen.")
+    with col2:
         if upload and st.session_state.credits > 0:
             if st.button("🚀 ANALYSE STARTEN"):
-                txt = get_text_from_file(upload)
-                res = analyze_letter(txt, lang_choice, "Standard")
-                if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf. (Kein Abzug)")
-                else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
+                with st.spinner("Analyse..."):
+                    res = analyze(get_text(upload), lang, "Standard")
+                    if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf!")
+                    else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
             if st.button("⚖️ WIDERSPRUCH"):
-                txt = get_text_from_file(upload)
-                res = analyze_letter(txt, lang_choice, "Widerspruch")
-                if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf. (Kein Abzug)")
-                else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
+                with st.spinner("Wird erstellt..."):
+                    res = analyze(get_text(upload), lang, "Widerspruch")
+                    if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf!")
+                    else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
         elif upload: st.warning("Guthaben leer.")
 
     if st.session_state.full_res:
         st.divider(); st.markdown(st.session_state.full_res)
         st.subheader("📥 Downloads")
-        d_col = st.columns(4)
+        d_col = st.columns(3)
         with d_col[0]: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Antwort.docx")
         with d_col[1]: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
         with d_col[2]: 
@@ -184,15 +175,11 @@ with t1:
 
 with t2:
     st.header("⚡ Vorlagen")
-    for title, content in VORLAGEN.items():
-        st.markdown(f"**{title}**")
-        st.info(content)
+    for k, v in VORLAGEN.items(): st.markdown(f"**{k}:**"); st.info(v)
 
 with t3:
     st.header("❓ FAQ")
-    for q, a in FAQ_CONTENT:
-        st.markdown(f'<span class="faq-q">{q}</span>', unsafe_allow_html=True)
-        st.markdown(f'<div class="faq-a">{a}</div>', unsafe_allow_html=True)
+    for q, a in FAQ_DATA: st.markdown(f"**{q}**"); st.write(a); st.divider()
 
 with t4:
     st.header("⚖️ Impressum")
