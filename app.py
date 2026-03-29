@@ -26,7 +26,7 @@ st.markdown("""
             border: 1px solid #0d47a1; padding: 8px; border-radius: 10px;
             background-color: #f8fbff; margin-bottom: 2px; text-align: center;
         }
-        .price-tag { font-size: 18px; font-weight: bold; color: #0d47a1; margin: 0px; }
+        .price-tag { font-size: 16px; font-weight: bold; color: #0d47a1; margin: 0px; }
         .no-abo-text { font-size: 10px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
         .paket-title { font-size: 13px; font-weight: bold; color: #333; }
         .stLinkButton a {
@@ -59,7 +59,6 @@ if "p" in params:
     if val == "1": st.session_state.credits = 1
     elif val == "2": st.session_state.credits = 3
     elif val == "3": st.session_state.credits = 7
-    # Parameter leeren, damit Refresh nicht erneut gutschreibt
     st.query_params.clear()
 
 # SADMIN MODUS (999 SCANS)
@@ -151,43 +150,44 @@ with c_pak:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, width=110)
     
     st.write("---")
-    st.markdown(f'<div class="paket-card"><div class="paket-title">📦 Basis Paket</div><div class="price-tag">3,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    # PAKETE MIT EINMALPREIS IN DER BOX
+    st.markdown(f'<div class="paket-card"><div class="paket-title">📦 Basis Paket</div><div class="price-tag">Einmalpreis 3,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_1)
     
-    st.markdown(f'<div class="paket-card"><div class="paket-title">🎁 Spar Paket</div><div class="price-tag">9,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><div class="paket-title">🎁 Spar Paket</div><div class="price-tag">Einmalpreis 9,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_2)
     
-    st.markdown(f'<div class="paket-card"><div class="paket-title">💎 Premium Paket</div><div class="price-tag">19,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><div class="paket-title">💎 Premium Paket</div><div class="price-tag">Einmalpreis 19,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_3)
 
 with c_up:
-    # EXAKTER ABSTAND FÜR MITTIGE AUSRICHTUNG NEBEN DEN PAKETEN
+    # ABSTAND FÜR MITTIGE AUSRICHTUNG
     st.markdown("<div style='height: 58px;'></div>", unsafe_allow_html=True)
     st.subheader("📄 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Scans**")
     
     upped = st.file_uploader("Datei", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
-    extracted_text = ""
+    extracted = ""
     if upped:
         if upped.type == "application/pdf":
             try:
                 raw_pdf = upped.read()
                 with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
-                    for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
+                    for page in pdf.pages: extracted += (page.extract_text() or "") + "\n"
                 imgs = convert_from_bytes(raw_pdf, first_page=1, last_page=1)
                 st.image(imgs, caption="Vorschau", use_container_width=True)
             except: st.info("Vorschau lädt...")
         else:
             img = Image.open(upped)
             st.image(img, caption="Vorschau", use_container_width=True)
-            extracted_text = pytesseract.image_to_string(img)
+            extracted = pytesseract.image_to_string(img)
         
         if st.button("🚀 JETZT ANALYSIEREN"):
             if st.session_state.credits > 0:
                 with st.spinner("Analyse läuft..."):
                     try:
-                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted_text}"}])
+                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted}"}])
                         st.session_state.full_res = res.choices.message.content
                         st.session_state.credits -= 1
                         st.rerun()
