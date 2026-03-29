@@ -6,35 +6,29 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS FÜR FARBIGE PAKETE & BUTTON-INTEGRATION ---
+# --- 2. CUSTOM CSS (FARBIGE PAKETE & BUTTON-INTEGRATION) ---
 st.markdown("""
 <style>
-    /* Expander Styling */
-    .stExpander { border: none !important; box-shadow: none !important; }
-    
-    /* Paket Boxen */
-    .pkg-container {
-        padding: 15px;
-        border-radius: 15px;
-        text-align: center;
-    }
+    /* Paket Boxen & Farben */
+    .pkg-container { padding: 15px; border-radius: 15px; text-align: center; }
     .pkg-icon { font-size: 40px; margin-bottom: 10px; }
     .pkg-title { font-weight: bold; font-size: 1.1em; min-height: 60px; color: #2c3e50; }
     .pkg-price { font-size: 28px; font-weight: bold; margin: 10px 0; color: #1f77b4; }
     .pkg-footer { font-size: 0.8em; font-weight: bold; color: #e74c3c; margin-bottom: 15px; }
     
-    /* Buttons IN den Paketen stylen */
+    /* Stripe Buttons IN den Paketen */
     div.stButton > button {
         width: 100% !important;
         background-color: #1f77b4 !important;
         color: white !important;
         border-radius: 10px !important;
         font-weight: bold !important;
+        height: 45px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. EXPORT FUNKTIONEN (EXCEL PRO & WORD) ---
+# --- 3. EXPORT FUNKTIONEN (EXCEL PRO & PDF FIX) ---
 def create_excel_pro(data):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -42,14 +36,23 @@ def create_excel_pro(data):
         df.to_excel(writer, index=False, sheet_name='Detaillierte_Analyse')
         worksheet = writer.sheets['Detaillierte_Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 100) # Maximale Breite
+            worksheet.set_column(i, i, 100) # Maximale Breite für ausführliche Texte
     return output.getvalue()
 
-def get_pdf_display(file):
-    base64_pdf = base64.b64encode(file.read()).decode('utf-8')
-    return f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700px" type="application/pdf"></iframe>'
+def get_pdf_display_fixed(uploaded_file):
+    base64_pdf = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+    # Robusteste Einbettung für Chrome (Object + Embed + Fallback)
+    pdf_display = f'''
+        <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="700px">
+            <embed src="data:application/pdf;base64,{base64_pdf}" type="application/pdf" />
+            <div style="padding:20px; text-align:center; border:1px solid #ddd;">
+                <p>PDF-Vorschau wird blockiert? <a href="data:application/pdf;base64,{base64_pdf}" download="Vorschau.pdf">Hier klicken zum Herunterladen</a></p>
+            </div>
+        </object>
+    '''
+    st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER & ZUSAMMENGEKLAPPT) ---
+# --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -126,41 +129,34 @@ with col_left:
     st.write("")
     # Paket 1
     with st.container(border=True):
-        st.markdown('<div class="pkg-icon">📄</div>', unsafe_allow_html=True)
-        st.markdown('**Amtsschimmel-Killer: Analyse (1 Dokument)**')
-        st.markdown('<div class="pkg-price">3,99 €</div>', unsafe_allow_html=True)
-        st.markdown('<div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-icon">📄</div>**Amtsschimmel-Killer: Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
 
     # Paket 2
     with st.container(border=True):
-        st.markdown('<div style="background-color: #ebf5fb; padding: 5px; border-radius: 10px;">', unsafe_allow_html=True)
-        st.markdown('<div class="pkg-icon">🥈</div>', unsafe_allow_html=True)
-        st.markdown('**Amtsschimmel-Killer: Spar-Paket (3 Dokumente)**')
-        st.markdown('<div class="pkg-price">9,99 €</div>', unsafe_allow_html=True)
-        st.markdown('<div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #ebf5fb; padding: 5px; border-radius: 10px;">'
+                    '<div class="pkg-icon">🥈</div>**Amtsschimmel-Killer: Spar-Paket (3 Dokumente)**'
+                    '<div class="pkg-price">9,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Paket 3
     with st.container(border=True):
-        st.markdown('<div style="background-color: #fef9e7; padding: 5px; border-radius: 10px;">', unsafe_allow_html=True)
-        st.markdown('<div class="pkg-icon">🥇</div>', unsafe_allow_html=True)
-        st.markdown('**Amtsschimmel-Killer: Sorglos-Paket (10 Dokumente)**')
-        st.markdown('<div class="pkg-price">19,99 €</div>', unsafe_allow_html=True)
-        st.markdown('<div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #fef9e7; padding: 5px; border-radius: 10px;">'
+                    '<div class="pkg-icon">🥇</div>**Amtsschimmel-Killer: Sorglos-Paket (10 Dokumente)**'
+                    '<div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
         st.markdown('</div>', unsafe_allow_html=True)
 
 # MITTLERE SPALTE: UPLOAD & VORSCHAU
 with col_mid:
     st.markdown("### 📑 Upload & Vorschau")
-    st.success("👑 Guthaben: 999 Dokumente")
+    st.success("👑 Admin Guthaben: 999 Dokumente")
     uploaded_file = st.file_uploader("Datei hier reinziehen", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
     if uploaded_file:
         if uploaded_file.type == "application/pdf":
-            st.markdown(get_pdf_display(uploaded_file), unsafe_allow_html=True)
+            get_pdf_display_fixed(uploaded_file)
         else:
             st.image(uploaded_file, use_container_width=True)
 
@@ -171,56 +167,37 @@ with col_right:
         st.error("📅 **Frist erkannt: 24.12.2024**")
         
         ausfuehrliche_analyse = """**AUSFÜHRLICHE JURISTISCHE ANALYSE:**
-Das vorliegende Dokument ist ein Bescheid einer Verwaltungsbehörde. 
-Nach Prüfung der Rechtsbehelfsbelehrung wurde festgestellt, dass die Frist zur Einlegung eines Widerspruchs einen Monat beträgt. 
-
-Mögliche Fehlerquellen im Bescheid:
-1. **Ermessensfehler**: Die Behörde hat ihr Ermessen (§ 39 SGB I) nicht erkennbar ausgeübt.
-2. **Begründungsmangel**: Die Begründung nach § 35 SGB X ist unvollständig.
-3. **Sachverhaltsaufklärung**: Es scheint, als seien wesentliche Tatsachen nicht berücksichtigt worden.
-
-Es wird dringend empfohlen, fristwahrend Widerspruch einzulegen und Akteneinsicht gemäß § 25 SGB X zu beantragen."""
+Der vorliegende Bescheid weist erhebliche Mängel in der Sachverhaltsaufklärung auf. 
+Die Behörde hat die notwendige Ermessensprüfung gemäß § 39 SGB I nicht erkennbar durchgeführt. 
+Es wurde ein fehlerhafter Prüfungsmaßstab angelegt, der zur Rechtswidrigkeit führt. 
+Ein form- und fristgerechter Widerspruch ist zur Wahrung Ihrer Rechte zwingend erforderlich."""
         
         st.info(ausfuehrliche_analyse)
         
-        tab1, tab2 = st.tabs(["✍️ Antwortschreiben", "⚖️ Widerspruch"])
+        tab1, tab2 = st.tabs(["✍️ Antwort", "⚖️ Widerspruch"])
         
         with tab1:
             stellungnahme = """Sehr geehrte Damen und Herren,
+hiermit nehme ich Bezug auf Ihr Schreiben vom [Datum]. 
 
-hiermit nehme ich Bezug auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer].
-
-Nach Durchsicht der Unterlagen stelle ich fest, dass der von Ihnen geschilderte Sachverhalt in wesentlichen Punkten von der Realität abweicht. Insbesondere wurde nicht berücksichtigt, dass [hier eigenen Grund einfügen].
-
-Ich fordere Sie daher auf, die Entscheidung unter Berücksichtigung dieser neuen Informationen erneut zu prüfen. Bis zu einer endgültigen Klärung bitte ich um eine schriftliche Bestätigung über den Erhalt dieser Stellungnahme.
-
-Mit freundlichen Grüßen,
-[Name]"""
+Nach eingehender Prüfung der Sachlage widerspreche ich der von Ihnen getroffenen Einschätzung. Die vorliegenden Nachweise zur individuellen Härtesituation wurden nicht hinreichend gewürdigt. Ich fordere Sie auf, den Bescheid unter Berücksichtigung der beigefügten Argumente erneut zu bewerten und mir eine schriftliche Rückmeldung über den Eingang dieser Stellungnahme zukommen zu lassen."""
             st.code(stellungnahme, language="text")
             
         with tab2:
             widerspruch = """Sehr geehrte Damen und Herren,
+gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit form- und fristgerecht WIDERSPRUCH ein.
 
-gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit form- und fristgerecht
-
-WIDERSPRUCH
-
-ein.
-
-Begründung: Der Bescheid ist materiell rechtswidrig, da er auf einer unvollständigen Sachverhaltsaufklärung beruht. Zudem liegt eine Ermessensunterschreitung vor. 
-
-Zur weiteren Begründung des Widerspruchs beantrage ich hiermit die Akteneinsicht gemäß § 25 SGB X. Ich bitte um Zusendung der Akten in Kopie oder Benennung eines Termins zur Einsichtnahme. Eine detaillierte Begründung wird nach erfolgter Akteneinsicht nachgereicht.
-
-Mit freundlichen Grüßen,
-[Name]"""
+Begründung: Der Bescheid ist materiell rechtswidrig. Die Behörde ist von einem unrichtigen Sachverhalt ausgegangen. Zudem liegt eine Ermessensunterschreitung vor. Zur weiteren Begründung des Widerspruchs beantrage ich hiermit die Akteneinsicht gemäß § 25 SGB X. Eine detaillierte Begründung wird nach erfolgter Akteneinsicht unverzüglich nachgereicht."""
             st.code(widerspruch, language="text")
             
         st.divider()
         st.markdown("#### 📥 Ergebnisse sichern")
         d1, d2 = st.columns(2)
         with d1:
-            st.download_button("📄 PDF Brief", widerspruch, "Widerspruch.pdf", use_container_width=True)
-            st.download_button("📝 Word Brief", widerspruch, "Widerspruch.doc", use_container_width=True)
+            # Word & PDF Simulation (Latin-1 für Kompatibilität)
+            pdf_data = (ausfuehrliche_analyse + "\n\n" + widerspruch).encode('latin-1', 'replace')
+            st.download_button("📄 PDF Brief", pdf_data, "Analyse.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("📝 Word Brief", widerspruch.encode('utf-8'), "Widerspruch.doc", use_container_width=True)
         with d2:
             ex_data = create_excel_pro([{"Analyse": ausfuehrliche_analyse, "Antwort": stellungnahme, "Widerspruch": widerspruch}])
             st.download_button("📊 Excel (Breit)", ex_data, "Analyse_Breit.xlsx", use_container_width=True)
