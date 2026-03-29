@@ -23,27 +23,18 @@ st.markdown("""
     <style>
         .block-container { padding-top: 1rem; }
         .paket-card {
-            border: 1px solid #0d47a1;
-            padding: 8px;
-            border-radius: 10px;
-            background-color: #f8fbff;
-            margin-bottom: 2px;
-            text-align: center;
+            border: 1px solid #0d47a1; padding: 8px; border-radius: 10px;
+            background-color: #f8fbff; margin-bottom: 2px; text-align: center;
         }
         .price-tag { font-size: 18px; font-weight: bold; color: #0d47a1; margin: 0px; }
         .no-abo-text { font-size: 10px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
         .paket-title { font-size: 13px; font-weight: bold; color: #333; }
         .stLinkButton a {
-            width: 100% !important;
-            background-color: #0d47a1 !important;
-            color: white !important;
-            border-radius: 6px !important;
-            font-weight: bold !important;
-            padding: 5px !important;
-            font-size: 12px !important;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
+            width: 100% !important; background-color: #0d47a1 !important;
+            color: white !important; border-radius: 6px !important;
+            font-weight: bold !important; padding: 5px !important;
+            font-size: 12px !important; text-decoration: none;
+            display: inline-block; text-align: center;
         }
         .stExpander div { line-height: 1.4 !important; white-space: pre-wrap !important; font-size: 12px; }
         .analysis-box { background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ddd; white-space: pre-wrap; }
@@ -54,22 +45,26 @@ LOGO_DATEI = "icon_final_blau.png"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ==========================================
-# 2. SESSION STATE, ADMIN & ZAHLUNG
+# 2. GUTHABEN-LOGIK & ZAHLUNGSERKENNUNG
 # ==========================================
-if "credits" not in st.session_state: st.session_state.credits = 0
-if "full_res" not in st.session_state: st.session_state.full_res = ""
+if "credits" not in st.session_state:
+    st.session_state.credits = 0
+if "full_res" not in st.session_state:
+    st.session_state.full_res = ""
 
-# Admin-Modus (Guthaben 999)
-if st.query_params.get("admin") == "GeheimAmt2024!":
-    st.session_state.credits = 999
-
-# Zahlungserkennung via URL Parameter (p=1, p=2, p=3)
-q = st.query_params
-if "p" in q:
-    if q["p"] == "1": st.session_state.credits += 1
-    elif q["p"] == "2": st.session_state.credits += 3
-    elif q["p"] == "3": st.session_state.credits += 7
+# PRÜFUNG DER URL-PARAMETER (SOFORT NACH DEM KAUF)
+params = st.query_params
+if "p" in params:
+    val = params["p"]
+    if val == "1": st.session_state.credits = 1
+    elif val == "2": st.session_state.credits = 3
+    elif val == "3": st.session_state.credits = 7
+    # Parameter leeren, damit Refresh nicht erneut gutschreibt
     st.query_params.clear()
+
+# SADMIN MODUS (999 SCANS)
+if params.get("admin") == "GeheimAmt2024!":
+    st.session_state.credits = 999
 
 def generate_pdf(content):
     pdf = FPDF()
@@ -151,30 +146,22 @@ c_pak, c_up, c_res = st.columns([0.8, 1.2, 1.5])
 
 with c_pak:
     st.subheader("🌐 Sprachen")
-    lang = st.selectbox("Wahl", [
-        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", 
-        "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", 
-        "🇮🇹 Italiano", "🇷🇴 Română", "🇺🇦 Українська", "🇬🇷 Ελληνικά"
-    ], label_visibility="collapsed")
+    lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇷🇴 Română", "🇺🇦 Українська", "🇬🇷 Ελληνικά"], label_visibility="collapsed")
     
-    if os.path.exists(LOGO_DATEI):
-        st.image(LOGO_DATEI, width=110)
+    if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, width=110)
     
     st.write("---")
-    # PAKET 1
-    st.markdown(f'<div class="paket-card"><div class="paket-title">📦 Basis Paket</div><div class="price-tag">3,99 €</div><div class="no-abo-text">Einmalpreis • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><div class="paket-title">📦 Basis Paket</div><div class="price-tag">3,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_1)
     
-    # PAKET 2
-    st.markdown(f'<div class="paket-card"><div class="paket-title">🎁 Spar Paket</div><div class="price-tag">9,99 €</div><div class="no-abo-text">Einmalpreis • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><div class="paket-title">🎁 Spar Paket</div><div class="price-tag">9,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_2)
     
-    # PAKET 3
-    st.markdown(f'<div class="paket-card"><div class="paket-title">💎 Premium Paket</div><div class="price-tag">19,99 €</div><div class="no-abo-text">Einmalpreis • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><div class="paket-title">💎 Premium Paket</div><div class="price-tag">19,99 €</div><div class="no-abo-text">KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_3)
 
 with c_up:
-    # EXAKTER ABSTAND FÜR MITTIGE AUSRICHTUNG
+    # EXAKTER ABSTAND FÜR MITTIGE AUSRICHTUNG NEBEN DEN PAKETEN
     st.markdown("<div style='height: 58px;'></div>", unsafe_allow_html=True)
     st.subheader("📄 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Scans**")
@@ -189,8 +176,8 @@ with c_up:
                 with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
                     for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
                 imgs = convert_from_bytes(raw_pdf, first_page=1, last_page=1)
-                st.image(imgs, caption="PDF Vorschau", use_container_width=True)
-            except: st.error("Fehler beim PDF-Lesen.")
+                st.image(imgs, caption="Vorschau", use_container_width=True)
+            except: st.info("Vorschau lädt...")
         else:
             img = Image.open(upped)
             st.image(img, caption="Vorschau", use_container_width=True)
@@ -200,8 +187,7 @@ with c_up:
             if st.session_state.credits > 0:
                 with st.spinner("Analyse läuft..."):
                     try:
-                        prompt = f"Analysiere auf {lang} und erstelle Zusammenfassung & Antwortentwurf:\n\n{extracted_text}"
-                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
+                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": f"Analysiere auf {lang}:\n\n{extracted_text}"}])
                         st.session_state.full_res = res.choices.message.content
                         st.session_state.credits -= 1
                         st.rerun()
@@ -213,10 +199,10 @@ with c_res:
     st.subheader("🔍 Analyse & Antwort")
     if st.session_state.full_res:
         st.markdown(f'<div class="analysis-box">{st.session_state.full_res}</div>', unsafe_allow_html=True)
-        pdf_file = generate_pdf(st.session_state.full_res)
-        st.download_button("📥 PDF herunterladen", data=pdf_file, file_name="Analyse.pdf", mime="application/pdf")
+        pdf_f = generate_pdf(st.session_state.full_res)
+        st.download_button("📥 PDF herunterladen", data=pdf_f, file_name="Analyse.pdf", mime="application/pdf")
         if st.button("Neuer Scan"):
             st.session_state.full_res = ""
             st.rerun()
     else:
-        st.info("Hier erscheint das Ergebnis nach dem Scan.")
+        st.info("Das Ergebnis erscheint hier nach der Analyse.")
