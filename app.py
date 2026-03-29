@@ -110,19 +110,19 @@ def create_pdf_final(text):
     pdf.ln(10)
     pdf.set_font("Helvetica", size=11)
     pdf.multi_cell(0, 8, txt=clean_txt(text))
-    return bytes(pdf.output())
+    return pdf.output(dest='S').encode('latin-1')
 
 def create_excel_final(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    count = max(1, len(dates))
+    if not dates: dates = ["Nicht erkannt"]
     df = pd.DataFrame({
-        "Datum": dates if dates else ["Gefunden"], 
-        "Analyse-Inhalt": * count
+        "Datum": dates, 
+        "Analyse-Auszug": [text[:200] + "..." for _ in range(len(dates))]
     })
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
-        writer.sheets['Sheet1'].set_column(1, 1, 120)
+        writer.sheets['Sheet1'].set_column(1, 1, 100)
     return output.getvalue()
 
 def create_ics_final(text):
@@ -131,7 +131,7 @@ def create_ics_final(text):
     for d in dates:
         try:
             cd = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nDESCRIPTION:Termin aus Analyse\nEND:VEVENT\n"
+            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nDESCRIPTION:Frist aus Analyse\nEND:VEVENT\n"
         except: pass
     ics += "END:VCALENDAR"
     return ics.encode('utf-8')
@@ -169,68 +169,54 @@ def run_ai(raw_text, lang, mode):
     return resp.choices.message.content
 
 # ==========================================
-# 5. UI (VORSCHAU LINKS / ANALYSE RECHTS)
+# 5. UI & HAUPTFUNKTION
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
-    lang_choice = st.selectbox("🌍 Sprache wählen", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
+    lang_choice = st.selectbox("🌍 Sprache wählen", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский"])
     st.divider()
-    st.subheader("💳 Pakete (Einmalzahlung)")
-    for n, l, c, p in [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]:
-        st.markdown(f'''
-            <a href="{l}" target="_blank" style="text-decoration:none;">
-                <div style="background:white; border:2px solid #1e3a8a; padding:12px; border-radius:12px; margin-bottom:10px; color:#1e3a8a; text-align:center;">
-                    <b>{n}</b><br>
-                    <span style="font-size:1.1em; font-weight:bold;">{p} | {c}</span><br>
-                    <span style="color:#16a34a; font-weight:bold; font-size:0.8em;">✔ KEIN ABO</span>
-                </div>
-            </a>
-        ''', unsafe_allow_html=True)
+    with st.expander("ℹ️ Impressum"): st.write(IMPRESSUM_TEXT)
+    with st.expander("🛡️ Datenschutz"): st.write(DATENSCHUTZ_TEXT)
+    with st.expander("❓ FAQ"): st.write(FAQ_TEXT)
 
-t1, t2, t3, t4, t5 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ", "⚖️ Impressum", "🔒 Datenschutz"])
+st.title("📄 Amtsschimmel-Killer")
+st.write("Verwandle Behörden-Deutsch in klare Antworten.")
 
-with t1:
-    col_l, col_r = st.columns([1, 1.2])
-    with col_l:
-        st.subheader("1. Dokument")
-        upload = st.file_uploader("Upload Bild/PDF:", type=['pdf','png','jpg','jpeg'], key="up_vfinal_fix")
-        if upload:
-            if upload.type.startswith("image"): st.image(upload, use_container_width=True, caption="Vorschau")
-            else: st.success("✅ PDF geladen.")
+col1, col2 = st.columns([1, 1])
 
-    with col_r:
-        st.subheader("2. Analyse & Ergebnis")
-        if upload and st.session_state.credits > 0:
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("🚀 ANALYSE"):
-                    with st.spinner("Dolmetscher arbeitet..."):
-                        txt = get_text(upload); res = run_ai(txt, lang_choice, "S")
-                        st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
-            with c2:
-                if st.button("⚖️ WIDERSPRUCH"):
-                    with st.spinner("Generator läuft..."):
-                        txt = get_text(upload); res = run_ai(txt, lang_choice, "W")
-                        st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
-        
-        if st.session_state.full_res:
-            st.markdown(f'<div style="background:#f8fafc; padding:20px; border-radius:10px; border-left:5px solid #1e3a8a;">{st.session_state.full_res}</div>', unsafe_allow_html=True)
-            st.divider()
-            st.write("### 📥 Downloads")
-            d1, d2, d3, d4 = st.columns(4)
-            with d1: 
-                doc = Document(); doc.add_paragraph(st.session_state.full_res); b_word = io.BytesIO(); doc.save(b_word)
-                st.download_button("📝 Word", b_word.getvalue(), "Brief.docx")
-            with d2: st.download_button("📄 PDF", create_pdf_final(st.session_state.full_res), "Analyse.pdf")
-            with d3: st.download_button("📊 Excel", create_excel_final(st.session_state.full_res), "Fristen.xlsx")
-            with d4: st.download_button("📅 Kalender", create_ics_final(st.session_state.full_res), "Termin.ics")
+with col1:
+    st.subheader("1. Dokument hochladen")
+    u_file = st.file_uploader("Brief fotografieren oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+    mode = st.radio("Was soll ich erstellen?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
+    
+    if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
+        if st.session_state.credits > 0:
+            with st.spinner("KI liest und übersetzt..."):
+                raw = get_text(u_file)
+                res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
+                if res == "FEHLER_UNSCHARF":
+                    st.error("Text zu unscharf! Bitte neu fotografieren.")
+                else:
+                    st.session_state.full_res = res
+                    st.session_state.credits -= 1
+                    st.rerun()
+        else:
+            st.warning("Kein Guthaben mehr! Bitte im Shop aufladen.")
 
-with t2:
-    st.header("⚡ Schnell-Vorlagen")
-    for title, text in VORLAGEN: st.markdown(f"**{title}:**"); st.info(text)
-with t3: st.header("❓ FAQ"); st.markdown(FAQ_TEXT)
-with t4: st.header("⚖️ Impressum"); st.markdown(IMPRESSUM_TEXT)
-with t5: st.header("🔒 Datenschutz"); st.markdown(DATENSCHUTZ_TEXT)
+with col2:
+    st.subheader("2. Analyse & Ergebnis")
+    if st.session_state.full_res:
+        st.markdown(st.session_state.full_res)
+        st.divider()
+        st.download_button("📥 Als PDF speichern", create_pdf_final(st.session_state.full_res), "Analyse.pdf")
+        st.download_button("📊 In Excel (Fristen)", create_excel_final(st.session_state.full_res), "Fristen.xlsx")
+        st.download_button("📅 Kalender-Termin", create_ics_final(st.session_state.full_res), "Fristen.ics")
+    else:
+        st.info("Hier erscheint das Ergebnis nach dem Scan.")
 
-st.sidebar.caption(f"© {datetime.now().year} Elisabeth Reinecke")
+st.divider()
+st.subheader("📋 Schnelle Vorlagen")
+for titel, text in VORLAGEN:
+    with st.expander(titel):
+        st.code(text)
