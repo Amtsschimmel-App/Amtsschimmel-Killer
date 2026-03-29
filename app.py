@@ -43,7 +43,7 @@ if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
 # ==========================================
-# 2. EXPORT FUNKTIONEN (INKL. EXCEL AUTO-FIT)
+# 2. EXPORT FUNKTIONEN (MIT EXCEL FIX)
 # ==========================================
 def get_pdf_bytes(data):
     pdf = FPDF()
@@ -75,14 +75,20 @@ def get_xlsx_bytes(data):
     with pd.ExcelWriter(bio, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
-        # Automatisches Anpassen der Spaltenbreite
+        # EXCEL AUTO-FIT FIX
         for i, col in enumerate(df.columns):
-            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 5
-            worksheet.column_dimensions[chr(65 + i)].width = min(column_len, 60)
+            # Setzt Spalte A auf 20, Spalte B auf 80 (für Text)
+            width = 20 if i == 0 else 80
+            worksheet.column_dimensions[chr(65 + i)].width = width
+            # Zeilenumbruch aktivieren
+            for cell in worksheet[chr(65 + i)]:
+                cell.alignment = st.column_config.Column(help="Wrap").help # Dummy check
+                from openpyxl.styles import Alignment
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
     return bio.getvalue()
 
 def get_ics_bytes(data):
-    content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Frist: Amtsschimmel-Killer\nDESCRIPTION:{data.get('Fristen', 'Termin prüfen')}\nEND:VEVENT\nEND:VCALENDAR"
+    content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Frist: Amtsschimmel-Killer\nDESCRIPTION:{data.get('Fristen', 'Frist prüfen')}\nEND:VEVENT\nEND:VCALENDAR"
     return content.encode('utf-8')
 
 # ==========================================
@@ -110,7 +116,7 @@ st.markdown("""
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ==========================================
-# 4. INFOS & RECHTLICHES (EXPANDER MIT ABSTÄNDEN)
+# 4. INFOS & RECHTLICHES (MIT ABSTÄNDEN)
 # ==========================================
 st.title("Amtsschimmel-Killer 🪓")
 
@@ -152,37 +158,37 @@ with t3:
         st.write("Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung.")
         st.write("")
         st.write("**Wie sicher sind meine Dokumente?**")
-        st.write("Verschlüsselte Übertragung, keine dauerhafte Speicherung auf unseren Servern. Löschung nach dem Scan.")
+        st.write("Verschlüsselte Übertragung, keine dauerhafte Speicherung. Löschung nach dem Scan.")
         st.write("")
         st.write("**Ersetzt die App eine Rechtsberatung?**")
         st.write("Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis.")
         st.write("")
         st.write("**Was passiert, wenn der Scan fehlschlägt?**")
-        st.write("Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.")
+        st.write("Ein Scan wird erst berechnet, wenn die KI erfolgreich verarbeitet hat.")
         st.write("")
         st.write("**Wie erreiche ich Elisabeth Reinecke?**")
-        st.write("Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
+        st.write("Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me.")
 
 with t4:
     with st.expander("📝 Vorlagen"):
         st.write("**Fristverlängerung:**")
-        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
+        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung...")
         st.write("")
-        st.write("**Widerspruch einlegen (Fristwahrend):**")
-        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
+        st.write("**Widerspruch:**")
+        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein...")
         st.write("")
-        st.write("**Akteneinsicht einfordern:**")
-        st.code("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+        st.write("**Akteneinsicht:**")
+        st.code("Sehr geehrte Damen und Herren, beantrage ich hiermit gemäß § 25 SGB X Akteneinsicht.")
 
 st.divider()
 
 # ==========================================
 # 5. HAUPTBEREICH (3 SPALTEN)
 # ==========================================
-col_paks, col_up, col_res = st.columns([1, 1.2, 1.4])
+col_links, col_mitte, col_rechts = st.columns([1, 1.2, 1.4])
 
-# --- SPALTE 1: PAKETE ---
-with col_paks:
+# --- LINKS: PAKETE ---
+with col_links:
     st.subheader("🌐 Sprachen")
     lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇺🇦 Ukrainska"], label_visibility="collapsed")
     st.write("")
@@ -200,10 +206,10 @@ with col_paks:
         st.link_button("Jetzt kaufen", l)
         st.write("")
 
-# --- SPALTE 2: UPLOAD (TIEFER GESETZT) ---
-with col_up:
-    # Abstandshalter für tiefere Positionierung
-    st.write("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+# --- MITTE: UPLOAD (TIEFER GESETZT) ---
+with col_mitte:
+    # MEHR ABSTAND FÜR TIEFERE POSITION
+    st.write("<div style='height: 160px;'></div>", unsafe_allow_html=True)
     st.subheader("📑 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Scans**")
     upped = st.file_uploader("Upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
@@ -217,11 +223,11 @@ with col_up:
             st.image(Image.open(upped), use_container_width=True)
 
 # --- SPALTE 3: ANALYSE ---
-with col_res:
+with col_rechts:
     st.subheader("🔍 Analyse & Antwort")
     if upped and st.button("🚀 JETZT ANALYSIEREN", type="primary", use_container_width=True):
         if st.session_state.credits > 0:
-            with st.spinner("Amtsschimmel wird bekämpft..."):
+            with st.spinner("Analyse läuft..."):
                 try:
                     text = ""
                     if upped.type == "application/pdf":
@@ -230,10 +236,8 @@ with col_res:
                     else:
                         text = pytesseract.image_to_string(Image.open(upped))
                     
-                    prompt = f"Analysiere auf {lang}. Trenne: ###SUM### Zusammenfassung, ###FRIST### Fristen, ###ANTWORT### Antwortentwurf. Text: {text}"
+                    prompt = f"Analysiere auf {lang}. Trenne exakt: ###SUM### Zusammenfassung, ###FRIST### Fristen, ###ANTWORT### Entwurf. Text: {text}"
                     res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                    
-                    # BUGFIX: choices[0] hinzugefügt
                     full = res.choices[0].message.content
                     
                     st.session_state.full_res = {
@@ -244,7 +248,7 @@ with col_res:
                     st.session_state.credits -= 1
                     st.balloons()
                     st.rerun()
-                except Exception as e: st.error(f"Fehler bei der Analyse: {e}")
+                except Exception as e: st.error(f"Fehler: {e}")
         else: st.warning("Bitte erst links Guthaben kaufen!")
 
     if st.session_state.full_res:
