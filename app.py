@@ -16,6 +16,9 @@ import re
 # 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
+# PFAD ZU DEINEM LOGO
+LOGO_DATEI = "icon_final_blau.png"
+
 # 2. DESIGN (CSS)
 st.markdown("""
     <style>
@@ -73,10 +76,10 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
 def check_text_quality(text):
     text = text.strip()
     if not text or len(text) < 50:
-        return False, "Das Dokument scheint leer zu sein oder der Text konnte nicht erkannt werden. Bitte achte darauf, dass das ganze Blatt sichtbar ist."
+        return False, "Das Dokument scheint leer zu sein oder der Text konnte nicht erkannt werden."
     special_chars = len(re.findall(r'[^a-zA-Z0-9\säöüÄÖÜß.,!?\-]', text))
     if len(text) > 0 and (special_chars / len(text)) > 0.3:
-        return False, "Der Text ist zu unscharf oder verwackelt. Bitte nochmal mit mehr Licht fotografieren (z.B. am Fenster)."
+        return False, "Der Text ist zu unscharf oder verwackelt. Bitte nochmal mit mehr Licht fotografieren."
     return True, ""
 
 def get_text_hybrid(uploaded_file):
@@ -96,23 +99,25 @@ def create_ics(fristen_text):
     now = datetime.now().strftime("%Y%m%dT%H%M%SZ")
     dates = re.findall(r'\d{2}\.\d{2}\.\d{4}', fristen_text)
     start_date = dates[0].replace(".", "") if dates else (datetime.now() + timedelta(days=14)).strftime("%Y%m%d")
-    ics_content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTAMP:{now}\nDTSTART;VALUE=DATE:{start_date}\nSUMMARY:Amtsschimmel Frist\nDESCRIPTION:{fristen_text.replace('\\n', ' ')}\nEND:VEVENT\nEND:VCALENDAR"
+    ics_content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTAMP:{now}\nDTSTART;VALUE=DATE:{start_date}\nSUMMARY:Frist Amtsschimmel-Killer\nDESCRIPTION:{fristen_text.replace('\\n', ' ')}\nEND:VEVENT\nEND:VCALENDAR"
     return ics_content
 
 class CustomPDF(FPDF):
     def header(self):
+        if os.path.exists(LOGO_DATEI):
+            self.image(LOGO_DATEI, 10, 8, 33)
+            self.ln(20)
         self.set_font('helvetica', 'B', 16)
-        self.set_text_color(30, 58, 138) # Navy Blue
-        self.cell(0, 10, 'DEIN AMTSSCHIMMEL-KILLER', ln=True, align='L')
-        self.set_font('helvetica', 'I', 10)
-        self.set_text_color(100)
-        self.cell(0, 5, f'Erstellt am {datetime.now().strftime("%d.%m.%Y")}', ln=True, align='L')
-        self.line(10, 30, 200, 30)
-        self.ln(15)
+        self.set_text_color(30, 58, 138)
+        self.cell(0, 10, 'DEIN AMTSSCHIMMEL-KILLER', ln=True, align='R')
+        self.line(10, self.get_y()+2, 200, self.get_y()+2)
+        self.ln(10)
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
-    st.image("https://img.icons8.com", width=80)
+    if os.path.exists(LOGO_DATEI):
+        st.image(LOGO_DATEI, use_container_width=True)
+    
     st.title("Dein Konto")
     st.metric("Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
@@ -131,6 +136,11 @@ with st.sidebar:
         ''', unsafe_allow_html=True)
 
 # --- 7. HAUPTSEITE ---
+c1, c2, c3 = st.columns([1, 2, 1])
+with c2:
+    if os.path.exists(LOGO_DATEI):
+        st.image(LOGO_DATEI, width=350)
+
 st.title("Amtsschimmel-Killer 📄🚀")
 upload = st.file_uploader("Behörden-Dokument hochladen (PDF oder Foto)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
@@ -141,7 +151,7 @@ if upload:
             try:
                 imgs = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
                 st.image(imgs, use_container_width=True)
-            except: st.info("Vorschau wird geladen...")
+            except: st.info("Vorschau lädt...")
         else:
             st.image(upload, use_container_width=True)
 
@@ -151,19 +161,19 @@ if upload:
 
         if not is_valid:
             st.markdown(f'<div class="error-msg">⚠️ {error_msg}</div>', unsafe_allow_html=True)
-            if st.button("🔄 Erneut versuchen"): st.rerun()
+            if st.button("🔄 Nochmal versuchen"): st.rerun()
         
         elif st.session_state.credits <= 0:
             st.warning("Dein Guthaben ist leer. Bitte lade Scans in der Seitenleiste auf.")
         
         else:
-            if st.button("🚀 Dokument jetzt analysieren (1 Credit)"):
-                with st.spinner("KI zähmt den Amtsschimmel..."):
+            if st.button("🚀 Analyse starten (1 Credit)"):
+                with st.spinner("Amtsschimmel wird gezähmt..."):
                     st.session_state.credits -= 1
-                    prompt = f"Analysiere dieses Behördenschreiben und trenne Fristen von einem Antwortbrief:\n\n{raw_text}\n\nFormat:\n---FRISTEN---\n(Termine)\n---BRIEF---\n(Vollständiges Antwortschreiben)"
+                    prompt = f"Analysiere:\n{raw_text}\n\nFormat:\n---FRISTEN---\n(Termine)\n---BRIEF---\n(Antwortschreiben)"
                     response = client.chat.completions.create(
                         model="gpt-4o",
-                        messages=[{"role": "system", "content": "Du bist ein erfahrener Rechtsexperte für deutsche Verwaltung."}, {"role": "user", "content": prompt}]
+                        messages=[{"role": "system", "content": "Du bist Rechtsexperte."}, {"role": "user", "content": prompt}]
                     )
                     res = response.choices.message.content
                     if "---BRIEF---" in res:
@@ -177,29 +187,28 @@ if upload:
         if st.session_state.last_brief:
             st.subheader("⚠️ Wichtige Fristen")
             st.markdown(f'<div class="frist-box">{st.session_state.last_fristen}</div>', unsafe_allow_html=True)
-            st.download_button("📅 Termin für Kalender (.ics)", create_ics(st.session_state.last_fristen), "Frist.ics", "text/calendar")
+            st.download_button("📅 Termin speichern", create_ics(st.session_state.last_fristen), "Frist.ics", "text/calendar")
             
-            st.subheader("📝 Entwurf Antwortschreiben")
+            st.subheader("📝 Antwortschreiben")
             st.markdown(st.session_state.last_brief)
             
             st.divider()
             c1, c2 = st.columns(2)
             with c1:
-                # PDF ERSTELLUNG MIT BRIEFKOPF
                 pdf = CustomPDF()
                 pdf.add_page()
                 pdf.set_font("helvetica", 'B', 12)
-                pdf.cell(0, 10, "Zusammenfassung der Fristen:", ln=True)
+                pdf.cell(0, 10, "Fristen & Termine:", ln=True)
                 pdf.set_font("helvetica", size=11)
                 pdf.multi_cell(0, 8, txt=st.session_state.last_fristen.encode('latin-1', 'replace').decode('latin-1'))
                 pdf.ln(10)
                 pdf.set_font("helvetica", 'B', 12)
-                pdf.cell(0, 10, "Entwurf des Antwortschreibens:", ln=True)
+                pdf.cell(0, 10, "Vorschlag Antwortbrief:", ln=True)
                 pdf.set_font("helvetica", size=11)
                 pdf.multi_cell(0, 8, txt=st.session_state.last_brief.encode('latin-1', 'replace').decode('latin-1'))
-                st.download_button("📩 Brief als PDF laden", bytes(pdf.output()), "Amtsschimmel_Antwort.pdf", "application/pdf")
+                st.download_button("📩 Brief als PDF laden", bytes(pdf.output()), "Antwort.pdf", "application/pdf")
             with c2:
-                if st.button("🗑️ Zurücksetzen & Neu"):
+                if st.button("🗑️ Zurücksetzen"):
                     st.session_state.last_brief = ""
                     st.session_state.last_fristen = ""
                     st.rerun()
