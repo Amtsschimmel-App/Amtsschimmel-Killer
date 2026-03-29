@@ -3,31 +3,28 @@ import pandas as pd
 from io import BytesIO
 from datetime import datetime
 
-# --- SEITENKONFIGURATION ---
-st.set_page_config(page_title="Amtsschimmel-Killer", layout="centered")
+# --- 1. SEITENKONFIGURATION (Layout wie im Screenshot) ---
+st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide")
 
-# --- HILFSFUNKTIONEN (Sicherer Export ohne Absturz-Gefahr) ---
+# --- 2. EXPORT-FUNKTIONEN (Sicher & Robust) ---
 def create_excel(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df = pd.DataFrame([data_dict])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
-        # Automatische Spaltenbreite berechnen
+        # Automatischer Spalten-Fit
         for i, col in enumerate(df.columns):
             column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
             worksheet.set_column(i, i, min(column_len, 60))
     return output.getvalue()
 
 def create_ics_manual(summary, date_str):
-    # Formatiert das Datum für den Kalender (YYYYMMDD)
+    # Formatiert Datum sicher für Kalender-Apps
     clean_date = "".join(filter(str.isdigit, date_str)) 
-    if len(clean_date) == 8:
-        formatted_date = f"{clean_date[4:]}{clean_date[2:4]}{clean_date[:2]}"
-    else:
-        formatted_date = datetime.now().strftime("%Y%m%d")
+    formatted_date = f"{clean_date[4:]}{clean_date[2:4]}{clean_date[:2]}" if len(clean_date) == 8 else datetime.now().strftime("%Y%m%d")
     
-    ics_content = f"""BEGIN:VCALENDAR
+    return f"""BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
 DTSTART;VALUE=DATE:{formatted_date}
@@ -35,60 +32,88 @@ SUMMARY:Amtsschimmel-Frist: {summary[:30]}...
 DESCRIPTION:{summary}
 END:VEVENT
 END:VCALENDAR"""
-    return ics_content
 
-# --- HEADER & STRIPE PAKETE ---
-st.title("🏛️ Amtsschimmel-Killer")
-st.markdown("### Wähle dein Paket:")
+# --- 3. HAUPT-LAYOUT (Drei Spalten-System) ---
+col_left, col_mid, col_right = st.columns([1, 1.5, 1.5])
 
-col_p1, col_p2, col_p3 = st.columns(3)
-with col_p1:
-    st.link_button("🥉 3 Scans - 3,99€", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
-with col_p2:
-    st.link_button("🥈 10 Scans - 9,99€", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
-with col_p3:
-    st.link_button("🥇 25 Scans - 19,99€", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
+# --- LINKE SPALTE: SPRACHEN & PAKETE ---
+with col_left:
+    st.subheader("🌐 Sprachen")
+    sprachen = ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "AR العربية"]
+    st.selectbox("Sprache wählen", sprachen, label_visibility="collapsed")
+    
+    st.write("") # Abstand
+    # Logo Platzhalter (Blaues Icon aus deinem Screen)
+    st.markdown("🎨 **Amtsschimmel-Killer**") 
+    
+    # Paket 1
+    st.info("**Amtsschimmel Killer: Analyse**\n\n(1 Dokument)\n\n**Einmalpreis 3,99 €**\n\n❌ KEIN ABO")
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
+    
+    # Paket 2
+    st.info("**Amtsschimmel Killer: Spar Paket**\n\n(3 Dokumente)\n\n**Einmalpreis 9,99 €**\n\n❌ KEIN ABO")
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
+    
+    # Paket 3
+    st.info("**Amtsschimmel Killer: Sorglos Paket**\n\n(10 Dokumente)\n\n**Einmalpreis 19,99 €**\n\n❌ KEIN ABO")
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", use_container_width=True)
 
+# --- MITTLERE SPALTE: UPLOAD & VORSCHAU ---
+with col_mid:
+    st.subheader("📑 Upload & Vorschau")
+    st.success("Guthaben: 999 Dokumente")
+    
+    uploaded_file = st.file_uploader("Drag and drop file here", type=["pdf", "jpg", "png", "jpeg"])
+    
+    if uploaded_file:
+        st.image(uploaded_file, caption="Vorschau des Dokuments", use_column_width=True)
+
+# --- RECHTE SPALTE: ANALYSE & ANTWORT ---
+with col_right:
+    st.subheader("🔍 Analyse & Antwort")
+    
+    # Platzhalter für das Ergebnis (Hier verknüpfst du später deine OpenAI-Antwort)
+    ergebnis_demo = "Hier erscheint das Ergebnis nach dem Scan."
+    frist_demo = "24.12.2024"
+    
+    st.info(ergebnis_demo)
+    
+    if uploaded_file:
+        st.divider()
+        st.write("### Export-Optionen")
+        c_ex, c_cal = st.columns(2)
+        
+        with c_ex:
+            excel_data = create_excel({"Behörde": "Erkannt", "Frist": frist_demo, "Zusammenfassung": ergebnis_demo})
+            st.download_button("📊 Excel (Auto-Breite)", excel_data, "Amtsschimmel_Analyse.xlsx", use_container_width=True)
+        
+        with c_cal:
+            ics_data = create_ics_manual(ergebnis_demo, frist_demo)
+            st.download_button("📅 Kalender-Frist", ics_data, "Frist.ics", use_container_width=True)
+
+# --- 4. UNTERER BEREICH: VORLAGEN & RECHTLICHES ---
+st.write("")
 st.divider()
 
-# --- ANALYSE-BEREICH (Beispielwerte) ---
-# Hier greift normalerweise dein KI-Ergebnis
-analyse_ergebnis = {
-    "Behörde": "Finanzamt Düsseldorf",
-    "Frist": "24.12.2024",
-    "Handlung": "Widerspruch einlegen"
-}
+col_v, col_r = st.columns(2)
 
-st.subheader("Analyse-Export")
-c1, c2 = st.columns(2)
-with c1:
-    excel_data = create_excel(analyse_ergebnis)
-    st.download_button("📊 Excel (Auto-Spalten)", excel_data, "Analyse.xlsx")
-with c2:
-    ics_data = create_ics_manual(analyse_ergebnis["Handlung"], analyse_ergebnis["Frist"])
-    st.download_button("📅 Kalender-Termin", ics_data, "Frist.ics")
+with col_v:
+    st.subheader("📝 Vorlagen")
+    with st.expander("Fristverlängerung"):
+        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
+    with st.expander("Widerspruch einlegen (Fristwahrend)"):
+        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
+    with st.expander("Akteneinsicht einfordern"):
+        st.code("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
-st.divider()
-
-# --- VORLAGEN ---
-st.subheader("📝 Vorlagen")
-with st.expander("Fristverlängerung"):
-    st.write("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
-
-with st.expander("Widerspruch einlegen (Fristwahrend)"):
-    st.write("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
-
-with st.expander("Akteneinsicht einfordern"):
-    st.write("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
-
-# --- IMPRESSUM, DATENSCHUTZ, FAQ (Deine Texte 1:1 übernommen) ---
-st.divider()
-
-st.markdown("### Impressum:")
-st.text("""Amtsschimmel-Killer
+with col_r:
+    st.subheader("⚖️ Rechtliches")
+    tab1, tab2, tab3 = st.tabs(["Impressum", "Datenschutz", "FAQ"])
+    
+    with tab1:
+        st.text("""Amtsschimmel-Killer
 Betreiberin: Elisabeth Reinecke
-Ringelsweide 9
-40223 Düsseldorf
+Ringelsweide 9, 40223 Düsseldorf
 
 Kontakt:
 Telefon: +49 211 15821329
@@ -97,45 +122,30 @@ Web: amtsschimmel-killer.streamlit.app
 
 Haftung:
 Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.""")
+        
+    with tab2:
+        st.markdown("""
+        **1. Datenschutz auf einen Blick**
+        Wir behandeln Ihre personenbezogenen Daten vertraulich (DSGVO).
+        **2. Datenerfassung & Hosting**
+        Diese App wird auf Streamlit Cloud gehostet. 
+        **3. Dokumentenverarbeitung**
+        Übertragung per TLS an OpenAI. Keine dauerhafte Speicherung.
+        **4. Zahlungsabwicklung**
+        Abwicklung über Stripe.
+        **5. Ihre Rechte**
+        Auskunft/Löschung unter amtsschimmel-killer@proton.me.
+        """)
+        
+    with tab3:
+        st.markdown("""
+        **Ist das ein Abonnement?**
+        Nein. Jede Zahlung ist eine Einmalzahlung.
+        **Wie sicher sind meine Dokumente?**
+        Verschlüsselt an OpenAI, danach sofortige Löschung.
+        **Ersetzt die App eine Rechtsberatung?**
+        Nein. Nur Formulierungshilfe.
+        **Was passiert, wenn der Scan fehlschlägt?**
+        Es wird kein Guthaben abgezogen.
+        """)
 
-st.divider()
-
-st.markdown("### Datenschutz:")
-with st.expander("Details anzeigen"):
-    st.markdown("""
-    **1. Datenschutz auf einen Blick**
-    Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
-    
-    **2. Datenerfassung & Hosting**
-    Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
-    
-    **3. Dokumentenverarbeitung**
-    Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
-    
-    **4. Zahlungsabwicklung (Stripe)**
-    Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
-    
-    **5. Ihre Rechte**
-    Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
-    """)
-
-st.divider()
-
-st.markdown("### FAQ")
-with st.expander("Häufige Fragen"):
-    st.markdown("""
-    **Ist das ein Abonnement?**
-    Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
-    
-    **Wie sicher sind meine Dokumente?**
-    Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert.
-    
-    **Ersetzt die App eine Rechtsberatung?**
-    Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
-    
-    **Was passiert, wenn der Scan fehlschlägt?**
-    Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.
-    
-    **Wie erreiche ich Elisabeth Reinecke?**
-    Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
-    """)
