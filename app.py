@@ -12,7 +12,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. KONFIGURATION & TEXTE (FIXIERT)
+# 1. KONFIGURATION & RECHTSTEXTE (FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -97,7 +97,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT & KI LOGIK
+# 3. HILFSFUNKTIONEN (EXPORT & KI)
 # ==========================================
 def clean_txt(t):
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
@@ -136,7 +136,7 @@ def run_ai(raw_text, lang, mode):
     return resp.choices.message.content
 
 # ==========================================
-# 4. UI LAYOUT OBEN (RECHTLICHES & VORLAGEN)
+# 4. UI LAYOUT OBEN (INFO-LEISTE FIXIERT)
 # ==========================================
 info_col1, info_col2, info_col3, info_col4 = st.columns(4)
 with info_col1:
@@ -151,30 +151,48 @@ with info_col4:
 st.divider()
 
 # ==========================================
-# 5. SIDEBAR (SPRACHE & SHOP)
+# 5. SIDEBAR (SPRACHE & SHOP OPTIMIERT)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
     
-    st.subheader("🌍 Sprache wählen")
-    lang_choice = st.selectbox("Ausgabe in:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский"], label_visibility="collapsed")
+    st.subheader("🌍 1. Sprache wählen")
+    lang_choice = st.selectbox("Ausgabe-Sprache:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский"], label_visibility="collapsed")
     
     st.divider()
     
-    st.subheader("🛒 Scans aufladen")
-    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
+    st.subheader("🛒 2. Guthaben aufladen")
+    st.metric("Verfügbare Scans", f"{st.session_state.credits}")
     
-    # Optisch hervorgehobene Pakete
-    st.info("**PAKET-AUSWAHL (Einmalzahlung)**")
-    
-    st.link_button("☕ **1 SCAN** | 2,99€ \n (Kein Abo)", "DEIN_STRIPE_LINK_1", use_container_width=True)
-    st.link_button("📦 **5 SCANS** | 9,99€ \n (Kein Abo)", "DEIN_STRIPE_LINK_5", use_container_width=True)
-    st.link_button("🚀 **10 SCANS** | 14,99€ \n (Kein Abo)", "DEIN_STRIPE_LINK_10", use_container_width=True)
-    
-    st.warning("⚠️ **KEIN ABONNEMENT.** Sie zahlen nur, was Sie brauchen.")
+    # PAKET 1
+    with st.container():
+        st.info("**PAKET S**")
+        st.write("Preis: **2,99 €**")
+        st.write("✅ **1 Scan**")
+        st.write("🚀 **Einmalzahlung**")
+        st.caption("KEIN Abo / Keine Bindung")
+        st.link_button("☕ Jetzt kaufen", "DEIN_STRIPE_LINK_1", use_container_width=True)
+
+    # PAKET 2
+    with st.container():
+        st.success("**PAKET M (Bestseller)**")
+        st.write("Preis: **9,99 €**")
+        st.write("✅ **5 Scans**")
+        st.write("🚀 **Einmalzahlung**")
+        st.caption("KEIN Abo / Keine Bindung")
+        st.link_button("📦 Jetzt kaufen", "DEIN_STRIPE_LINK_5", use_container_width=True)
+
+    # PAKET 3
+    with st.container():
+        st.warning("**PAKET L (Profi)**")
+        st.write("Preis: **14,99 €**")
+        st.write("✅ **10 Scans**")
+        st.write("🚀 **Einmalzahlung**")
+        st.caption("KEIN Abo / Keine Bindung")
+        st.link_button("🚀 Jetzt kaufen", "DEIN_STRIPE_LINK_10", use_container_width=True)
 
 # ==========================================
-# 6. HAUPTBEREICH
+# 6. HAUPTBEREICH (ANALYSE)
 # ==========================================
 st.title("📄 Amtsschimmel-Killer")
 
@@ -183,11 +201,11 @@ col_main1, col_main2 = st.columns(2)
 with col_main1:
     st.subheader("1. Dokument hochladen")
     u_file = st.file_uploader("Bild oder PDF hier reinziehen", type=['png', 'jpg', 'jpeg', 'pdf'])
-    mode = st.radio("Gewünschtes Ziel:", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
+    mode = st.radio("Was soll die KI erstellen?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
     
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
-            with st.spinner("KI liest den Brief..."):
+            with st.spinner("KI liest und analysiert..."):
                 raw = get_text(u_file)
                 res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 if res == "FEHLER_UNSCHARF":
@@ -197,7 +215,7 @@ with col_main1:
                     st.session_state.credits -= 1
                     st.rerun()
         else:
-            st.error("Guthaben leer! Bitte links ein Paket wählen.")
+            st.error("Guthaben leer! Bitte links ein Paket kaufen (Einmalzahlung).")
 
 with col_main2:
     st.subheader("2. Analyse-Ergebnis")
@@ -206,4 +224,4 @@ with col_main2:
         st.divider()
         st.download_button("📥 Als PDF speichern", create_pdf_final(st.session_state.full_res), "Analyse.pdf")
     else:
-        st.info("Das Ergebnis erscheint hier nach dem Scan.")
+        st.info("Hier erscheint Ihr Ergebnis, sobald die Analyse fertig ist.")
