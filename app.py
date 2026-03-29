@@ -6,42 +6,43 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (Buttons IN Paketen, Layout-Fix) ---
+# --- 2. CUSTOM CSS (Pakete, Icons, Buttons) ---
 st.markdown("""
 <style>
     .pkg-box {
         padding: 20px; border-radius: 15px; border: 1px solid #ddd;
-        text-align: center; margin-bottom: 0px; min-height: 220px;
+        text-align: center; margin-bottom: 10px; min-height: 280px;
         display: flex; flex-direction: column; justify-content: space-between;
     }
-    .pkg-name { font-size: 0.95em; font-weight: bold; color: #2c3e50; }
-    .pkg-price { font-size: 24px; font-weight: bold; color: #1f77b4; margin: 10px 0; }
-    .pkg-footer { font-size: 0.75em; font-weight: bold; color: #d35400; margin-bottom: 15px; }
+    .pkg-icon { font-size: 40px; margin-bottom: 10px; }
+    .pkg-name { font-size: 1em; font-weight: bold; color: #2c3e50; min-height: 45px; }
+    .pkg-price { font-size: 26px; font-weight: bold; color: #1f77b4; margin: 10px 0; }
+    .pkg-footer { font-size: 0.8em; font-weight: bold; color: #d35400; margin-bottom: 15px; }
     
-    /* Button direkt in die Box optisch integrieren */
     div.stButton > button {
-        width: 100% !important; border-radius: 8px !important;
+        width: 100% !important; border-radius: 10px !important;
         background-color: #1f77b4 !important; color: white !important;
+        font-weight: bold !important; height: 45px !important;
     }
-    .stDownloadButton > button { width: 100% !important; }
+    .stDownloadButton > button { width: 100% !important; border-radius: 8px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. EXPORT FUNKTIONEN ---
-def create_excel(data):
+# --- 3. EXPORT FUNKTIONEN (EXCEL PRO AUTO-FIT) ---
+def create_excel_pro(data):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df = pd.DataFrame([data])
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
+        df.to_excel(writer, index=False, sheet_name='Amtsschimmel_Analyse')
+        worksheet = writer.sheets['Amtsschimmel_Analyse']
+        # Extrem weite Spalten für lange Texte
         for i, col in enumerate(df.columns):
-            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 10
-            worksheet.set_column(i, i, min(column_len, 60))
+            worksheet.set_column(i, i, 80) 
     return output.getvalue()
 
-def display_pdf(file):
-    base64_pdf = base64.b64encode(file.read()).decode('utf-8')
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+def display_pdf_robust(file_bytes):
+    base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
+    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf">'
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 # --- 4. RECHTLICHES & VORLAGEN ---
@@ -51,59 +52,58 @@ with c1:
         st.text("Amtsschimmel-Killer\nBetreiberin: Elisabeth Reinecke\nRingelsweide 9\n40223 Düsseldorf\n\nKontakt:\nTelefon: +49 211 15821329\nE-Mail: amtsschimmel-killer@proton.me\nWeb: amtsschimmel-killer.streamlit.app\n\nHaftung:\nInhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.")
 with c2:
     with st.expander("🛡️ Datenschutz"):
-        st.text("1. Datenschutz auf einen Blick\nWir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).\n\n2. Datenerfassung & Hosting\nDiese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.\n\n3. Dokumentenverarbeitung\nIhre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.\n\n4. Zahlungsabwicklung (Stripe)\nStripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung.\n\n5. Ihre Rechte\nSie haben das Recht auf Auskunft, Löschung und Sperrung unter amtsschimmel-killer@proton.me.")
+        st.text("1. Datenschutz auf einen Blick\nWir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).\n\n2. Datenerfassung & Hosting\nDiese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch erfasst.\n\n3. Dokumentenverarbeitung\nIhre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen.\n\n4. Zahlungsabwicklung (Stripe)\nStripe erhebt die erforderlichen Daten zur Abrechnung.\n\n5. Ihre Rechte\nRecht auf Auskunft, Löschung und Sperrung unter amtsschimmel-killer@proton.me.")
 with c3:
     with st.expander("❓ FAQ"):
-        st.text("Ist das ein Abonnement?\nNein. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Keine automatische Verlängerung.\n\nWie sicher sind meine Dokumente?\nÜbertragung TLS-verschlüsselt, Verarbeitung im RAM, keine dauerhafte Speicherung.\n\nErsetzt die App eine Rechtsberatung?\nNein. Nur Formulierungshilfe.\n\nWas passiert, wenn der Scan fehlschlägt?\nKein Guthabenabzug bei technischem Scheitern.")
+        st.text("Ist das ein Abonnement?\nNein. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Keine automatische Verlängerung.\n\nWie sicher sind meine Dokumente?\nVerschlüsselte Übertragung, keine dauerhafte Speicherung.\n\nErsetzt die App eine Rechtsberatung?\nNein. Nur Formulierungshilfe.\n\nWas passiert bei Scan-Fehlern?\nKein Guthabenabzug bei technischem Abbruch.")
 with c4:
     with st.expander("📝 Vorlagen"):
-        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]\n\nWiderspruch einlegen:\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben.\n\nAkteneinsicht:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht.")
+        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum]...\n\nWiderspruch:\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein...\n\nAkteneinsicht:\nSehr geehrte Damen und Herren, ich beantrage hiermit Akteneinsicht gemäß § 25 SGB X.")
 
 st.divider()
 
-# --- 5. HAUPT-LAYOUT ---
-col_side, col_main = st.columns([1, 2.5])
+# --- 5. HAUPTBEREICH (Split-Layout) ---
+col_sidebar, col_main = st.columns([1, 2.5])
 
-with col_side:
-    try: st.image("icon_final_blau.png", width=160)
+with col_sidebar:
+    try: st.image("icon_final_blau.png", width=180)
     except: st.title("🏛️ Amtsschimmel-Killer")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "ES Español", "IT Italiano"], label_visibility="collapsed")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română"], label_visibility="collapsed")
     
-    st.markdown("### 💳 Scans")
-    
-    # Paket 1
-    st.markdown('<div class="pkg-box" style="background-color: #f9f9f9;"><div class="pkg-name">Amtsschimmel-Paket:<br>Basis (1 Dokument)</div><div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Paket 2
-    st.markdown('<div class="pkg-box" style="background-color: #ebf5fb; border: 1px solid #3498db;"><div class="pkg-name">Amtsschimmel-Paket:<br>Spar (3 Dokumente)</div><div class="pkg-price">9,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Paket 3
-    st.markdown('<div class="pkg-box" style="background-color: #fef9e7; border: 1px solid #f1c40f;"><div class="pkg-name">Amtsschimmel-Paket:<br>Sorglos (10 Dokumente)</div><div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("### 💳 Scans laden")
+    # Pakete mit Icons und integriertem Button
+    for pkg in [
+        {"icon": "📄", "name": "Amtsschimmel-Paket:<br>Basis (1 Dokument)", "price": "3,99 €", "url": "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", "color": "#f9f9f9"},
+        {"icon": "🥈", "name": "Amtsschimmel-Paket:<br>Spar (3 Dokumente)", "price": "9,99 €", "url": "https://buy.stripe.com/8x228retRbj50paalq1gs03", "color": "#ebf5fb"},
+        {"icon": "🥇", "name": "Amtsschimmel-Paket:<br>Sorglos (10 Dokumente)", "price": "19,99 €", "url": "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", "color": "#fef9e7"}
+    ]:
+        st.markdown(f'<div class="pkg-box" style="background-color: {pkg["color"]};">'
+                    f'<div class="pkg-icon">{pkg["icon"]}</div>'
+                    f'<div class="pkg-name">{pkg["name"]}</div>'
+                    f'<div class="pkg-price">{pkg["price"]}</div>'
+                    f'<div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", pkg["url"])
+        st.markdown('</div>', unsafe_allow_html=True)
 
 with col_main:
-    st.markdown("### 📥 Dokument hochladen")
+    st.markdown("### 📥 Dokumenten-Check")
     st.success("👑 Admin Guthaben: 999 Scans")
     
-    up_file = st.file_uploader("Hier klicken oder Datei reinziehen", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+    up_file = st.file_uploader("Datei hier reinziehen oder klicken", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
     if up_file:
+        file_bytes = up_file.read()
         st.divider()
-        c_left, c_right = st.columns([1.2, 1.3])
+        c_left, c_right = st.columns([1, 1.2])
         
         with c_left:
             st.markdown("#### 🖼️ Dokumenten-Vorschau")
             if up_file.type == "application/pdf":
-                display_pdf(up_file)
+                display_pdf_robust(file_bytes)
             else:
-                st.image(up_file, use_container_width=True)
+                st.image(file_bytes, use_container_width=True)
         
         with c_right:
             st.markdown("#### 🔍 Ausführliche Analyse")
@@ -112,34 +112,33 @@ with col_main:
             with st.container(border=True):
                 st.markdown("**📖 Ausführliches Glossar:**")
                 st.write("""
-                - **Ermessensspielraum:** Die Behörde darf innerhalb eines gewissen Rahmens selbst entscheiden.
-                - **Rechtsbehelfsbelehrung:** Erklärt, wie und wo Sie Widerspruch einlegen können.
-                - **Mitwirkungspflicht:** Sie sind verpflichtet, angeforderte Unterlagen einzureichen, sonst darf die Behörde Leistungen versagen.
+                **Verwaltungsakt:** Jede Verfügung, Entscheidung oder andere hoheitliche Maßnahme, die eine Behörde zur Regelung eines Einzelfalls auf dem Gebiet des öffentlichen Rechts trifft.
+                \n**Rechtsbehelfsbelehrung:** Ein zwingender Bestandteil eines Bescheids. Fehlt diese oder ist sie fehlerhaft, verlängert sich die Widerspruchsfrist von einem Monat auf ein Jahr.
+                \n**Ermessensunterschreitung:** Wenn die Behörde gar nicht erst prüft, ob sie eine Ausnahme machen könnte, obwohl das Gesetz ihr die Wahl lässt. Dies macht einen Bescheid rechtswidrig.
                 """)
             
             with st.container(border=True):
-                st.markdown("**✍️ Ausführliches Antwortschreiben:**")
-                ausfuehrliche_antwort = """Sehr geehrte Damen und Herren,
+                st.markdown("**✍️ Ausführliches Antwortschreiben / Stellungnahme:**")
+                ausfuehrlich = """Sehr geehrte Damen und Herren,
 
-Bezugnehmend auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer], nehme ich wie folgt Stellung:
+Bezugnehmend auf Ihr Schreiben vom [Datum], eingegangen am [Datum], Aktenzeichen [Nummer], nehme ich hiermit ausführlich Stellung.
 
-Gegen den oben genannten Bescheid lege ich hiermit form- und fristgerecht WIDERSPRUCH ein.
+Zunächst weise ich darauf hin, dass die von Ihnen getroffene Entscheidung auf einer unzureichenden Sachverhaltsaufklärung beruht. Die Berücksichtigung der individuellen Lebensumstände (gemäß § 35 SGB X / § 39 VwVfG) scheint nicht ausreichend erfolgt zu sein.
 
-Begründung:
-Nach meiner ersten Prüfung beruht Ihre Entscheidung auf einer unvollständigen Sachverhaltsaufklärung. Die von Ihnen angeforderten Unterlagen liegen mir teilweise noch nicht vor, wurden aber bereits angefordert. 
+Ich beantrage hiermit die Aussetzung der Vollziehung sowie eine angemessene Fristverlängerung zur endgültigen Begründung, da mir zum aktuellen Zeitpunkt noch wesentliche Unterlagen Dritter fehlen. Zudem mache ich hiermit mein Recht auf Akteneinsicht geltend, um die internen Entscheidungsprozesse prüfen zu können.
 
-Zudem beantrage ich hiermit vorsorglich Akteneinsicht gemäß § 25 SGB X, um die Entscheidungsgrundlage im Detail nachvollziehen zu können. Ich bitte um Bestätigung des Eingangs sowie um Aussetzung der Vollziehung, bis über den Widerspruch abschließend entschieden wurde.
+Bitte bestätigen Sie mir den Erhalt dieser Nachricht sowie die gewährte Fristverlängerung schriftlich.
 
 Mit freundlichen Grüßen,
 [Ihr Name]"""
-                st.code(ausfuehrliche_antwort, language="text")
+                st.code(ausfuehrlich, language="text")
             
             st.divider()
             st.markdown("#### 📥 Download Bereich")
             d1, d2, d3, d4 = st.columns(4)
-            with d1: st.download_button("📄 PDF Brief", ausfuehrliche_antwort, "Antwort.pdf")
+            with d1: st.download_button("📄 PDF Brief", ausfuehrlich, "Antwort_Brief.pdf")
             with d2:
-                ex = create_excel({"Frist": "24.12.2024", "Betreff": "Widerspruch", "Status": "Dringend"})
-                st.download_button("📊 Excel (Auto)", ex, "Analyse.xlsx")
-            with d3: st.download_button("📝 Word (.doc)", ausfuehrliche_antwort, "Antwort.doc")
-            with d4: st.download_button("📅 Termin", "BEGIN:VCALENDAR\nSUMMARY:Amtsschimmel Frist\nDTSTART:20241224T090000\nEND:VEVENT\nEND:VCALENDAR", "Frist.ics")
+                ex_data = create_excel_pro({"Frist": "24.12.2024", "Analyse": "Ausführliche Stellungnahme erforderlich", "Glossar": "Ermessen, Frist, Akteneinsicht"})
+                st.download_button("📊 Excel Pro", ex_data, "Amtsschimmel_Analyse.xlsx")
+            with d3: st.download_button("📝 Word (.doc)", ausfuehrlich, "Antwort_Brief.doc")
+            with d4: st.download_button("📅 Termin", "BEGIN:VCALENDAR\nSUMMARY:Frist Amtsschimmel-Killer\nDTSTART:20241224T090000\nEND:VEVENT\nEND:VCALENDAR", "Frist.ics")
