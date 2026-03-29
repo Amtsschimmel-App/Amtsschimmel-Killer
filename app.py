@@ -23,13 +23,13 @@ st.markdown("""
     .stButton>button:hover { background-color: #2563eb; transform: translateY(-2px); }
     .buy-button { text-decoration: none; display: block; padding: 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; color: #1e3a8a !important; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; font-size: 0.9em; }
     .buy-button:hover { border-color: #1e3a8a; background: #f8fafc; transform: scale(1.01); }
-    .faq-q { font-weight: bold; color: #1e3a8a; margin-top: 15px; display: block; font-size: 1.1em; }
-    .faq-a { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #cbd5e1; color: #475569; }
+    .faq-q { font-weight: bold; color: #1e3a8a; margin-top: 20px; display: block; font-size: 1.1em; }
+    .faq-a { margin-bottom: 20px; padding-left: 10px; color: #475569; line-height: 1.6; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. SESSION STATE (GUTHABEN & ADMIN)
+# 2. SESSION STATE & STRIPE
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
@@ -48,7 +48,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. KI-LOGIK & OCR (FEHLER KORRIGIERT)
+# 3. KI-LOGIK & OCR
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -71,9 +71,7 @@ def get_text_from_file(file):
 def analyze_letter(raw_text, lang, mode="Standard"):
     if len(raw_text.strip()) < 50: 
         return "FEHLER_UNSCHARF"
-    
     intent = "Antwortbrief" if mode == "Standard" else "WIDERSPRUCH (hart, mit Paragraphen)"
-    
     sys_p = f"""Rechtsexperte. Sprache: {lang}. 
     Struktur IMMER:
     ### AMPEL ### Dringlichkeit: [Niedrig/Mittel/Hoch] + Grund: [Satz]
@@ -81,12 +79,7 @@ def analyze_letter(raw_text, lang, mode="Standard"):
     ### FRISTEN ### (Datum | Aktion | Dringlichkeit)
     ### ANTWORTBRIEF ### (Erstelle einen {intent})
     ### CHECKLISTE ### (Versandanweisungen)"""
-    
-    resp = client.chat.completions.create(
-        model="gpt-4o", 
-        messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}]
-    )
-    # KORREKTUR HIER: .choices[0].message.content (Index 0 hinzugefügt)
+    resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
     return resp.choices[0].message.content
 
 # ==========================================
@@ -121,23 +114,13 @@ def create_ics(text):
     return ics.encode('utf-8')
 
 # ==========================================
-# 5. SIDEBAR (LOGO & FLAGGEN)
+# 5. SIDEBAR
 # ==========================================
 with st.sidebar:
-    LOGO_PATH = "icon_final_blau.png"
-    if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, use_container_width=True)
-    else:
-        st.title("📄 Amtsschimmel-Killer")
-    
+    if os.path.exists("icon_final_blau.png"): st.image("icon_final_blau.png", use_container_width=True)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
-    lang_choice = st.selectbox("🌍 Sprache wählen", [
-        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
-        "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", 
-        "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"
-    ])
-    
+    lang_choice = st.selectbox("🌍 Sprache wählen", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
     st.divider()
     st.subheader("Guthaben aufladen")
     pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
@@ -145,7 +128,7 @@ with st.sidebar:
         st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. HAUPTBEREICH (MIT VORSCHAU & FESTEN TEXTEN)
+# 6. HAUPTBEREICH (TABS)
 # ==========================================
 t1, t2, t3, t4, t5 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ", "⚖️ Impressum", "🔒 Datenschutz"])
 
@@ -153,14 +136,8 @@ with t1:
     st.title("Brief hochladen & killen 🚀")
     c1, c2 = st.columns(2)
     with c1:
-        upload = st.file_uploader("Datei wählen (PDF oder Bild):", type=['pdf', 'png', 'jpg', 'jpeg'])
-        # VORSCHAU WIEDER EINGEBAUT
-        if upload:
-            if upload.type.startswith("image"):
-                st.image(upload, caption="Vorschau deines Briefes", use_container_width=True)
-            else:
-                st.success("PDF erfolgreich geladen!")
-
+        upload = st.file_uploader("Datei wählen:", type=['pdf', 'png', 'jpg', 'jpeg'])
+        if upload and upload.type.startswith("image"): st.image(upload, caption="Vorschau", use_container_width=True)
     with c2:
         if upload and st.session_state.credits > 0:
             b1, b2 = st.columns(2)
@@ -193,11 +170,11 @@ with t1:
 
 with t2:
     st.header("⚡ Vorlagen")
-    st.markdown("### Fristverlängerung")
+    st.markdown("### Fristverlängerung:")
     st.info("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
     st.markdown("### Widerspruch einlegen (Fristwahrend)")
     st.info("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
-    st.markdown("### Akteneinsicht einfordern")
+    st.markdown("### Akteneinsicht einfordern:")
     st.info("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
 with t3:
@@ -210,31 +187,43 @@ with t3:
     st.markdown('<div class="faq-a">Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.</div>', unsafe_allow_html=True)
     st.markdown('<span class="faq-q">Was passiert, wenn der Scan fehlschlägt?</span>', unsafe_allow_html=True)
     st.markdown('<div class="faq-a">Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.</div>', unsafe_allow_html=True)
+    st.markdown('<span class="faq-q">Wie erreiche ich Elisabeth Reinecke?</span>', unsafe_allow_html=True)
+    st.markdown('<div class="faq-a">Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>', unsafe_allow_html=True)
 
 with t4:
     st.header("⚖️ Impressum")
     st.markdown("""
     **Amtsschimmel-Killer**  
     Betreiberin: Elisabeth Reinecke  
-    Ringelsweide 9, 40223 Düsseldorf  
+    Ringelsweide 9  
+    40223 Düsseldorf  
+    
+    **Kontakt:**  
     Telefon: +49 211 15821329  
     E-Mail: amtsschimmel-killer@proton.me  
     Web: amtsschimmel-killer.streamlit.app  
     
-    Haftung: Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
+    **Haftung:**  
+    Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
     """)
 
 with t5:
     st.header("🔒 Datenschutz")
     st.markdown("""
     **1. Datenschutz auf einen Blick**  
-    Wir behandeln Ihre personenbezogenen Daten vertraulich entsprechend der DSGVO.  
+    Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
+    
     **2. Datenerfassung & Hosting**  
-    Diese App wird auf Streamlit Cloud gehostet. Logfiles werden automatisch vom Hoster erfasst.  
+    Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
+    
     **3. Dokumentenverarbeitung**  
-    Ihre hochgeladenen Briefe werden per TLS an OpenAI (USA) übertragen. Wir speichern keine Briefe.  
-    **4. Zahlungsabwicklung**  
-    Abwicklung über Stripe. Wir erhalten nur Zahlungsbestätigungen.
+    Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
+    
+    **4. Zahlungsabwicklung (Stripe)**  
+    Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
+    
+    **5. Ihre Rechte**  
+    Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
     """)
 
 st.sidebar.caption(f"© {datetime.now().year} Elisabeth Reinecke")
