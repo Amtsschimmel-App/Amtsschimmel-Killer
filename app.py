@@ -13,7 +13,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. RECHTSTEXTE & KONSTANTEN (FEST VERANKERT)
+# 1. RECHTSTEXTE & KONSTANTEN (STRENG FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -89,16 +89,18 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 """
 
 # ==========================================
-# 2. SESSION STATE & STRIPE LINKS
+# 2. SESSION STATE & STRIPE LINKS (FEST)
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-STRIPE_BASIS = "https://buy.stripe.com"
-STRIPE_SPAR = "https://buy.stripe.com"
-STRIPE_PREMIUM = "https://buy.stripe.com"
+# Deine Stripe Links
+STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
+STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
+STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
 
+# Admin-Backdoor
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
@@ -127,7 +129,7 @@ def create_pdf(text):
 
 def create_docx(text):
     doc = Document()
-    doc.add_heading('Analyse-Ergebnis', 0)
+    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
     doc.add_paragraph(text.replace("#", "").replace("*", ""))
     bio = io.BytesIO()
     doc.save(bio)
@@ -135,7 +137,7 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Datum/Frist": dates if dates else ["Kein Datum"], "Info": ["Termin aus Analyse" for _ in range(max(1, len(dates)))]})
+    df = pd.DataFrame({"Fristen": dates if dates else ["Kein Datum"], "Typ": ["Frist" for _ in range(len(dates)) if dates] or ["Info"]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -153,7 +155,7 @@ def create_ics(text):
     return ics.encode('utf-8')
 
 # ==========================================
-# 4. KI-LOGIK (FEHLER BEHOBEN)
+# 4. KI-LOGIK (REPARIERT)
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -172,11 +174,10 @@ def run_ai(raw_text, lang, mode):
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
     sys_p = f"Rechtsexperte. Sprache: {lang}. Erstelle: 🚦AMPEL, 📖GLOSSAR, 📅FRISTEN, ✍️{label}, 📋CHECKLISTE."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    # KORREKTUR HIER: .choices[0] hinzugefügt
     return resp.choices[0].message.content
 
 # ==========================================
-# 5. UI - OBERE INFO-LEISTE (FIXIERT)
+# 5. UI - OBERE INFO-LEISTE
 # ==========================================
 c1, c2, c3, c4 = st.columns(4)
 with c1: 
@@ -191,13 +192,13 @@ with c4:
 st.divider()
 
 # ==========================================
-# 6. SIDEBAR - SHOP (PAKETE IN BOXEN)
+# 6. SIDEBAR - SHOP & SPRACHE
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
     
     st.subheader("🌍 1. Sprache wählen")
-    lang_choice = st.selectbox("Sprache:", [
+    lang_choice = st.selectbox("Ausgabe:", [
         "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
         "🇮🇹 Italiano", "🇫🇷 Français", "🇪🇸 Español", "🇺🇦 Українська", 
         "🇦🇪 العربية", "🇷🇴 Română", "🇬🇷 Ελληνικά"
@@ -229,7 +230,7 @@ with st.sidebar:
     st.link_button("Premium kaufen", STRIPE_PREMIUM, use_container_width=True)
 
 # ==========================================
-# 7. HAUPTBEREICH (VORSCHAU LINKS | ANALYSE RECHTS)
+# 7. HAUPTBEREICH
 # ==========================================
 st.title("📄 Amtsschimmel-Killer")
 
@@ -238,35 +239,32 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.subheader("1. Dokument & Vorschau")
     u_file = st.file_uploader("Bild oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
-    
     if u_file:
         if u_file.type != "application/pdf":
             st.image(u_file, caption="Vorschau", use_container_width=True)
         else:
-            st.info("📄 PDF geladen.")
+            st.info("📄 PDF erfolgreich geladen.")
     
-    mode = st.radio("Ziel:", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
-    
+    mode = st.radio("Was soll erstellt werden?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
-            with st.spinner("KI analysiert den Amtsschimmel..."):
+            with st.spinner("KI liest den Amtsschimmel..."):
                 raw = get_text(u_file)
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
-        else:
-            st.error("Guthaben leer! Bitte links ein Paket wählen.")
+        else: st.error("Guthaben leer! Bitte links ein Paket wählen.")
 
 with col_right:
     st.subheader("2. Analyse & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.write("📥 **Download:**")
+        st.write("📥 **Ergebnis exportieren:**")
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
         with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
         with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics")
     else:
-        st.info("Das Ergebnis erscheint hier nach dem Scan.")
+        st.info("Hier erscheint das Ergebnis nach dem Scan.")
