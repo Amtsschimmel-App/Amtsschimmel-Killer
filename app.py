@@ -13,7 +13,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. KONFIGURATION & OPTIK (FIXIERT)
+# 1. KONFIGURATION & OPTIK (STRENG FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -27,12 +27,13 @@ st.markdown("""
 LOGO_DATEI = "icon_final_blau.png"
 
 # ==========================================
-# 2. RECHTSTEXTE & VORLAGEN (EXAKT DEIN TEXT)
+# 2. RECHTSTEXTE (EXAKT DEINE VORGABE)
 # ==========================================
 IMPRESSUM_TEXT = """
 **Impressum:**
 
-**Amtsschimmel-Killer**  
+**Amtsschimmel-Killer**
+
 Betreiberin: Elisabeth Reinecke  
 Ringelsweide 9  
 40223 Düsseldorf  
@@ -98,15 +99,16 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 """
 
 # ==========================================
-# 3. SESSION STATE & STRIPE LINKS (FIXIERT)
+# 3. SESSION STATE & STRIPE LINKS (FEST)
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-STRIPE_BASIS = "https://buy.stripe.com"
-STRIPE_SPAR = "https://buy.stripe.com"
-STRIPE_PREMIUM = "https://buy.stripe.com"
+# DIE FIXIERTEN STRIPE LINKS
+STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
+STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
+STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
 
 # Admin Logik (999 Scans)
 params = st.query_params
@@ -133,7 +135,7 @@ def create_pdf(text):
     pdf.cell(0, 10, "ANALYSE-ERGEBNIS", ln=True)
     pdf.set_font("Helvetica", size=11)
     pdf.multi_cell(0, 8, txt=clean_txt(text))
-    return pdf.output(dest='S')
+    return pdf.output(dest='S') # Gibt Bytes direkt zurück
 
 def create_docx(text):
     doc = Document()
@@ -145,7 +147,7 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Frist/Datum": dates if dates else ["Kein Datum"], "Info": ["Termin aus Analyse" for _ in range(max(1, len(dates)))]})
+    df = pd.DataFrame({"Frist/Datum": dates if dates else ["Kein Datum"], "Info": ["Aus Analyse" for _ in range(max(1, len(dates)))]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -182,7 +184,7 @@ def run_ai(raw_text, lang, mode):
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
     sys_p = f"Rechtsexperte. Sprache: {lang}. Erstelle: 🚦AMPEL, 📖GLOSSAR, 📅FRISTEN, ✍️{label}, 📋CHECKLISTE."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices[0].message.content
+    return resp.choices[0].message.content # Korrektur für OpenAI v1+
 
 # ==========================================
 # 6. UI - OBERE INFO-LEISTE (FIXIERT)
@@ -200,7 +202,7 @@ with c4:
 st.divider()
 
 # ==========================================
-# 7. SIDEBAR - SHOP (AUFGEMOTZT)
+# 7. SIDEBAR - SHOP (AUFGEMOTZT & FEST)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
@@ -243,32 +245,35 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.subheader("1. Dokument & Vorschau")
     u_file = st.file_uploader("Brief fotografieren oder PDF hochladen", type=['png', 'jpg', 'jpeg', 'pdf'])
+    
     if u_file:
         if u_file.type != "application/pdf":
-            st.image(u_file, caption="Deine Vorschau", use_container_width=True)
+            st.image(u_file, caption="Dokument Vorschau", use_container_width=True)
         else:
             st.info("📄 PDF erfolgreich geladen.")
     
     mode = st.radio("Was soll erstellt werden?", ["Antwortbrief 📝", "Widerspruch 🛑"], horizontal=True)
+    
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
-            with st.spinner("KI liest den Amtsschimmel..."):
+            with st.spinner("KI übersetzt Amtsschimmel-Deutsch..."):
                 raw = get_text(u_file)
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
-        else: st.error("Guthaben leer! Bitte links wählen.")
+        else:
+            st.error("Guthaben leer! Bitte links wählen.")
 
 with col_right:
     st.subheader("2. Analyse & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.write("📥 **Ergebnis exportieren:**")
+        st.write("📥 **Export:**")
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf", mime="application/pdf")
-        with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
-        with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
-        with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics")
+        with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics", mime="text/calendar")
     else:
         st.info("Hier erscheint das Ergebnis nach dem Scan.")
