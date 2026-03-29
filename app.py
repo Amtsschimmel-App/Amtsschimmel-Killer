@@ -14,11 +14,9 @@ from docx.shared import Inches
 from datetime import datetime
 
 # ==========================================
-# 1. RECHTSTEXTE & KONSTANTEN (FEST FIXIERT)
+# 1. FESTE TEXTE (FEST IM CODE FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
-
-LOGO_DATEI = "icon_final_blau.png"
 
 IMPRESSUM_TEXT = """
 **Amtsschimmel-Killer**  
@@ -69,12 +67,17 @@ Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. 
 Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
 """
 
+VORLAGEN_CONTENT = [
+    ("Fristverlängerung", "Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]"),
+    ("Widerspruch einlegen (Fristwahrend)", "Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]"),
+    ("Akteneinsicht einfordern", "Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+]
+
 # ==========================================
-# 2. SESSION STATE
+# 2. SESSION STATE & CREDITS
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
-if "last_mode" not in st.session_state: st.session_state.last_mode = "S"
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
 params = st.query_params
@@ -89,45 +92,31 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN (Sicher gegen Encoding-Fehler)
+# 3. EXPORT FUNKTIONEN (WORD, PDF, EXCEL, ICS)
 # ==========================================
-def clean_for_pdf(text):
-    """Entfernt Emojis und Markdown, die PDF-Fehler verursachen."""
-    text = text.replace("###", "").replace("**", "").replace("🚦", "").replace("📖", "").replace("📅", "").replace("✍️", "").replace("📋", "")
-    return text.encode('latin-1', 'replace').decode('latin-1')
+def clean_txt(t):
+    # Filtert Emojis und Sonderzeichen für PDF-Stabilität
+    return t.replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").replace("###","").replace("**","").encode('latin-1', 'replace').decode('latin-1')
 
-def create_docx(text, mode):
-    doc = Document()
-    if os.path.exists(LOGO_DATEI): doc.add_picture(LOGO_DATEI, width=Inches(1.5))
-    doc.add_heading("WIDERSPRUCH" if mode == "W" else "Analyse-Ergebnis", 0)
-    doc.add_paragraph(text.replace("###", "").replace("**", ""))
-    bio = io.BytesIO(); doc.save(bio); return bio.getvalue()
-
-def create_pdf_final(text, mode):
+def create_pdf(text, mode):
     pdf = FPDF()
     pdf.add_page()
-    if os.path.exists(LOGO_DATEI): 
-        pdf.image(LOGO_DATEI, x=10, y=8, w=33)
-        pdf.ln(25)
-    
+    pdf.set_font("Helvetica", 'B', 16)
     if mode == "W":
         pdf.set_text_color(200, 0, 0)
-        pdf.set_font("Helvetica", 'B', 16)
-        pdf.cell(0, 10, "OFFIZIELLER WIDERSPRUCH", ln=True)
+        pdf.cell(0, 10, clean_txt("OFFIZIELLER WIDERSPRUCH"), ln=True)
     else:
         pdf.set_text_color(30, 58, 138)
-        pdf.set_font("Helvetica", 'B', 16)
-        pdf.cell(0, 10, "Analyse-Ergebnis", ln=True)
-    
-    pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 10, clean_txt("Amtsschimmel-Killer Analyse"), ln=True)
+    pdf.set_text_color(0,0,0)
     pdf.set_font("Helvetica", size=11)
-    pdf.ln(5)
-    pdf.multi_cell(0, 8, txt=clean_for_pdf(text))
+    pdf.ln(10)
+    pdf.multi_cell(0, 8, txt=clean_txt(text))
     return pdf.output()
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Datum": dates if dates else ["-"], "Text": [text.replace("\n", " ") for _ in range(max(1, len(dates)))]})
+    df = pd.DataFrame({"Datum": dates if dates else ["Gefunden"], "Analyse": [text.replace("\n", " ")] * max(1, len(dates))})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -139,10 +128,11 @@ def create_ics(text):
     ics = "BEGIN:VCALENDAR\nVERSION:2.0\n"
     for d in dates:
         try:
-            c_d = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{c_d}\nDTEND:{c_d}\nEND:VEVENT\n"
+            cd = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
+            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nEND:VEVENT\n"
         except: pass
-    ics += "END:VCALENDAR"; return ics.encode('utf-8')
+    ics += "END:VCALENDAR"
+    return ics.encode('utf-8')
 
 # ==========================================
 # 4. KI-LOGIK
@@ -166,7 +156,7 @@ def get_text(file):
 def run_ai(raw_text, lang, mode):
     if len(raw_text.strip()) < 40: return "FEHLER_UNSCHARF"
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
-    sys_p = f"Rechtsexperte. Sprache: {lang}. Struktur: ### 🚦 DRINGLICHKEITS-AMPEL ###, ### 📖 BEHÖRDEN-DOLMETSCHER ###, ### 📅 WICHTIGE FRISTEN ###, ### ✍️ DEIN {label.upper()} ###, ### 📋 VERSAND-CHECKLISTE ###."
+    sys_p = f"Rechtsexperte. Sprache: {lang}. Struktur: ### AMPEL ###, ### GLOSSAR ###, ### FRISTEN ###, ### ANTWORTBRIEF ###, ### CHECKLISTE ###."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
     return resp.choices[0].message.content
 
@@ -174,54 +164,54 @@ def run_ai(raw_text, lang, mode):
 # 5. UI (VORSCHAU LINKS / ANALYSE RECHTS)
 # ==========================================
 with st.sidebar:
-    if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
+    if os.path.exists("icon_final_blau.png"): st.image("icon_final_blau.png", use_container_width=True)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
-    lang_choice = st.selectbox("🌍 Sprache", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
+    lang_choice = st.selectbox("🌍 Sprache wählen", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
     st.divider()
+    st.subheader("Guthaben aufladen")
     for n, l, c, p in [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]:
-        st.markdown(f'<a href="{l}" target="_blank" style="text-decoration:none;"><div style="background:white; border:1px solid #e2e8f0; padding:10px; border-radius:10px; margin-bottom:10px; color:#1e3a8a; text-align:center;"><b>{n}</b><br>{p} | {c}<br><b>KEIN ABO</b></div></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{l}" target="_blank" style="text-decoration:none;"><div style="background:white; border:1px solid #e2e8f0; padding:10px; border-radius:10px; margin-bottom:10px; color:#1e3a8a; text-align:center;"><b>{n}</b><br>{p} | {c}<br><b>Einmalzahlung | KEIN ABO</b></div></a>', unsafe_allow_html=True)
 
 t1, t2, t3, t4, t5 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ", "⚖️ Impressum", "🔒 Datenschutz"])
 
 with t1:
-    col_l, col_r = st.columns([1, 1.3])
+    col_l, col_r = st.columns([1, 1.2])
     with col_l:
-        st.subheader("1. Dokument")
-        upload = st.file_uploader("Upload Bild/PDF:", type=['pdf','png','jpg','jpeg'], key="final_v_1")
+        st.subheader("1. Dokument hochladen")
+        upload = st.file_uploader("Upload Bild/PDF:", type=['pdf','png','jpg','jpeg'], key="main_up")
         if upload:
             if upload.type.startswith("image"): st.image(upload, use_container_width=True)
-            else: st.success("✅ PDF geladen.")
-
+            else: st.info("✅ PDF geladen.")
     with col_r:
-        st.subheader("2. Ergebnis")
+        st.subheader("2. Analyse & Ergebnis")
         if upload and st.session_state.credits > 0:
-            c_b1, c_b2 = st.columns(2)
-            with c_b1:
-                if st.button("🚀 ANALYSE"):
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("🚀 ANALYSE STARTEN"):
                     with st.spinner("Läuft..."):
-                        txt = get_text(upload)
-                        res = run_ai(txt, lang_choice, "S")
-                        st.session_state.full_res = res; st.session_state.last_mode = "S"; st.session_state.credits -= 1; st.rerun()
-            with c_b2:
+                        txt = get_text(upload); res = run_ai(txt, lang_choice, "S")
+                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf!")
+                        else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
+            with c2:
                 if st.button("⚖️ WIDERSPRUCH"):
-                    with st.spinner("Läuft..."):
-                        txt = get_text(upload)
-                        res = run_ai(txt, lang_choice, "W")
-                        st.session_state.full_res = res; st.session_state.last_mode = "W"; st.session_state.credits -= 1; st.rerun()
+                    with st.spinner("Wird erstellt..."):
+                        txt = get_text(upload); res = run_ai(txt, lang_choice, "W")
+                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf!")
+                        else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
         
         if st.session_state.full_res:
-            st.markdown(f'<div style="background:#f8fafc; padding:15px; border-radius:10px; border-left:5px solid #1e3a8a;">{st.session_state.full_res}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background:#f8fafc; padding:20px; border-radius:10px; border-left:5px solid #1e3a8a;">{st.session_state.full_res}</div>', unsafe_allow_html=True)
             st.divider()
-            d_c1, d_c2, d_c3, d_c4 = st.columns(4)
-            with d_c1: st.download_button("📝 Word", create_docx(st.session_state.full_res, st.session_state.last_mode), "Brief.docx")
-            with d_c2: st.download_button("📄 PDF", create_pdf_final(st.session_state.full_res, st.session_state.last_mode), "Analyse.pdf")
-            with d_c3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
-            with d_c4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Fristen.ics")
+            d1, d2, d3, d4 = st.columns(4)
+            with d1: st.download_button("📝 Word", Document().add_paragraph(st.session_state.full_res) and io.BytesIO() or b"", "Antwort.docx")
+            with d2: st.download_button("📄 PDF", create_pdf(st.session_state.full_res, "S"), "Analyse.pdf")
+            with d3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
+            with d4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Fristen.ics")
 
 with t2:
-    st.header("⚡ Vorlagen")
-    st.info("**Fristverlängerung:** Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung...")
-    st.info("**Widerspruch:** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein...")
+    st.header("⚡ Schnell-Vorlagen")
+    for title, content in VORLAGEN_CONTENT:
+        st.markdown(f"**{title}:**"); st.info(content)
 
 with t3: st.header("❓ FAQ"); st.markdown(FAQ_TEXT)
 with t4: st.header("⚖️ Impressum"); st.markdown(IMPRESSUM_TEXT)
