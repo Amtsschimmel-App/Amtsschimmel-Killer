@@ -37,7 +37,7 @@ if "pack" in params and sid not in st.session_state.processed_sessions:
     if sid: st.session_state.processed_sessions.add(sid)
     st.toast("✅ Zahlung erfolgreich verbucht!", icon="💰")
 
-# Admin-Backdoor (wie im Screenshot: ?admin=GeheimAmt2024!)
+# Admin-Backdoor (für Tests: ?admin=GeheimAmt2024!)
 if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
@@ -58,15 +58,17 @@ def generate_pdf_bytes(data_dict):
         txt_safe = str(content).encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 7, txt=txt_safe)
         pdf.ln(5)
-    # WICHTIG: bytes() um den Output nutzen, um AttributeError zu vermeiden
+    # WICHTIG: Bytes-Output für Streamlit Download
     return bytes(pdf.output(dest='S'))
 
 # ==========================================
-# 3. DESIGN & STYLING (LAYOUT-ANPASSUNG)
+# 3. DESIGN & STYLING (FIX FÜR HÖHE)
 # ==========================================
 st.markdown("""
     <style>
-        .block-container { padding-top: 1.5rem; }
+        /* Verhindert, dass die obere Leiste zu hoch klebt */
+        .block-container { padding-top: 5rem !important; }
+        
         .paket-card { 
             border: 1px solid #dee2e6; padding: 15px; border-radius: 10px; 
             background-color: #ffffff; margin-bottom: 10px; text-align: center;
@@ -74,11 +76,13 @@ st.markdown("""
         }
         .price-tag { font-size: 16px; font-weight: bold; color: #0d47a1; margin: 5px; }
         .no-abo-text { font-size: 11px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
+        
         .result-box { 
             background-color: #f0f7ff; padding: 15px; border-radius: 10px; 
             border-left: 5px solid #0d47a1; margin-bottom: 15px; 
         }
         .box-title { font-weight: bold; color: #0d47a1; margin-bottom: 5px; text-transform: uppercase; border-bottom: 1px solid #dee2e6; }
+        
         .stLinkButton a {
             background-color: #0d47a1 !important; color: white !important;
             border-radius: 5px !important; width: 100% !important; display: block;
@@ -90,7 +94,7 @@ st.markdown("""
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ==========================================
-# 4. INFOS & RECHTLICHES (EXPANDER MIT ABSTÄNDEN)
+# 4. INFOS & RECHTLICHES (OBERE LEISTE)
 # ==========================================
 t1, t2, t3, t4 = st.columns(4)
 with t1:
@@ -113,41 +117,39 @@ with t2:
         st.write("Wir behandeln Ihre personenbezogenen Daten vertraulich (DSGVO).")
         st.write("")
         st.write("**2. Datenerfassung & Hosting**")
-        st.write("Gehostet auf Streamlit Cloud. Logfiles werden automatisch vom Hoster erfasst.")
+        st.write("Hosting auf Streamlit Cloud. Automatische Logfiles durch den Hoster.")
         st.write("")
         st.write("**3. Dokumentenverarbeitung**")
-        st.write("TLS-Übertragung an OpenAI. Keine dauerhafte Speicherung Ihrer Briefe.")
+        st.write("TLS-Übertragung an OpenAI (USA). Keine dauerhafte Speicherung der Briefe.")
         st.write("")
         st.write("**4. Zahlungsabwicklung**")
-        st.write("Zahlung via Stripe. Wir erhalten nur eine Bestätigung.")
+        st.write("Abwicklung über Stripe. Wir erhalten nur die Bestätigung.")
         st.write("")
         st.write("**5. Ihre Rechte**")
-        st.write("Recht auf Auskunft & Löschung via amtsschimmel-killer@proton.me.")
+        st.write("Auskunft & Löschung via amtsschimmel-killer@proton.me.")
 
 with t3:
     with st.expander("❓ FAQ"):
         st.write("**Ist das ein Abonnement?**")
-        st.write("Nein. Wir hassen Abos! Jede Zahlung ist eine Einmalzahlung.")
+        st.write("Nein. Jede Zahlung ist eine Einmalzahlung. Wir hassen Abos!")
         st.write("")
         st.write("**Wie sicher sind meine Dokumente?**")
         st.write("Verschlüsselte Verarbeitung, Löschung sofort nach dem Scan.")
         st.write("")
         st.write("**Ersetzt die App eine Rechtsberatung?**")
-        st.write("Nein. Wir bieten eine Formulierungshilfe und Textverständnis.")
+        st.write("Nein. Wir bieten eine Formulierungshilfe.")
         st.write("")
         st.write("**Was passiert bei Fehlern?**")
         st.write("Nur erfolgreiche Analysen verbrauchen Guthaben.")
 
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.write("**Fristverlängerung:**")
-        st.code("...bitte ich um Verlängerung der gesetzten Frist bis zum [Datum]...")
-        st.write("")
-        st.write("**Widerspruch:**")
-        st.code("...lege ich hiermit Widerspruch ein. Begründung folgt separat...")
-        st.write("")
-        st.write("**Akteneinsicht:**")
-        st.code("...beantrage ich hiermit gemäß § 25 SGB X Akteneinsicht.")
+        st.info("Fristverlängerung")
+        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung...")
+        st.info("Widerspruch")
+        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein...")
+        st.info("Akteneinsicht")
+        st.code("Sehr geehrte Damen und Herren, beantrage ich hiermit gemäß § 25 SGB X Akteneinsicht.")
 
 st.divider()
 
@@ -158,13 +160,11 @@ col_links, col_mitte, col_rechts = st.columns([1, 1.2, 1.3])
 
 # --- SPALTE LINKS: SPRACHEN & PAKETE ---
 with col_links:
-    st.markdown("### 🌐 Sprachen")
+    st.subheader("🌐 Sprachen")
     lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇺🇦 Ukrainska"], label_visibility="collapsed")
-    
     st.write("")
     if os.path.exists("icon_final_blau.png"): 
         st.image("icon_final_blau.png", width=110)
-    
     st.write("---")
     
     pakete = [
@@ -172,21 +172,16 @@ with col_links:
         ("Amtsschimmel Killer: Spar Paket (3 Dokumente)", "9,99 €", STRIPE_2),
         ("Amtsschimmel Killer: Sorglos Paket (10 Dokumente)", "19,99 €", STRIPE_3)
     ]
-    
-    for t, p, l in pakete:
-        st.markdown(f"""
-            <div class="paket-card">
-                <div style="font-size: 13px; font-weight: 500;">{t}</div>
-                <div class="price-tag">Einmalpreis {p}</div>
-                <div class="no-abo-text">❌ KEIN ABO</div>
-            </div>
-        """, unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", l)
+    for titel, preis, link in pakete:
+        st.markdown(f'<div class="paket-card"><div style="font-size: 13px; font-weight: 500;">{titel}</div><div class="price-tag">Einmalpreis {preis}</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", link)
         st.write("")
 
-# --- SPALTE MITTE: UPLOAD & VORSCHAU ---
+# --- SPALTE MITTE: UPLOAD ---
 with col_mitte:
-    st.markdown("### 📄 Upload & Vorschau")
+    # Abstandshalter, damit Upload neben den Paketen sitzt
+    st.write("<div style='height: 60px;'></div>", unsafe_allow_html=True)
+    st.subheader("📑 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Dokumente**")
     
     upped = st.file_uploader("Upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
@@ -205,9 +200,8 @@ with col_mitte:
         
         if st.button("🚀 JETZT ANALYSIEREN", type="primary", use_container_width=True):
             if st.session_state.credits > 0:
-                with st.spinner("Amtsschimmel wird bekämpft..."):
+                with st.spinner("Analyse läuft..."):
                     try:
-                        # Stabiler Prompt für Parsing
                         prompt = f"Analysiere diesen Text auf {lang}. Trenne exakt nach: ###SUM### (Zusammenfassung), ###FRIST### (Fristen), ###ANTWORT### (Entwurf). Text: {extracted_text}"
                         res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
                         full = res.choices[0].message.content
@@ -218,27 +212,21 @@ with col_mitte:
                             "Antwort-Entwurf": full.split("###ANTWORT###")[-1].strip()
                         }
                         st.session_state.credits -= 1
-                        st.balloons() # Erfolg feiern!
+                        st.balloons()
                         st.rerun()
-                    except Exception as e: st.error(f"KI-Fehler: {e}")
+                    except Exception as e: st.error(f"Fehler: {e}")
             else: st.warning("Bitte erst links Guthaben kaufen!")
 
-# --- SPALTE RECHTS: ANALYSE & ANTWORT ---
+# --- SPALTE RECHTS: ANALYSE ---
 with col_rechts:
-    st.markdown("### 🔍 Analyse & Antwort")
+    st.subheader("🔍 Analyse & Antwort")
     if st.session_state.full_res:
         for title, text in st.session_state.full_res.items():
             st.markdown(f'<div class="result-box"><div class="box-title">{title}</div>{text}</div>', unsafe_allow_html=True)
         
-        # Downloadbereich
         pdf_data = generate_pdf_bytes(st.session_state.full_res)
-        st.download_button(
-            label="📥 PDF Analyse herunterladen",
-            data=pdf_data,
-            file_name=f"Amtsschimmel_Killer_{datetime.now().strftime('%d%m%Y')}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+        st.download_button(label="📥 PDF Analyse speichern", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf", use_container_width=True)
+        
         if st.button("🔄 Neuer Scan", use_container_width=True):
             st.session_state.full_res = None
             st.rerun()
