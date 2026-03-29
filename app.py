@@ -12,19 +12,41 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# 1. SETUP & KOMPAKTES DESIGN
+# 1. SETUP & DESIGN (STRENG FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
+
+# DIE FIXIERTEN STRIPE LINKS
+STRIPE_1 = "https://buy.stripe.com"
+STRIPE_2 = "https://buy.stripe.com"
+STRIPE_3 = "https://buy.stripe.com"
 
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; }
-        .paket-card { border: 2px solid #0d47a1; padding: 10px; border-radius: 10px; background-color: #f0f7ff; margin-bottom: 5px; text-align: center; }
-        .price-tag { font-size: 20px; font-weight: bold; color: #0d47a1; }
-        .no-abo { font-size: 11px; color: #d32f2f; font-weight: bold; }
-        .stDownloadButton button { width: 100% !important; background-color: #e1f5fe; border: 1px solid #01579b; font-weight: bold; }
-        .stLinkButton a { width: 100% !important; background-color: #0d47a1 !important; color: white !important; font-weight: bold; text-align: center; border-radius: 5px; }
-        .stExpander div { line-height: 1.6 !important; white-space: pre-wrap !important; font-size: 13px; }
+        .paket-card {
+            border: 2px solid #0d47a1;
+            padding: 10px;
+            border-radius: 12px;
+            background-color: #f8fbff;
+            margin-bottom: 5px;
+            text-align: center;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        .price-tag { font-size: 22px; font-weight: bold; color: #0d47a1; margin: 2px 0; }
+        .no-abo-text { font-size: 11px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
+        .stLinkButton a {
+            width: 100% !important;
+            background-color: #0d47a1 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            font-weight: bold !important;
+            padding: 10px !important;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .stExpander div { line-height: 1.5 !important; white-space: pre-wrap !important; font-size: 13px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,11 +59,12 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 
+# Admin Backdoor (URL: ?admin=GeheimAmt2024!)
 if st.query_params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
 # ==========================================
-# 3. OBERE ZEILE: RECHTSTEXTE (DEINE TEXTE)
+# 3. OBERE ZEILE: 4 BOXEN EINGEKLAPPT (FIXIERT)
 # ==========================================
 st.title("Amtsschimmel-Killer 🪓")
 
@@ -68,10 +91,10 @@ with t2:
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
 2. Datenerfassung & Hosting
-Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
+Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
 
 3. Dokumentenverarbeitung
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
+Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.
 
 4. Zahlungsabwicklung (Stripe)
 Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
@@ -112,67 +135,67 @@ st.divider()
 # ==========================================
 # 4. HAUPTBEREICH (PAKETE | UPLOAD | ANALYSE)
 # ==========================================
-c_pax, c_up, c_res = st.columns([0.9, 1.1, 1.4])
+c_pak, c_up, c_res = st.columns([0.9, 1.1, 1.4])
 
-with c_pax:
+with c_pak:
     st.subheader("🌐 Sprachen")
-    st.selectbox("Wahl", ["Deutsch", "English", "Türkçe", "Polski", "Русский", "العربية"], label_visibility="collapsed")
+    st.selectbox("Wahl", [
+        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", 
+        "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", 
+        "🇮🇹 Italiano", "🇷🇴 Română", "🇺🇦 Українська"
+    ], label_visibility="collapsed")
     
     if os.path.exists(LOGO_DATEI):
         st.image(LOGO_DATEI, width=130)
     
     st.subheader("💰 Pakete")
+    st.markdown(f'<div class="paket-card"><b>📦 Basis Paket</b><br><div class="price-tag">3,99 €</div><div class="no-abo-text">1 Scan • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", STRIPE_1)
     
-    # BASIS
-    st.markdown('<div class="paket-card"><div style="font-weight:bold;">📦 Basis Paket</div><div class="price-tag">3,99 €</div><div class="no-abo">1 Scan • Einmalzahlung</div></div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
+    st.markdown(f'<div class="paket-card"><b>🎁 Spar Paket</b><br><div class="price-tag">9,99 €</div><div class="no-abo-text">3 Scans • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", STRIPE_2)
     
-    # SPAR
-    st.markdown('<div class="paket-card"><div style="font-weight:bold;">🎁 Spar Paket</div><div class="price-tag">9,99 €</div><div class="no-abo">3 Scans • Einmalzahlung</div></div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
-    
-    # PREMIUM
-    st.markdown('<div class="paket-card"><div style="font-weight:bold;">💎 Premium Paket</div><div class="price-tag">19,99 €</div><div class="no-abo">10 Scans • Einmalzahlung</div></div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
+    st.markdown(f'<div class="paket-card"><b>💎 Premium Paket</b><br><div class="price-tag">19,99 €</div><div class="no-abo-text">10 Scans • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", STRIPE_3)
 
 with c_up:
     st.subheader("📄 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Scans**")
-    
-    upped = st.file_uploader("Hier Brief hochladen", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+    upped = st.file_uploader("Datei upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
     if upped:
         if upped.type == "application/pdf":
             try:
-                images = convert_from_bytes(upped.read())
+                images = convert_from_bytes(upped.getvalue())
                 for i, img in enumerate(images): st.image(img, caption=f"Seite {i+1}", use_container_width=True)
-            except: st.error("PDF-Vorschau nicht möglich")
+            except: st.error("Vorschau nicht möglich")
         else:
             st.image(upped, caption="Vorschau", use_container_width=True)
         
         if st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
-                # Hier Text-Extraktion & GPT-4o
-                st.session_state.full_res = "### 🚦 Wichtigkeit\nHoch\n\n### 📖 Zusammenfassung\nBrief analysiert...\n\n### 📅 Fristen\n31.12.2025\n\n### ✍️ Entwurf\nSehr geehrte Damen..."
-                st.session_state.credits -= 1
-                st.rerun()
+                with st.spinner("Analyse läuft..."):
+                    # GPT-4o Logik hier einfügen
+                    st.session_state.full_res = "### 🚦 Wichtigkeit\nHoch\n\n### 📖 Zusammenfassung\nAnalyse fertig.\n\n### 📅 Fristen\n31.12.2025"
+                    st.session_state.credits -= 1
+                    st.rerun()
 
 with c_res:
-    st.subheader("📊 Analyse-Boxen")
+    st.subheader("📊 Ergebnisse")
     if st.session_state.full_res:
         res = st.session_state.full_res
         st.info(f"**🚦 Wichtigkeit**\n{re.search(r'🚦(.*?)(?=📖|$)', res, re.S).group(1) if '🚦' in res else '...'}")
         st.write(f"**📖 Zusammenfassung**\n{re.search(r'📖(.*?)(?=📅|$)', res, re.S).group(1) if '📖' in res else '...'}")
         st.warning(f"**📅 Fristen**\n{re.search(r'📅(.*?)(?=✍️|$)', res, re.S).group(1) if '📅' in res else '...'}")
-        st.success(f"**✍️ Antwortschreiben**\n{re.search(r'✍️(.*)', res, re.S).group(1) if '✍️' in res else '...'}")
+        st.success(f"**✍️ Antwort-Entwurf**\n{re.search(r'✍️(.*)', res, re.S).group(1) if '✍️' in res else '...'}")
 
 # ==========================================
-# 5. DOWNLOADS UNTEN
+# 5. DOWNLOADS GANZ UNTEN
 # ==========================================
 if st.session_state.full_res:
     st.divider()
     d1, d2, d3, d4 = st.columns(4)
-    with d1: st.download_button("📄 PDF", b"data", "Analyse.pdf")
-    with d2: st.download_button("📝 Word", b"data", "Analyse.docx")
-    with d3: st.download_button("📊 Excel", b"data", "Fristen.xlsx")
+    with d1: st.download_button("📄 PDF Export", b"data", "Analyse.pdf")
+    with d2: st.download_button("📝 Word Export", b"data", "Analyse.docx")
+    with d3: st.download_button("📊 Excel Liste", b"data", "Fristen.xlsx")
     with d4: st.download_button("📅 Kalender", b"data", "Frist.ics")
