@@ -43,7 +43,7 @@ if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
 # ==========================================
-# 2. EXPORT FUNKTIONEN
+# 2. EXPORT FUNKTIONEN (INKL. EXCEL AUTO-FIT)
 # ==========================================
 def get_pdf_bytes(data):
     pdf = FPDF()
@@ -74,6 +74,12 @@ def get_xlsx_bytes(data):
     bio = io.BytesIO()
     with pd.ExcelWriter(bio, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Analyse')
+        # Automatisches Anpassen der Spaltenbreite
+        worksheet = writer.sheets['Analyse']
+        for i, col in enumerate(df.columns):
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+            # Limitieren der Breite für bessere Lesbarkeit
+            worksheet.column_dimensions[chr(65 + i)].width = min(column_len, 50)
     return bio.getvalue()
 
 def get_ics_bytes(data):
@@ -133,10 +139,10 @@ with t2:
         st.write("Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.")
         st.write("")
         st.write("**3. Dokumentenverarbeitung**")
-        st.write("Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.")
+        st.write("Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.")
         st.write("")
         st.write("**4. Zahlungsabwicklung (Stripe)**")
-        st.write("Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung.")
+        st.write("Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.")
         st.write("")
         st.write("**5. Ihre Rechte**")
         st.write("Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontakt unter amtsschimmel-killer@proton.me.")
@@ -144,30 +150,30 @@ with t2:
 with t3:
     with st.expander("❓ FAQ"):
         st.write("**Ist das ein Abonnement?**")
-        st.write("Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung.")
+        st.write("Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.")
         st.write("")
         st.write("**Wie sicher sind meine Dokumente?**")
-        st.write("Verschlüsselte Übertragung, keine dauerhafte Speicherung auf unseren Servern. Löschung nach dem Scan.")
+        st.write("Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.")
         st.write("")
         st.write("**Ersetzt die App eine Rechtsberatung?**")
-        st.write("Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis.")
+        st.write("Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.")
         st.write("")
         st.write("**Was passiert, wenn der Scan fehlschlägt?**")
-        st.write("Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.")
+        st.write("Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.")
         st.write("")
         st.write("**Wie erreiche ich Elisabeth Reinecke?**")
-        st.write("Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me.")
+        st.write("Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
 
 with t4:
     with st.expander("📝 Vorlagen"):
         st.write("**Fristverlängerung:**")
-        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.")
+        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
         st.write("")
-        st.write("**Widerspruch:**")
-        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein.")
+        st.write("**Widerspruch einlegen (Fristwahrend):**")
+        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
         st.write("")
-        st.write("**Akteneinsicht:**")
-        st.code("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X Akteneinsicht.")
+        st.write("**Akteneinsicht einfordern:**")
+        st.code("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
 st.divider()
 
@@ -194,11 +200,10 @@ with col_paks:
 
 # --- SPALTE 2: UPLOAD (TIEFER GESETZT) ---
 with col_up:
-    # Der Abstandshalter, um den Upload nach unten neben die Pakete zu schieben
     st.write("<div style='height: 110px;'></div>", unsafe_allow_html=True)
     st.subheader("📑 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Scans**")
-    upped = st.file_uploader("Datei hier reinziehen", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+    upped = st.file_uploader("Upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
     if upped:
         if upped.type == "application/pdf":
@@ -224,11 +229,11 @@ with col_res:
                     
                     prompt = f"Analysiere auf {lang}. Trenne: ###SUM### Zusammenfassung, ###FRIST### Fristen, ###ANTWORT### Antwortentwurf. Text: {text}"
                     res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                    full = res.choices[0].message.content
+                    full = res.choices.message.content
                     
                     st.session_state.full_res = {
-                        "Zusammenfassung": full.split("###SUM###")[-1].split("###FRIST###")[0].strip(),
-                        "Fristen": full.split("###FRIST###")[-1].split("###ANTWORT###")[0].strip(),
+                        "Zusammenfassung": full.split("###SUM###")[-1].split("###FRIST###").strip(),
+                        "Fristen": full.split("###FRIST###")[-1].split("###ANTWORT###").strip(),
                         "Antwort-Entwurf": full.split("###ANTWORT###")[-1].strip()
                     }
                     st.session_state.credits -= 1
