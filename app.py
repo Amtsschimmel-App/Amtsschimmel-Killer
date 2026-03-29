@@ -27,7 +27,7 @@ st.markdown("""
 LOGO_DATEI = "icon_final_blau.png"
 
 # ==========================================
-# 2. RECHTSTEXTE (EXAKT DEINE VORGABE MIT ABSTÄNDEN)
+# 2. RECHTSTEXTE (EXAKT DEINE VORGABE)
 # ==========================================
 IMPRESSUM_TEXT = """
 **Impressum:**
@@ -70,7 +70,7 @@ FAQ_TEXT = """
 **FAQ**
 
 **Ist das ein Abonnement?**  
-Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine **Einmalzahlung** für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
+Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
 **Wie sicher sind meine Dokumente?**  
 Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
@@ -106,11 +106,11 @@ if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
 # DIE FIXIERTEN STRIPE LINKS
-STRIPE_BASIS = "https://buy.stripe.com"
-STRIPE_SPAR = "https://buy.stripe.com"
-STRIPE_PREMIUM = "https://buy.stripe.com"
+STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
+STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
+STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
 
-# Admin Logik (999 Scans)
+# Admin Logik
 params = st.query_params
 if params.get("admin") == "GeheimAmt2024!" and st.session_state.credits < 500:
     st.session_state.credits = 999
@@ -139,7 +139,7 @@ def create_pdf(text):
 
 def create_docx(text):
     doc = Document()
-    doc.add_heading('Analyse-Ergebnis', 0)
+    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
     doc.add_paragraph(text.replace("#", "").replace("*", ""))
     bio = io.BytesIO()
     doc.save(bio)
@@ -147,10 +147,7 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({
-        "Datum/Frist": dates if dates else ["Kein Datum"], 
-        "Info": ["Termin aus Analyse" for _ in range(max(1, len(dates)))]
-    })
+    df = pd.DataFrame({"Frist/Datum": dates if dates else ["Kein Datum"], "Info": ["Aus Analyse" for _ in range(max(1, len(dates)))]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -258,7 +255,7 @@ with col_left:
         if u_file.type != "application/pdf":
             st.image(u_file, caption="Vorschau", use_container_width=True)
         else:
-            st.info("📄 PDF geladen. Bereit zur Analyse.")
+            st.info("📄 PDF erfolgreich geladen. Bereit zur Analyse.")
     
     mode = st.radio("Was soll erstellt werden?", ["Antwortbrief 📝", "Widerspruch 🛑"], horizontal=True)
     
@@ -285,4 +282,4 @@ with col_right:
         with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics", mime="text/calendar")
     else:
-        st.info("Das Ergebnis erscheint hier nach dem Scan.")
+        st.info("Hier erscheint das Ergebnis nach dem Scan.")
