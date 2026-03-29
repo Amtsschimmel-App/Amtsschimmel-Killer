@@ -27,7 +27,7 @@ st.markdown("""
 LOGO_DATEI = "icon_final_blau.png"
 
 # ==========================================
-# 2. RECHTSTEXTE (EXAKT DEINE VORGABE)
+# 2. RECHTSTEXTE (EXAKT DEINE VORGABE MIT ABSTÄNDEN)
 # ==========================================
 IMPRESSUM_TEXT = """
 **Impressum:**
@@ -70,7 +70,7 @@ FAQ_TEXT = """
 **FAQ**
 
 **Ist das ein Abonnement?**  
-Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
+Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine **Einmalzahlung** für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
 **Wie sicher sind meine Dokumente?**  
 Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
@@ -99,16 +99,16 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 """
 
 # ==========================================
-# 3. SESSION STATE & STRIPE LINKS (FEST)
+# 3. SESSION STATE & STRIPE LINKS (FIXIERT)
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
 # DIE FIXIERTEN STRIPE LINKS
-STRIPE_BASIS = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
-STRIPE_SPAR = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
-STRIPE_PREMIUM = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
+STRIPE_BASIS = "https://buy.stripe.com"
+STRIPE_SPAR = "https://buy.stripe.com"
+STRIPE_PREMIUM = "https://buy.stripe.com"
 
 # Admin Logik (999 Scans)
 params = st.query_params
@@ -135,7 +135,7 @@ def create_pdf(text):
     pdf.cell(0, 10, "ANALYSE-ERGEBNIS", ln=True)
     pdf.set_font("Helvetica", size=11)
     pdf.multi_cell(0, 8, txt=clean_txt(text))
-    return pdf.output(dest='S') # Gibt Bytes direkt zurück
+    return pdf.output(dest='S')
 
 def create_docx(text):
     doc = Document()
@@ -147,7 +147,10 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Frist/Datum": dates if dates else ["Kein Datum"], "Info": ["Aus Analyse" for _ in range(max(1, len(dates)))]})
+    df = pd.DataFrame({
+        "Datum/Frist": dates if dates else ["Kein Datum"], 
+        "Info": ["Termin aus Analyse" for _ in range(max(1, len(dates)))]
+    })
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -184,7 +187,7 @@ def run_ai(raw_text, lang, mode):
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
     sys_p = f"Rechtsexperte. Sprache: {lang}. Erstelle: 🚦AMPEL, 📖GLOSSAR, 📅FRISTEN, ✍️{label}, 📋CHECKLISTE."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices[0].message.content # Korrektur für OpenAI v1+
+    return resp.choices[0].message.content
 
 # ==========================================
 # 6. UI - OBERE INFO-LEISTE (FIXIERT)
@@ -202,13 +205,18 @@ with c4:
 st.divider()
 
 # ==========================================
-# 7. SIDEBAR - SHOP (AUFGEMOTZT & FEST)
+# 7. SIDEBAR - SHOP & SPRACHEN (VOLLSTÄNDIG)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
     
     st.subheader("🌍 1. Sprache wählen")
-    lang_choice = st.selectbox("Ausgabe:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский"], label_visibility="collapsed")
+    lang_choice = st.selectbox("Ausgabe:", [
+        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
+        "🇮🇹 Italiano", "🇫🇷 Français", "🇪🇸 Español", "🇺🇦 Українська", 
+        "🇦🇪 العربية", "🇷🇴 Română", "🇬🇷 Ελληνικά", "🇳🇱 Nederlands", 
+        "🇵🇹 Português", "🇧🇬 Български", "🇭🇷 Hrvatski"
+    ], label_visibility="collapsed")
     
     st.divider()
     st.subheader("🛒 2. Scans kaufen")
@@ -248,32 +256,33 @@ with col_left:
     
     if u_file:
         if u_file.type != "application/pdf":
-            st.image(u_file, caption="Dokument Vorschau", use_container_width=True)
+            st.image(u_file, caption="Vorschau", use_container_width=True)
         else:
-            st.info("📄 PDF erfolgreich geladen.")
+            st.info("📄 PDF geladen. Bereit zur Analyse.")
     
     mode = st.radio("Was soll erstellt werden?", ["Antwortbrief 📝", "Widerspruch 🛑"], horizontal=True)
     
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
-            with st.spinner("KI übersetzt Amtsschimmel-Deutsch..."):
+            with st.spinner("KI liest den Amtsschimmel..."):
                 raw = get_text(u_file)
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
         else:
-            st.error("Guthaben leer! Bitte links wählen.")
+            st.error("Guthaben leer! Bitte links ein Paket wählen.")
 
 with col_right:
     st.subheader("2. Analyse & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.write("📥 **Export:**")
+        st.write("📥 **Ergebnis exportieren:**")
+        
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf", mime="application/pdf")
         with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics", mime="text/calendar")
     else:
-        st.info("Hier erscheint das Ergebnis nach dem Scan.")
+        st.info("Das Ergebnis erscheint hier nach dem Scan.")
