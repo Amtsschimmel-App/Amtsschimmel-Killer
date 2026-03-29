@@ -18,12 +18,12 @@ import gc
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 LOGO_DATEI = "icon_final_blau.png"
 
-# 2. SESSION STATE & GUTHABEN-LOGIK (PRIORISIERT)
+# 2. SESSION STATE & ADMIN
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# --- GUTHABEN-CHECK BEIM START ---
+# Guthaben-Check beim Start
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
@@ -31,7 +31,6 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
         if pack_size > 0:
             st.session_state.credits += pack_size
             st.session_state.processed_sessions.append(params["session_id"])
-            st.balloons()
             st.toast(f"✅ {pack_size} Scan(s) gutgeschrieben!")
     except: pass
 
@@ -47,8 +46,6 @@ st.markdown("""
     .buy-button:hover { border-color: #1e3a8a; background: #f8fafc; scale: 1.02; }
     .legal-box { font-size: 0.9em; color: #334155; line-height: 1.6; background: #f8fafc; padding: 25px; border-radius: 10px; border: 1px solid #e2e8f0; }
     .result-section { background-color: #ffffff; border-left: 5px solid #1e3a8a; padding: 15px; margin-bottom: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); white-space: pre-wrap; }
-    .faq-q { font-weight: bold; color: #1e3a8a; margin-top: 15px; font-size: 1.1em; display: block; }
-    .faq-a { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #cbd5e1; color: #475569; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -71,7 +68,7 @@ def get_text_hybrid(uploaded_file):
 def analyze_letter(raw_text, lang):
     sys_p = f"Rechtsexperte. Sprache: {lang}. Analysiere strikt: ### FRISTEN ### und ### ANTWORTBRIEF ###."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices.message.content
+    return resp.choices[0].message.content # FIX: .choices[0] hinzugefügt
 
 def create_excel_clean(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
@@ -82,17 +79,6 @@ def create_excel_clean(text):
         worksheet = writer.sheets['Fristen']
         worksheet.set_column('A:B', 60)
     return output.getvalue()
-
-def create_ical(text):
-    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    ical = "BEGIN:VCALENDAR\nVERSION:2.0\n"
-    for d in dates:
-        try:
-            dt = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ical += f"BEGIN:VEVENT\nDTSTART;VALUE=DATE:{dt}\nSUMMARY:Frist Amtsschimmel\nEND:VEVENT\n"
-        except: pass
-    ical += "END:VCALENDAR"
-    return ical.encode('utf-8')
 
 def create_pdf_bytes(text):
     pdf = FPDF()
@@ -112,23 +98,26 @@ with st.sidebar:
             ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), 
             ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
     for n, l, c, p in pkgs:
-        st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small style="color:#16a34a;">✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
 
 # 6. HAUPTBEREICH
 t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ & Hilfe"])
 
 with t1:
     st.title("Amtsschimmel-Killer 📄🚀")
-    
     col_v, col_a = st.columns([1, 1.2]) 
     
     with col_v:
         upload = st.file_uploader("Brief hier hochladen:", type=['pdf', 'png', 'jpg', 'jpeg'])
         if upload:
-            if upload.type != "application/pdf": 
+            if upload.type == "application/pdf":
+                try:
+                    # PDF-Vorschau: Erste Seite als Bild
+                    images = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
+                    st.image(images[0], caption="Vorschau der 1. Seite", use_container_width=True)
+                except: st.info("✅ PDF geladen (Vorschau nicht möglich).")
+            else:
                 st.image(upload, caption="Vorschau deines Briefs", use_container_width=True)
-            else: 
-                st.info("✅ PDF geladen. Vorschau für PDFs nicht direkt verfügbar.")
 
     with col_a:
         if upload and st.session_state.credits > 0 and not st.session_state.full_res:
@@ -142,14 +131,13 @@ with t1:
         if st.session_state.full_res:
             st.success("Analyse fertig!")
             st.markdown(f'<div class="result-section">{st.session_state.full_res}</div>', unsafe_allow_html=True)
-            st.divider()
-            d1, d2, d3, d4 = st.columns(4)
+            d1, d2, d3 = st.columns(3)
             with d1: st.download_button("💾 Text", st.session_state.full_res, "antwort.txt")
             with d2: st.download_button("📊 Excel", create_excel_clean(st.session_state.full_res), "fristen.xlsx")
             with d3: st.download_button("📄 PDF", create_pdf_bytes(st.session_state.full_res), "antwort.pdf")
-            with d4: st.download_button("📅 iCal", create_ical(st.session_state.full_res), "termin.ics")
             if st.button("🔄 Nächster Brief"): st.session_state.full_res = ""; st.rerun()
 
+# 7. VORLAGEN, FAQ & FOOTER
 with t2:
     st.subheader("Vorlagen")
     st.info("**Fristverlängerung:** Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
@@ -158,17 +146,17 @@ with t2:
 
 with t3:
     st.subheader("FAQ")
-    st.markdown("<span class='faq-q'>Ist das ein Abonnement?</span><div class='faq-a'>Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Wie sicher sind meine Dokumente?</span><div class='faq-a'>Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Ersetzt die App eine Rechtsberatung?</span><div class='faq-a'>Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Was passiert, wenn der Scan fehlschlägt?</span><div class='faq-a'>Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen.</div>", unsafe_allow_html=True)
-    st.markdown("<span class='faq-q'>Wie erreiche ich Elisabeth Reinecke?</span><div class='faq-a'>Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>", unsafe_allow_html=True)
+    st.markdown("**Ist das ein Abonnement?**<br>Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.", unsafe_allow_html=True)
+    st.markdown("**Wie sicher sind meine Dokumente?**<br>Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.", unsafe_allow_html=True)
+    st.markdown("**Ersetzt die App eine Rechtsberatung?**<br>Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.", unsafe_allow_html=True)
+    st.markdown("**Was passiert, wenn der Scan fehlschlägt?**<br>Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen.", unsafe_allow_html=True)
+    st.markdown("**Wie erreiche ich Elisabeth Reinecke?**<br>Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.", unsafe_allow_html=True)
 
 st.divider()
 c_imp, c_dat = st.columns(2)
 with c_imp:
     with st.expander("🏢 Impressum"):
-        st.markdown("""<div class="legal-box"><strong>Amtsschimmel-Killer</strong><br>Betreiberin: Elisabeth Reinecke<br>Ringelsweide 9, 40223 Düsseldorf<br><br><strong>Kontakt:</strong><br>Telefon: +49 211 15821329<br>E-Mail: amtsschimmel-killer@proton.me<br>Web: amtsschimmel-killer.streamlit.app<br><br><strong>Haftung:</strong><br>Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.</div>""", unsafe_allow_html=True)
+        st.markdown("""<div class="legal-box"><strong>Amtsschimmel-Killer</strong><br>Betreiberin: Elisabeth Reinecke<br>Ringelsweide 9, 40223 Düsseldorf<br><br><strong>Kontakt:</strong><br>Telefon: +49 211 15821329<br>E-Mail: amtsschimmel-killer@proton.me<br>Web: <a href="https://amtsschimmel-killer.streamlit.app">amtsschimmel-killer.streamlit.app</a><br><br><strong>Haftung:</strong><br>Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.</div>""", unsafe_allow_html=True)
 with c_dat:
     with st.expander("⚖️ Datenschutz"):
         st.markdown("""<div class="legal-box"><strong>1. Datenschutz auf einen Blick</strong><br>Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).<br><br><strong>2. Datenerfassung & Hosting</strong><br>Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.<br><br><strong>3. Dokumentenverarbeitung</strong><br>Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.<br><br><strong>4. Zahlungsabwicklung (Stripe)</strong><br>Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.<br><br><strong>5. Ihre Rechte</strong><br>Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.</div>""", unsafe_allow_html=True)
