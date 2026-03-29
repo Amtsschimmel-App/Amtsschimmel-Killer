@@ -15,7 +15,7 @@ import gc
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 LOGO_DATEI = "icon_final_blau.png"
 
-# 2. DESIGN & STYLING
+# 2. DESIGN & STYLING (CSS)
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; border: none; }
@@ -37,21 +37,24 @@ st.markdown("""
 if "OPENAI_API_KEY" in st.secrets:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# --- 4. SESSION STATE & ADMIN LOGIK ---
-if "credits" not in st.session_state: st.session_state.credits = 0
-if "last_analysis" not in st.session_state: st.session_state.last_analysis = ""
+# --- 4. SESSION STATE & ADMIN LOGIK (999 Guthaben Fix) ---
+if "credits" not in st.session_state: 
+    st.session_state.credits = 0
+if "last_analysis" not in st.session_state: 
+    st.session_state.last_analysis = ""
 
-# Admin-Check
+# WICHTIG: Admin-Check für 999 Guthaben
+# Aufruf via: https://amtsschimmel-killer.streamlit.app!
 if st.query_params.get("admin") == "GeheimAmt2024!":
-    if st.session_state.credits < 100:
-        st.session_state.credits = 999
-        st.toast("🔓 ADMIN-MODUS AKTIV")
+    st.session_state.credits = 999
+    st.toast("🔓 ADMIN-MODUS AKTIV: 999 Scans freigeschaltet")
 
-# --- 5. SIDEBAR ---
+# --- 5. SIDEBAR (Guthaben & Pakete) ---
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): 
         st.image(LOGO_DATEI)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
+    
     st.divider()
     st.subheader("Guthaben aufladen")
     try:
@@ -61,19 +64,26 @@ with st.sidebar:
             ("💎 Profi-Paket", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
         ]
         for name, link, count, price in pkgs:
-            st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{name}</b><br>{price} | {count}<br><small>✔ Einmalzahlung</small></a>', unsafe_allow_html=True)
-    except: st.error("Stripe-Links fehlen in Secrets.")
+            st.markdown(f'''
+                <a href="{link}" target="_blank" class="buy-button">
+                    <b>{name}</b><br>
+                    <span style="color: #16a34a;">{price} | {count}</span><br>
+                    <small>✔ Einmalzahlung | Kein Abo</small>
+                </a>''', unsafe_allow_html=True)
+    except:
+        st.error("Stripe-Links in den Secrets fehlen.")
 
-# --- 6. HAUPTBEREICH ---
-t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Sofort-Antworten", "❓ FAQ & Hilfe"])
+# --- 6. HAUPTBEREICH (Tabs) ---
+tab1, tab2, tab3 = st.tabs(["🚀 Brief-Killer", "⚡ Sofort-Antworten", "❓ FAQ & Hilfe"])
 
-with t1:
+with tab1:
     st.title("Amtsschimmel-Killer 📄🚀")
-    # Anleitung
-    c1, c2, c3 = st.columns(3)
-    with c1: st.markdown('<div class="step-box"><b>1. Guthaben wählen</b><br><small>Paket links buchen.</small></div>', unsafe_allow_html=True)
-    with c2: st.markdown('<div class="step-box"><b>2. Brief hochladen</b><br><small>Foto oder PDF wählen.</small></div>', unsafe_allow_html=True)
-    with c3: st.markdown('<div class="step-box"><b>3. Antwort nutzen</b><br><small>Kopieren & abschicken.</small></div>', unsafe_allow_html=True)
+    
+    # 3-Schritte-Anleitung
+    s1, s2, s3 = st.columns(3)
+    with s1: st.markdown('<div class="step-box"><b>1. Guthaben wählen</b><br><small>Paket links buchen.<br>Einmalzahlung.</small></div>', unsafe_allow_html=True)
+    with s2: st.markdown('<div class="step-box"><b>2. Brief hochladen</b><br><small>Foto oder PDF hochladen.<br>Wir lesen den Bescheid.</small></div>', unsafe_allow_html=True)
+    with s3: st.markdown('<div class="step-box"><b>3. Antwort nutzen</b><br><small>Antwort kopieren, Aktenzeichen ergänzen.</small></div>', unsafe_allow_html=True)
     
     st.divider()
 
@@ -83,38 +93,74 @@ with t1:
             st.rerun()
 
     if not st.session_state.last_analysis:
-        st.info("💡 **Sicherheitshinweis:** Du kannst sensible Daten vor dem Upload schwärzen.")
-        upload = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'])
-        if upload and st.session_state.credits > 0:
-            if st.button("🚀 Analyse starten"):
-                with st.spinner("KI arbeitet..."):
-                    st.session_state.last_analysis = "KI Antwortbrief..." 
-                    st.session_state.credits -= 1
-                    st.rerun()
-        elif upload: st.error("Kein Guthaben.")
+        st.subheader("Hier Brief hochladen:")
+        st.info("💡 **Sicherheitshinweis:** Sensible Daten können vor dem Upload geschwärzt werden. Aktenzeichen sollten lesbar bleiben.")
+        
+        upload = st.file_uploader("", type=['pdf', 'png', 'jpg', 'jpeg'])
+        
+        if upload:
+            if st.session_state.credits > 0:
+                if st.button("🚀 Analyse starten"):
+                    with st.spinner("Amtsschimmel wird vertrieben..."):
+                        # Platzhalter für reale Funktion: st.session_state.last_analysis = generate_killer_response(get_text_hybrid(upload))
+                        st.session_state.last_analysis = "KI-Antwortbrief erfolgreich generiert..." 
+                        st.session_state.credits -= 1
+                        st.rerun()
+            else:
+                st.error("Guthaben leer. Bitte Paket wählen (Einmalzahlung).")
 
     if st.session_state.last_analysis:
-        st.success("Ergebnis:")
+        st.success("Analyse abgeschlossen!")
         st.code(st.session_state.last_analysis, language="text")
-        st.download_button("💾 Download", st.session_state.last_analysis, "antwort.txt")
+        st.download_button("💾 Als .txt Datei herunterladen", st.session_state.last_analysis, "antwortbrief.txt")
 
-with t2:
+with tab2:
     st.subheader("⚡ Sofort-Antworten")
-    with st.expander("⏳ Fristverlängerung"):
-        st.code("Sehr geehrte Damen und Herren...", language="text")
+    with st.expander("⏳ Fristverlängerung beantragen"):
+        st.code("Sehr geehrte Damen und Herren,\nin der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der Frist bis zum [Datum].\n\nMit freundlichen Grüßen,\n[Name]", language="text")
+    with st.expander("🛑 Widerspruch (Fristwahrend)"):
+        st.code("Sehr geehrte Damen und Herren,\ngegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein.\n\nMit freundlichen Grüßen,\n[Name]", language="text")
 
-with t3:
-    st.subheader("❓ FAQ")
-    faqs = [("Abo?", "Nein, Einmalzahlung."), ("Sicherheit?", "Verschlüsselt via SSL.")]
-    for q, a in faqs:
-        st.markdown(f"**{q}**\n\n{a}")
+with tab3:
+    st.subheader("❓ Häufig gestellte Fragen (FAQ)")
+    faq_data = [
+        ("Ist das wirklich kein Abonnement?", "Ja, wir garantieren: Jede Zahlung ist eine reine Einmalzahlung (Prepaid). Es gibt keine automatische Verlängerung."),
+        ("Sollte ich sensible Daten schwärzen?", "Ja, gerne! Private Details können unkenntlich gemacht werden. Anliegen und Aktenzeichen müssen lesbar bleiben."),
+        ("Was passiert mit meinen Dokumenten?", "Dokumente werden verschlüsselt verarbeitet und nach der Analyse sofort gelöscht. Keine dauerhafte Speicherung."),
+        ("Ersetzt diese App eine Rechtsberatung?", "Nein. Die App ist eine Formulierungshilfe und kein Ersatz für einen Anwalt."),
+        ("Wie erreiche ich den Support?", "Schreiben Sie uns an: amtsschimmel-killer@proton.me")
+    ]
+    for question, answer in faq_data:
+        st.markdown(f'<div class="faq-question">{question}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="faq-answer">{answer}</div>', unsafe_allow_html=True)
 
-# --- 7. FOOTER ---
+# --- 7. FOOTER (Impressum & Datenschutz Elisabeth Reinecke) ---
 st.divider()
-col1, col2 = st.columns(2)
-with col1:
+c1, c2 = st.columns(2)
+with c1:
     with st.expander("🏢 Impressum"):
-        st.markdown("Elisabeth Reinecke, Ringelsweide 9, 40223 Düsseldorf. amtsschimmel-killer@proton.me")
-with col2:
-    with st.expander("⚖️ Datenschutz"):
-        st.markdown("Verantwortlich: Elisabeth Reinecke. Keine Speicherung von Scans.")
+        st.markdown(f"""
+        <div class="legal-box">
+        <strong>Amtsschimmel-Killer</strong><br>
+        Betreiberin: Elisabeth Reinecke<br>
+        Ringelsweide 9<br>
+        40223 Düsseldorf<br><br>
+        <strong>Kontakt:</strong><br>
+        Telefon: +49 211 15821329<br>
+        E-Mail: amtsschimmel-killer@proton.me<br>
+        Web: amtsschimmel-killer.streamlit.app<br><br>
+        <strong>Haftung:</strong><br>
+        Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
+        </div>
+        """, unsafe_allow_html=True)
+
+with c2:
+    with st.expander("⚖️ Datenschutzerklärung"):
+        st.markdown(f"""
+        <div class="legal-box">
+        <strong>Verantwortlich:</strong> Elisabeth Reinecke, Ringelsweide 9, 40223 Düsseldorf.<br><br>
+        <strong>Datenverarbeitung:</strong> Hochgeladene Dateien werden verschlüsselt an OpenAI übertragen. Wir speichern keine Scans oder persönlichen Daten dauerhaft auf unseren Servern.<br><br>
+        <strong>Zahlungen:</strong> Abwicklung via Stripe. Keine Speicherung von Bankdaten bei uns.<br><br>
+        <strong>Ihre Rechte:</strong> Auskunft, Löschung und Widerruf jederzeit per E-Mail möglich.
+        </div>
+        """, unsafe_allow_html=True)
