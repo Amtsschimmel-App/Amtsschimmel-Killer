@@ -44,7 +44,7 @@ if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
     st.toast("🔓 ADMIN-MODUS AKTIV")
 
-# B) Stripe-Erkennung (Fix für 0 Scans nach Kauf)
+# B) Stripe-Erkennung (Gutschrift nach Kauf)
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
         pack_val = int(params.get("pack", 0))
@@ -105,7 +105,7 @@ t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ & Hilfe"])
 with t1:
     st.title("Amtsschimmel-Killer 📄🚀")
     
-    col_v, col_a = st.columns([1, 1.2]) # Links Vorschau, Rechts Analyse
+    col_v, col_a = st.columns([1, 1.2]) 
     
     with col_v:
         upload = st.file_uploader("Brief hochladen", type=['pdf', 'png', 'jpg', 'jpeg'])
@@ -118,7 +118,7 @@ with t1:
     with col_a:
         if upload and st.session_state.credits > 0:
             if st.button("🚀 Analyse starten"):
-                with st.spinner("KI arbeitet..."):
+                with st.spinner("Amtsschimmel wird vertrieben..."):
                     raw = get_text_hybrid(upload)
                     st.session_state.last_analysis = analyze_letter(raw, lang_choice)
                     st.session_state.credits -= 1
@@ -132,18 +132,31 @@ with t1:
 
 with t2:
     st.subheader("⚡ Vorlagen")
-    with st.expander("⏳ Fristverlängerung"):
+    with st.expander("Fristverlängerung:"):
         st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]", language="text")
-    with st.expander("🛑 Widerspruch einlegen"):
+    with st.expander("Widerspruch einlegen (Fristwahrend)"):
         st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]", language="text")
-    with st.expander("📂 Akteneinsicht"):
+    with st.expander("Akteneinsicht einfordern:"):
         st.code("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]", language="text")
 
 with t3:
-    st.subheader("❓ FAQ")
-    st.markdown("**Ist das ein Abonnement?**<br>Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.", unsafe_allow_html=True)
-    st.markdown("**Wie sicher sind meine Dokumente?**<br>Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert.", unsafe_allow_html=True)
-    st.markdown("**Ersetzt die App eine Rechtsberatung?**<br>Nein. Wir bieten eine Formulierungshilfe. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.", unsafe_allow_html=True)
+    st.subheader("FAQ")
+    st.markdown("""
+    <span class="faq-q">Ist das ein Abonnement?</span>
+    <div class="faq-a">Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.</div>
+    
+    <span class="faq-q">Wie sicher sind meine Dokumente?</span>
+    <div class="faq-a">Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.</div>
+    
+    <span class="faq-q">Ersetzt die App eine Rechtsberatung?</span>
+    <div class="faq-a">Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.</div>
+    
+    <span class="faq-q">Was passiert, wenn der Scan fehlschlägt?</span>
+    <div class="faq-a">Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen.</div>
+    
+    <span class="faq-q">Wie erreiche ich Elisabeth Reinecke?</span>
+    <div class="faq-a">Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>
+    """, unsafe_allow_html=True)
 
 # 8. FOOTER
 st.divider()
@@ -153,4 +166,4 @@ with c_imp:
         st.markdown("""<div class="legal-box"><strong>Amtsschimmel-Killer</strong><br>Betreiberin: Elisabeth Reinecke<br>Ringelsweide 9, 40223 Düsseldorf<br><br><strong>Kontakt:</strong><br>Telefon: +49 211 15821329<br>E-Mail: amtsschimmel-killer@proton.me<br>Web: amtsschimmel-killer.streamlit.app<br><br><strong>Haftung:</strong><br>Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.</div>""", unsafe_allow_html=True)
 with c_dat:
     with st.expander("⚖️ Datenschutz"):
-        st.markdown("""<div class="legal-box"><strong>1. Datenschutz auf einen Blick</strong><br>Wir behandeln Ihre personenbezogenen Daten vertraulich (DSGVO).<br><br><strong>2. Datenerfassung & Hosting</strong><br>Hosting auf Streamlit Cloud. Logfiles werden automatisch erfasst, wir nutzen diese nicht.<br><br><strong>3. Dokumentenverarbeitung</strong><br>Übertragung via TLS an OpenAI (USA). Keine Speicherung auf unseren Servern.<br><br><strong>4. Zahlungsabwicklung (Stripe)</strong><br>Weiterleitung zu Stripe. Wir erhalten nur die Zahlungsbestätigung.<br><br><strong>5. Ihre Rechte</strong><br>Auskunft, Löschung & Sperrung via amtsschimmel-killer@proton.me.</div>""", unsafe_allow_html=True)
+        st.markdown("""<div class="legal-box"><strong>1. Datenschutz auf einen Blick</strong><br>Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).<br><br><strong>2. Datenerfassung & Hosting</strong><br>Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.<br><br><strong>3. Dokumentenverarbeitung</strong><br>Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.<br><br><strong>4. Zahlungsabwicklung (Stripe)</strong><br>Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.<br><br><strong>5. Ihre Rechte</strong><br>Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.</div>""", unsafe_allow_html=True)
