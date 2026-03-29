@@ -57,15 +57,13 @@ if is_admin and st.session_state.credits < 100:
 
 # --- 5. HILFSFUNKTIONEN ---
 def check_text_quality(text):
-    """Prüft auf Leere oder unleserlichen Datenmüll (OCR-Fehler)."""
     text = text.strip()
     if not text or len(text) < 50:
         return False, "Das Dokument scheint leer zu sein oder der Text konnte nicht erkannt werden. Bitte achte darauf, dass das ganze Blatt sichtbar ist."
     
-    # Sonderzeichen-Quote (viele kryptische Zeichen deuten auf Unschärfe hin)
     special_chars = len(re.findall(r'[^a-zA-Z0-9\säöüÄÖÜß.,!?\-]', text))
     if len(text) > 0 and (special_chars / len(text)) > 0.25:
-        return False, "Der Text ist leider zu unscharf oder verwackelt. Bitte nochmal mit ruhiger Hand und bei besserem Licht fotografieren."
+        return False, "Der Text ist leider zu unscharf oder verwackelt. Bitte nochmal mit mehr Licht fotografieren."
     
     return True, ""
 
@@ -84,7 +82,6 @@ def get_text_hybrid(uploaded_file):
 
 def create_ics(fristen_text):
     now = datetime.now().strftime("%Y%m%dT%H%M%SZ")
-    # Einfache Extraktion eines Datums aus dem Fristentext (falls vorhanden)
     dates = re.findall(r'\d{2}\.\d{2}\.\d{4}', fristen_text)
     start_date = dates[0].replace(".", "") if dates else (datetime.now() + timedelta(days=14)).strftime("%Y%m%d")
     ics_content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTAMP:{now}\nDTSTART;VALUE=DATE:{start_date}\nSUMMARY:Behördenfrist (Amtsschimmel-Killer)\nDESCRIPTION:{fristen_text.replace('\\n', ' ')}\nEND:VEVENT\nEND:VCALENDAR"
@@ -97,11 +94,18 @@ with st.sidebar:
     st.metric("Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("💳 Guthaben laden")
-    packages = [("📄 Basis-Check", st.secrets.get("STRIPE_LINK_1", "#"), "1 Scan", "3,99 €"),
-                ("🚀 Spar-Paket", st.secrets.get("STRIPE_LINK_3", "#"), "3 Scans", "9,99 €"),
-                ("💎 Profi-Paket", st.secrets.get("STRIPE_LINK_10", "#"), "10 Scans", "19,99 €")]
+    packages = [
+        ("📄 Basis-Check", st.secrets.get("STRIPE_LINK_1", "#"), "1 Scan", "3,99 €"),
+        ("🚀 Spar-Paket", st.secrets.get("STRIPE_LINK_3", "#"), "3 Scans", "9,99 €"),
+        ("💎 Profi-Paket", st.secrets.get("STRIPE_LINK_10", "#"), "10 Scans", "19,99 €")
+    ]
     for title, link, count, price in packages:
-        st.markdown(f'<a href="{link}" target="_blank" class="buy-button"><b>{title}</b><br><small>{price} | {count}</small></a>', unsafe_allow_html=True)
+        st.markdown(f'''
+            <a href="{link}" target="_blank" class="buy-button">
+                <b>{title}</b><br>
+                <small>{price} | {count}<br><b>KEIN ABO | Einmalzahlung</b></small>
+            </a>
+        ''', unsafe_allow_html=True)
 
 # --- 7. HAUPTSEITE ---
 st.title("Amtsschimmel-Killer 📄🚀")
@@ -120,7 +124,6 @@ if upload:
             st.image(upload, use_container_width=True)
 
     with col_a:
-        # Erst Text extrahieren
         raw_text = get_text_hybrid(upload)
         is_valid, error_msg = check_text_quality(raw_text)
 
@@ -143,12 +146,12 @@ if upload:
                     ---FRISTEN---
                     (Liste hier kurz alle Fristen oder Termine mit Datum)
                     ---BRIEF---
-                    (Schreibe hier ein höfliches, rechtssicheres Antwortschreiben an die Behörde, das der Nutzer direkt verwenden kann. Nutze Platzhalter wie [Name] für fehlende Daten.)
+                    (Schreibe hier ein höfliches Antwortschreiben. Nutze Platzhalter wie [Name] für fehlende Daten.)
                     """
                     
                     response = client.chat.completions.create(
                         model="gpt-4o",
-                        messages=[{"role": "system", "content": "Du bist ein Experte für deutsche Bürokratie."},
+                        messages=[{"role": "system", "content": "Du bist ein Experte für deutsches Recht."},
                                   {"role": "user", "content": prompt}]
                     )
                     
@@ -161,7 +164,6 @@ if upload:
                         st.session_state.last_brief = res_text
                     st.rerun()
 
-        # Ergebnisse anzeigen
         if st.session_state.last_brief:
             st.subheader("⚠️ Wichtige Fristen")
             st.markdown(f'<div class="frist-box">{st.session_state.last_fristen}</div>', unsafe_allow_html=True)
@@ -172,7 +174,6 @@ if upload:
             st.subheader("📝 Entwurf Antwortschreiben")
             st.markdown(st.session_state.last_brief)
             
-            # Export Sektion
             st.divider()
             c1, c2 = st.columns(2)
             with c1:
