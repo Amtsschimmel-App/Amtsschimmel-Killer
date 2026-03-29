@@ -48,7 +48,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. KI-LOGIK (BEHÖRDEN-DOLMETSCHER & AMPEL)
+# 3. KI-LOGIK & OCR (BEHÖRDEN-ASSISTENT)
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -69,42 +69,27 @@ def get_text_from_file(file):
     return text
 
 def analyze_letter(raw_text, lang, mode="Standard"):
-    # FEHLERBEHANDLUNG: Falls kein Text erkannt wird
     if len(raw_text.strip()) < 50: 
         return "FEHLER_UNSCHARF"
     
-    intent = "Antwortbrief (höflich/bestimmt)" if mode == "Standard" else "WIDERSPRUCH (rechtlich scharf mit Paragraphen)"
+    intent = "Antwortbrief" if mode == "Standard" else "WIDERSPRUCH (hart, mit Paragraphen)"
     
-    sys_p = f"""Du bist ein erfahrener Rechtsexperte und Behörden-Berater. Sprache: {lang}.
-    Analysiere den hochgeladenen Brief und erstelle EXAKT diese Sektionen:
-
-    1. ### 🚦 DRINGLICHKEITS-AMPEL ###
-    Wähle: [ROT: Sofort handeln!] oder [GELB: Frist beachten] oder [GRÜN: Nur zur Info]. Erkläre kurz warum.
-
-    2. ### 📖 BEHÖRDEN-DOLMETSCHER (Glossar) ###
-    Erkläre 3-4 schwierige Fachbegriffe aus dem Brief in ganz einfachem Deutsch.
-
-    3. ### 📅 WICHTIGE FRISTEN ###
-    Liste alle Fristen im Format: Datum | Aktion | Dringlichkeit.
-
-    4. ### ✍️ DEIN {intent} ###
-    Schreibe den fertigen Brieftext. Platzhalter wie [Name] verwenden.
-
-    5. ### 📋 VERSAND-CHECKLISTE ###
-    Gib genaue Anweisungen (z.B. Einschreiben Einwurf, Kopie machen, Unterschrift).
-    """
+    sys_p = f"""Rechtsexperte. Sprache: {lang}. 
+    Struktur IMMER:
+    ### AMPEL ### Dringlichkeit: [Niedrig/Mittel/Hoch] + Grund: [Satz]
+    ### GLOSSAR ### (Erkläre 3 schwierige Begriffe einfach)
+    ### FRISTEN ### (Datum | Aktion | Dringlichkeit)
+    ### ANTWORTBRIEF ### (Erstelle einen {intent})
+    ### CHECKLISTE ### (Versandanweisungen)"""
     
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o", 
-            messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}]
-        )
-        return resp.choices[0].message.content
-    except:
-        return "KI-FEHLER: Bitte versuchen Sie es erneut."
+    resp = client.chat.completions.create(
+        model="gpt-4o", 
+        messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}]
+    )
+    return resp.choices.message.content
 
 # ==========================================
-# 4. EXPORT-FUNKTIONEN (WORD, PDF, EXCEL, ICS)
+# 4. EXPORT FUNKTIONEN
 # ==========================================
 def create_docx(text):
     doc = Document(); doc.add_heading('Amtsschimmel-Killer Analyse', 0)
@@ -112,17 +97,20 @@ def create_docx(text):
     doc.save(bio); return bio.getvalue()
 
 def create_pdf(text):
-    pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=11)
+    pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=10)
     clean = text.replace("###", "").replace("**", "")
     pdf.multi_cell(0, 8, txt=clean.encode('latin-1', 'replace').decode('latin-1'))
     return pdf.output(dest='S').encode('latin-1')
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Datum": dates, "Ereignis": ["Frist aus Brief" for _ in dates]})
+    df = pd.DataFrame({"Datum": dates, "Aktion": ["Frist aus Brief" for _ in dates]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Fristen')
+        worksheet = writer.sheets['Fristen']
+        for i, col in enumerate(df.columns):
+            worksheet.set_column(i, i, 25)
     return output.getvalue()
 
 def create_ics(text):
@@ -134,51 +122,52 @@ def create_ics(text):
     return ics.encode('utf-8')
 
 # ==========================================
-# 5. SIDEBAR (FLAGGEN & LOGO)
+# 5. SIDEBAR (LOGO & PREISE)
 # ==========================================
 with st.sidebar:
     if os.path.exists("icon_final_blau.png"): st.image("icon_final_blau.png", use_container_width=True)
-    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
+    else: st.title("📄 Amtsschimmel-Killer")
     
+    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
-    lang_choice = st.selectbox("🌍 Zielsprache", [
+    lang_choice = st.selectbox("🌍 Sprache wählen", [
         "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
         "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", 
         "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"
     ])
     
     st.divider()
-    st.subheader("💳 Guthaben")
+    st.subheader("Guthaben aufladen")
     pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
     for n, l, c, p in pkgs:
-        st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung | KEIN ABO</small></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small>✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. HAUPTBEREICH (TABS)
+# 6. HAUPTBEREICH (TABS MIT FESTEN TEXTEN)
 # ==========================================
 t1, t2, t3, t4, t5 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ", "⚖️ Impressum", "🔒 Datenschutz"])
 
 with t1:
-    st.title("Behörden-Assistent 📄🚀")
+    st.title("Brief hochladen & killen 🚀")
     c1, c2 = st.columns(2)
     with c1:
-        upload = st.file_uploader("Brief fotografieren oder hochladen:", type=['pdf', 'png', 'jpg', 'jpeg'])
+        upload = st.file_uploader("Datei wählen (PDF oder Bild):", type=['pdf', 'png', 'jpg', 'jpeg'])
     with c2:
         if upload and st.session_state.credits > 0:
             b1, b2 = st.columns(2)
             with b1:
                 if st.button("🚀 ANALYSE STARTEN"):
-                    with st.spinner("Dolmetscher arbeitet..."):
+                    with st.spinner("Analyse läuft..."):
                         txt = get_text_from_file(upload)
                         res = analyze_letter(txt, lang_choice, "Standard")
-                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Text ist zu unscharf. Bitte nochmal mit mehr Licht fotografieren! (Kein Abzug)")
+                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Text ist zu unscharf, bitte nochmal mit mehr Licht fotografieren. (Kein Guthabensabzug)")
                         else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
             with b2:
-                if st.button("⚖️ WIDERSPRUCH"):
+                if st.button("⚖️ WIDERSPRUCH ERSTELLEN"):
                     with st.spinner("Widerspruch wird generiert..."):
                         txt = get_text_from_file(upload)
                         res = analyze_letter(txt, lang_choice, "Widerspruch")
-                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Dokument unleserlich. Bitte schärferes Foto nutzen! (Kein Abzug)")
+                        if "FEHLER_UNSCHARF" in res: st.error("⚠️ Text ist zu unscharf, bitte nochmal mit mehr Licht fotografieren. (Kein Guthabensabzug)")
                         else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
         elif upload: st.warning("Bitte Guthaben aufladen.")
 
@@ -195,23 +184,59 @@ with t1:
 
 with t2:
     st.header("⚡ Vorlagen")
-    st.info("**Fristverlängerung:**\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der Frist bis zum [Datum], da mir noch Unterlagen fehlen.")
-    st.info("**Widerspruch (Fristwahrend):**\nHiermit lege ich gegen den Bescheid vom [Datum] Widerspruch ein. Begründung folgt separat.")
-    st.info("**Akteneinsicht:**\nIch beantrage hiermit Akteneinsicht gemäß § 25 SGB X.")
+    st.markdown("### Fristverlängerung")
+    st.info("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
+    st.markdown("### Widerspruch einlegen (Fristwahrend)")
+    st.info("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
+    st.markdown("### Akteneinsicht einfordern")
+    st.info("Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
 with t3:
     st.header("❓ FAQ")
     st.markdown('<span class="faq-q">Ist das ein Abonnement?</span>', unsafe_allow_html=True)
-    st.write("Nein. Wir hassen Abos. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans.")
+    st.markdown('<div class="faq-a">Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.</div>', unsafe_allow_html=True)
     st.markdown('<span class="faq-q">Wie sicher sind meine Dokumente?</span>', unsafe_allow_html=True)
-    st.write("Verschlüsselt an OpenAI übertragen, keine dauerhafte Speicherung, sofortige Löschung.")
+    st.markdown('<div class="faq-a">Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.</div>', unsafe_allow_html=True)
+    st.markdown('<span class="faq-q">Ersetzt die App eine Rechtsberatung?</span>', unsafe_allow_html=True)
+    st.markdown('<div class="faq-a">Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.</div>', unsafe_allow_html=True)
+    st.markdown('<span class="faq-q">Was passiert, wenn der Scan fehlschlägt?</span>', unsafe_allow_html=True)
+    st.markdown('<div class="faq-a">Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.</div>', unsafe_allow_html=True)
+    st.markdown('<span class="faq-q">Wie erreiche ich Elisabeth Reinecke?</span>', unsafe_allow_html=True)
+    st.markdown('<div class="faq-a">Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>', unsafe_allow_html=True)
 
 with t4:
     st.header("⚖️ Impressum")
-    st.write("Elisabeth Reinecke | Ringelsweide 9, 40223 Düsseldorf | amtsschimmel-killer@proton.me")
+    st.markdown("""
+    **Amtsschimmel-Killer**  
+    Betreiberin: Elisabeth Reinecke  
+    Ringelsweide 9, 40223 Düsseldorf  
+    
+    **Kontakt:**  
+    Telefon: +49 211 15821329  
+    E-Mail: amtsschimmel-killer@proton.me  
+    Web: amtsschimmel-killer.streamlit.app  
+    
+    **Haftung:**  
+    Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
+    """)
 
 with t5:
     st.header("🔒 Datenschutz")
-    st.write("DSGVO-konform. TLS-Verschlüsselung. Keine Datennutzung für Werbezwecke.")
+    st.markdown("""
+    **1. Datenschutz auf einen Blick**  
+    Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).  
+    
+    **2. Datenerfassung & Hosting**  
+    Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.  
+    
+    **3. Dokumentenverarbeitung**  
+    Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.  
+    
+    **4. Zahlungsabwicklung (Stripe)**  
+    Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.  
+    
+    **5. Ihre Rechte**  
+    Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
+    """)
 
 st.sidebar.caption(f"© {datetime.now().year} Elisabeth Reinecke")
