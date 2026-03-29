@@ -27,34 +27,31 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. SESSION STATE INITIALISIERUNG
+# 2. SESSION STATE & GUTHABEN-LOGIK
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "last_analysis" not in st.session_state: st.session_state.last_analysis = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# --- 3. GUTHABEN-LOGIK (STRIPE & ADMIN) ---
+# URL-Parameter auslesen (Stripe Rückkehr & Admin)
 params = st.query_params
 
-# A) ADMIN-CHECK (999 Scans)
+# A) ADMIN-MODUS (999 Scans)
 if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
     st.toast("🔓 ADMIN-MODUS AKTIV")
 
-# B) STRIPE-ZAHLUNG VERARBEITEN
-# Wenn der Nutzer von Stripe zurückkommt (URL enthält session_id)
+# B) STRIPE RÜCKKEHR VERARBEITEN
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
-        # Wir vertrauen dem 'pack' Parameter in der Rückkehr-URL
         pack_size = int(params.get("pack", 0))
         if pack_size > 0:
             st.session_state.credits += pack_size
             st.session_state.processed_sessions.append(params["session_id"])
             st.balloons()
             st.toast(f"✅ {pack_size} Scan(s) erfolgreich aufgeladen!")
-    except:
-        pass
+    except: pass
 
-# 4. API INITIALISIERUNG
+# 3. FUNKTIONEN
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def get_text_hybrid(uploaded_file):
@@ -75,24 +72,28 @@ def analyze_letter(raw_text, language):
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
     return resp.choices.message.content
 
-# 5. SIDEBAR
+def speak_text(text, voice_type):
+    v_map = {"Weiblich": "nova", "Männlich": "onyx"}
+    response = client.audio.speech.create(model="tts-1", voice=v_map.get(voice_type, "nova"), input=text[:4000])
+    return response.content
+
+# 4. SIDEBAR
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     st.divider()
     st.subheader("Einstellungen")
-    lang_choice = st.radio("Sprache", ["Deutsch", "English"], horizontal=True)
+    lang_choice = st.radio("Antwort-Sprache", ["Deutsch", "English"], horizontal=True)
     voice_choice = st.selectbox("Vorlese-Stimme", ["Weiblich", "Männlich"])
     st.divider()
     st.subheader("Guthaben aufladen")
-    # WICHTIG: Die Stripe-Links müssen in deinen Secrets als STRIPE_LINK_1, STRIPE_LINK_3 etc. hinterlegt sein
     pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), 
             ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), 
             ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
     for n, l, c, p in pkgs:
         st.markdown(f'<a href="{l}" target="_blank" class="buy-button"><b>{n}</b><br>{p} | {c}<br><small style="color:#16a34a;">✔ Einmalzahlung | <b>KEIN ABO</b></small></a>', unsafe_allow_html=True)
 
-# 6. HAUPTBEREICH
+# 5. HAUPTBEREICH
 t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ & Hilfe"])
 
 with t1:
@@ -110,20 +111,24 @@ with t1:
                     with st.spinner("Amtsschimmel wird vertrieben..."):
                         raw = get_text_hybrid(upload)
                         st.session_state.last_analysis = analyze_letter(raw, lang_choice)
-                        st.session_state.credits -= 1
-                        st.rerun()
-            else: st.error("Guthaben leer. Bitte Paket links wählen.")
+                        st.session_state.credits -= 1; st.rerun()
+            else: st.error("Guthaben leer. Bitte Paket wählen.")
 
     if st.session_state.last_analysis:
         st.success("Analyse abgeschlossen!")
         st.markdown(f'<div style="white-space: pre-wrap; background: white; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0;">{st.session_state.last_analysis}</div>', unsafe_allow_html=True)
+        if st.button(f"🔊 Antwort vorlesen ({voice_choice})"):
+            st.audio(speak_text(st.session_state.last_analysis, voice_choice))
         st.code(st.session_state.last_analysis, language="text")
 
 with t2:
-    st.subheader("⚡ Vorlagen")
-    st.write("Kopiere diese Texte für schnelle Antworten:")
-    with st.expander("⏳ Fristverlängerung"):
-        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Fristverlängerung bis zum [Datum]...", language="text")
+    st.subheader("⚡ Sofort-Antworten (Vorlagen)")
+    with st.expander("⏳ Fristverlängerung beantragen"):
+        st.code("Sehr geehrte Damen und Herren,\nin der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.\n\nMit freundlichen Grüßen,\n[Name]", language="text")
+    with st.expander("🛑 Widerspruch einlegen (Fristwahrend)"):
+        st.code("Sehr geehrte Damen und Herren,\ngegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben.\n\nMit freundlichen Grüßen,\n[Name]", language="text")
+    with st.expander("📂 Akteneinsicht anfordern"):
+        st.code("Sehr geehrte Damen und Herren,\nzur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht.\n\nMit freundlichen Grüßen,\n[Name]", language="text")
 
 with t3:
     st.subheader("❓ Häufig gestellte Fragen (FAQ)")
