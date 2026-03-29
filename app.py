@@ -14,7 +14,7 @@ import gc
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 LOGO_DATEI = "icon_final_blau.png"
 
-# 2. STYLING
+# 2. DESIGN & STYLING
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #1e3a8a; color: white; font-weight: bold; border: none; }
@@ -24,9 +24,9 @@ st.markdown("""
         border-radius: 10px; margin-bottom: 10px; color: #1e3a8a !important; text-align: center; 
         box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s;
     }
-    .buy-button:hover { border-color: #1e3a8a; background: #f8fafc; }
-    .legal-footer { font-size: 0.75em; color: #94a3b8; margin-top: 50px; padding: 20px; border-top: 1px solid #e2e8f0; }
-    .result-box { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px; }
+    .buy-button:hover { border-color: #1e3a8a; background: #f8fafc; scale: 1.02; }
+    .legal-box { font-size: 0.85em; color: #475569; line-height: 1.5; background: #f8fafc; padding: 15px; border-radius: 8px; }
+    .faq-q { font-weight: bold; color: #1e3a8a; margin-top: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -36,98 +36,97 @@ stripe.api_key = st.secrets["STRIPE_API_KEY"]
 
 # --- 4. SESSION STATE ---
 if "credits" not in st.session_state: st.session_state.credits = 0
-if "last_brief" not in st.session_state: st.session_state.last_brief = ""
 if "last_analysis" not in st.session_state: st.session_state.last_analysis = ""
 
-# --- 5. DER POWER-PROMPT (KI-ANWEISUNG) ---
-def generate_killer_response(raw_text):
-    sys_prompt = """Du bist der 'Amtsschimmel-Killer'. Deine Aufgabe: Analysiere Behördenbriefe und erstelle eine perfekte Antwort.
-    
-    SCHRITT 1: ANALYSE
-    - Wer schreibt? (Behörde/Amt)
-    - Was wird gefordert? (Kernanliegen)
-    - Welche Fristen gelten? (DATUM hervorheben!)
-    
-    SCHRITT 2: DER ANTWORTBRIEF
-    - Tonfall: Hochprofessionell, bestimmt, juristisch präzise, aber höflich.
-    - Struktur: Korrekter Briefkopf-Platzhalter, Betreffzeile mit Aktenzeichen (falls im Text gefunden).
-    - Inhalt: Gehe direkt auf die Forderungen ein. Nutze Formulierungen wie 'unter Bezugnahme auf Ihr Schreiben vom...', 'bitte ich um Fristverlängerung bis zum...', 'lege ich hiermit Widerspruch ein'.
-    - WICHTIG: Erstelle Platzhalter für [Name], [Adresse], [Aktenzeichen], falls diese nicht eindeutig im Scan erkannt wurden.
-    
-    FORMATIERUNG: Nutze Markdown für die Analyse und einen klaren Textblock für den Brief."""
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": f"Hier ist der gescannte Text des Briefes:\n\n{raw_text}"}
-        ],
-        temperature=0.3 # Niedrige Temperatur für hohe Präzision
-    )
-    return response.choices[0].message.content
-
-# --- 6. SIDEBAR (Pakete mit Einmalzahlung) ---
+# --- 5. SIDEBAR (Guthaben & Pakete) ---
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     
+    st.divider()
     st.subheader("Guthaben aufladen")
     pkgs = [
-        ("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"),
+        ("📄 Basis-Paket", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"),
         ("🚀 Spar-Paket", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"),
-        ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
+        ("💎 Profi-Paket", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")
     ]
     for name, link, count, price in pkgs:
         st.markdown(f'''
             <a href="{link}" target="_blank" class="buy-button">
-                <b>{name}</b> ({count})<br>
-                <span style="color: #16a34a;">{price} | Einmalzahlung</span><br>
-                <small>Kein Abo • Sofort nutzbar</small>
+                <b>{name}</b><br>
+                <span style="color: #16a34a;">{price} | {count}</span><br>
+                <small>✔ Einmalzahlung | Kein Abo</small>
             </a>''', unsafe_allow_html=True)
 
-# --- 7. HAUPTBEREICH ---
-st.title("Amtsschimmel-Killer 📄🚀")
-uploaded_file = st.file_uploader("Brief hochladen (PDF oder Bild)", type=['pdf', 'png', 'jpg', 'jpeg'])
+# --- 6. HAUPTBEREICH (Tabs für Funktionen) ---
+tab1, tab2, tab3 = st.tabs(["🚀 Brief-Killer", "⚡ Sofort-Antworten", "❓ FAQ & Hilfe"])
 
-if uploaded_file:
-    if st.session_state.credits > 0:
-        if st.button("🚀 Analyse & Antwortbrief jetzt generieren"):
-            with st.spinner("KI liest den Behörden-Code..."):
-                # (Hier käme deine get_text_hybrid Funktion rein)
-                # Simulierter Text für dieses Beispiel:
-                raw_text = "Dummy Text vom Scan" 
-                
-                result = generate_killer_response(raw_text)
-                st.session_state.last_analysis = result
-                st.session_state.credits -= 1
-                st.rerun()
-    else:
-        st.error("Guthaben leer. Bitte wähle ein Paket in der Seitenleiste (Einmalzahlung).")
+with tab1:
+    st.title("Amtsschimmel-Killer 📄🚀")
+    st.write("Lade deinen Behördenbrief hoch. Wir analysieren Fristen und schreiben die perfekte Antwort.")
+    
+    upload = st.file_uploader("Datei wählen (PDF, JPG, PNG)", type=['pdf', 'png', 'jpg', 'jpeg'])
+    
+    if upload:
+        if st.session_state.credits > 0:
+            if st.button("🚀 Jetzt analysieren & Antwort erstellen"):
+                with st.spinner("Amtsschimmel wird vertrieben..."):
+                    # Hier folgt deine get_text_hybrid & KI-Logik
+                    st.session_state.credits -= 1
+                    st.session_state.last_analysis = "KI Ergebnis..." # Platzhalter
+                    st.rerun()
+        else:
+            st.warning("Dein Guthaben ist leer. Bitte wähle ein Paket in der Seitenleiste (Einmalzahlung).")
 
-if st.session_state.last_analysis:
-    st.markdown("### 📋 Deine Analyse & Antwort")
-    st.markdown(f'<div class="result-box">{st.session_state.last_analysis}</div>', unsafe_allow_html=True)
-    st.download_button("Brief als Text speichern", st.session_state.last_analysis, "antwortbrief.txt")
+with tab2:
+    st.subheader("⚡ Sofort-Antworten")
+    st.info("Kopiere diese Vorlagen für die häufigsten Fälle direkt heraus:")
+    
+    with st.expander("⏳ Fristverlängerung beantragen"):
+        st.code("Sehr geehrte Damen und Herren,\n\nin der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.\n\nMit freundlichen Grüßen,\n[Dein Name]", language="text")
+    
+    with st.expander("🛑 Widerspruch einlegen (Fristwahrend)"):
+        st.code("Sehr geehrte Damen und Herren,\n\ngegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben.\n\nMit freundlichen Grüßen,\n[Dein Name]", language="text")
 
-# --- 8. DATENSCHUTZ (AUSFÜHRLICH) ---
-st.markdown('<div class="legal-footer"></div>', unsafe_allow_html=True)
-with st.expander("⚖️ Rechtliche Informationen & Datenschutz (DSGVO)"):
-    st.write("""
-    **Datenschutzerklärung**
-    
-    **1. Verantwortlichkeit:** Diese Anwendung verarbeitet Daten lokal im Browser und über gesicherte API-Schnittstellen (OpenAI & Stripe).
-    
-    **2. Datenverarbeitung (Dokumente):** Ihre hochgeladenen Dokumente werden ausschließlich zur Textextraktion und Analyse verwendet. 
-    - Die Daten werden per SSL-Verschlüsselung an OpenAI übertragen.
-    - Es erfolgt **keine dauerhafte Speicherung** Ihrer Dokumente auf unseren Servern.
-    - Nach Schließen der Browsersitzung werden alle temporären Daten im Arbeitsspeicher gelöscht.
-    
-    **3. Zahlungsabwicklung:** 
-    Alle Transaktionen werden durch **Stripe Payments Europe, Ltd.** abgewickelt. Wir speichern zu keinem Zeitpunkt Kreditkartendaten oder Bankinformationen auf unseren eigenen Systemen. Es handelt sich bei allen Paketen um **Einmalzahlungen (Prepaid)**. Es entstehen keine automatischen Folgekosten (Abonnements).
-    
-    **4. Ihre Rechte:** 
-    Sie haben das Recht auf Auskunft, Berichtigung und Löschung Ihrer Daten. Da wir keine Nutzerkonten mit Klarnamen führen, werden Ihre Daten lediglich über eine anonyme Session-ID zugeordnet.
-    
-    **5. Haftungsausschluss:**
-    Die durch die KI generierten Texte stellen **keine Rechtsberatung** dar. Bitte prüfen Sie alle Antwortbriefe vor dem Versand auf sachliche Richtigkeit. Die Nutzung erfolgt auf eigene Gefahr.
-    """)
+with tab3:
+    st.subheader("Häufig gestellte Fragen (FAQ)")
+    faqs = {
+        "Ist das wirklich kein Abo?": "Ja, absolut sicher. Jede Zahlung ist eine Einmalzahlung für eine bestimmte Anzahl an Scans. Es gibt keine automatische Verlängerung.",
+        "Was passiert mit meinen hochgeladenen Briefen?": "Deine Daten werden verschlüsselt an die KI (OpenAI) zur Analyse übertragen und nach der Sitzung sofort aus unserem Zwischenspeicher gelöscht.",
+        "Ist die Antwort rechtssicher?": "Die App bietet eine starke Orientierungshilfe und professionelle Formulierungen. Sie ersetzt jedoch keine individuelle Rechtsberatung durch einen Anwalt.",
+        "Wie erreiche ich den Support?": "Schreibe uns einfach eine E-Mail an die im Impressum angegebene Adresse."
+    }
+    for q, a in faqs.items():
+        st.markdown(f"<div class='faq-q'>{q}</div>", unsafe_allow_html=True)
+        st.write(a)
+
+# --- 7. FOOTER (Impressum & Datenschutz kombiniert) ---
+st.divider()
+c1, c2 = st.columns(2)
+
+with c1:
+    with st.expander("🏢 Impressum"):
+        st.markdown("""
+        <div class="legal-box">
+        <strong>Amtsschimmel-Killer</strong><br>
+        Betreiber: [Dein Vorname Nachname]<br>
+        [Deine Straße Hausnummer]<br>
+        [Dein PLZ Ort]<br><br>
+        <strong>Kontakt:</strong><br>
+        E-Mail: [Deine E-Mail Adresse]<br>
+        Web: amtsschimmel-killer.de<br><br>
+        <strong>Haftungshinweis:</strong><br>
+        Trotz sorgfältiger inhaltlicher Kontrolle übernehmen wir keine Haftung für die Inhalte externer Links oder die Richtigkeit der KI-generierten Texte.
+        </div>
+        """, unsafe_allow_html=True)
+
+with c2:
+    with st.expander("⚖️ Datenschutzerklärung (DSGVO)"):
+        st.markdown("""
+        <div class="legal-box">
+        <strong>1. Datenverarbeitung:</strong> Hochgeladene Dokumente werden via TLS-Verschlüsselung an OpenAI zur Analyse übertragen. Wir speichern keine Dokumente dauerhaft.<br><br>
+        <strong>2. Zahlungen:</strong> Wir nutzen Stripe. Es werden keine Bankdaten auf unseren Servern gespeichert.<br><br>
+        <strong>3. Ihre Rechte:</strong> Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer personenbezogenen Daten im Rahmen der gesetzlichen Bestimmungen.<br><br>
+        <strong>4. Cookies:</strong> Wir nutzen nur technisch notwendige Cookies, um Ihr Guthaben während der Sitzung zu verwalten.
+        </div>
+        """, unsafe_allow_html=True)
