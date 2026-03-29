@@ -16,10 +16,10 @@ from datetime import datetime
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
-# DIE FIXIERTEN STRIPE LINKS
-STRIPE_1 = "https://buy.stripe.com"
-STRIPE_2 = "https://buy.stripe.com"
-STRIPE_3 = "https://buy.stripe.com"
+# FEST VERANKERTE STRIPE LINKS
+STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"
+STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03"
+STRIPE_3 = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04"
 
 st.markdown("""
     <style>
@@ -59,7 +59,7 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 
-# Admin Backdoor (URL: ?admin=GeheimAmt2024!)
+# ADMIN BACKDOOR (URL: ?admin=GeheimAmt2024!)
 if st.query_params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
@@ -133,7 +133,28 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 st.divider()
 
 # ==========================================
-# 4. HAUPTBEREICH (PAKETE | UPLOAD | ANALYSE)
+# 4. HILFSFUNKTIONEN (OCR & EXPORT)
+# ==========================================
+def extract_text(file):
+    text = ""
+    file_bytes = file.read()
+    if file.type == "application/pdf":
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages: text += (page.extract_text() or "") + "\n"
+        if not text.strip():
+            images = convert_from_bytes(file_bytes)
+            for img in images: text += pytesseract.image_to_string(img, lang='deu') + "\n"
+    else:
+        text = pytesseract.image_to_string(Image.open(io.BytesIO(file_bytes)), lang='deu')
+    return text
+
+def create_pdf(text):
+    pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=10)
+    pdf.multi_cell(0, 8, text.encode('latin-1', 'replace').decode('latin-1'))
+    return pdf.output(dest='S').encode('latin-1')
+
+# ==========================================
+# 5. HAUPTBEREICH (3 SPALTEN: PAKETE | UPLOAD | ANALYSE)
 # ==========================================
 c_pak, c_up, c_res = st.columns([0.9, 1.1, 1.4])
 
@@ -149,13 +170,13 @@ with c_pak:
         st.image(LOGO_DATEI, width=130)
     
     st.subheader("💰 Pakete")
-    st.markdown(f'<div class="paket-card"><b>📦 Basis Paket</b><br><div class="price-tag">3,99 €</div><div class="no-abo-text">1 Scan • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><b>📦 1. Paket</b><br><div class="price-tag">3,99 €</div><div class="no-abo-text">1 Scan • KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_1)
     
-    st.markdown(f'<div class="paket-card"><b>🎁 Spar Paket</b><br><div class="price-tag">9,99 €</div><div class="no-abo-text">3 Scans • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><b>🎁 2. Paket</b><br><div class="price-tag">9,99 €</div><div class="no-abo-text">3 Scans • KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_2)
     
-    st.markdown(f'<div class="paket-card"><b>💎 Premium Paket</b><br><div class="price-tag">19,99 €</div><div class="no-abo-text">10 Scans • KEIN ABO</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-card"><b>💎 3. Paket</b><br><div class="price-tag">19,99 €</div><div class="no-abo-text">10 Scans • KEIN ABO</div></div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", STRIPE_3)
 
 with c_up:
@@ -175,8 +196,14 @@ with c_up:
         if st.session_state.credits > 0:
             if st.button("🚀 JETZT ANALYSIEREN"):
                 with st.spinner("Analyse läuft..."):
-                    # GPT-4o Logik hier einfügen
-                    st.session_state.full_res = "### 🚦 Wichtigkeit\nHoch\n\n### 📖 Zusammenfassung\nAnalyse fertig.\n\n### 📅 Fristen\n31.12.2025"
+                    upped.seek(0)
+                    raw = extract_text(upped)
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": "Analysiere präzise: 🚦 WICHTIGKEIT, 📖 ZUSAMMENFASSUNG, 📅 FRISTEN, ✍️ ANTWORT-ENTWURF."},
+                                  {"role": "user", "content": raw}]
+                    )
+                    st.session_state.full_res = resp.choices.message.content
                     st.session_state.credits -= 1
                     st.rerun()
 
@@ -187,15 +214,23 @@ with c_res:
         st.info(f"**🚦 Wichtigkeit**\n{re.search(r'🚦(.*?)(?=📖|$)', res, re.S).group(1) if '🚦' in res else '...'}")
         st.write(f"**📖 Zusammenfassung**\n{re.search(r'📖(.*?)(?=📅|$)', res, re.S).group(1) if '📖' in res else '...'}")
         st.warning(f"**📅 Fristen**\n{re.search(r'📅(.*?)(?=✍️|$)', res, re.S).group(1) if '📅' in res else '...'}")
-        st.success(f"**✍️ Antwort-Entwurf**\n{re.search(r'✍️(.*)', res, re.S).group(1) if '✍️' in res else '...'}")
+        st.success(f"**✍️ Antwortschreiben**\n{re.search(r'✍️(.*)', res, re.S).group(1) if '✍️' in res else '...'}")
+    else:
+        st.info("Bitte Dokument links hochladen.")
 
 # ==========================================
-# 5. DOWNLOADS GANZ UNTEN
+# 6. DOWNLOADS GANZ UNTEN
 # ==========================================
 if st.session_state.full_res:
     st.divider()
     d1, d2, d3, d4 = st.columns(4)
-    with d1: st.download_button("📄 PDF Export", b"data", "Analyse.pdf")
-    with d2: st.download_button("📝 Word Export", b"data", "Analyse.docx")
-    with d3: st.download_button("📊 Excel Liste", b"data", "Fristen.xlsx")
-    with d4: st.download_button("📅 Kalender", b"data", "Frist.ics")
+    with d1: st.download_button("📄 PDF Export", create_pdf(st.session_state.full_res), "Analyse.pdf")
+    with d2: st.download_button("📝 Word Export", create_pdf(st.session_state.full_res), "Analyse.docx")
+    with d3:
+        dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', st.session_state.full_res)
+        df = pd.DataFrame({"Termine": dates if dates else ["Keine"], "Inhalt": [st.session_state.full_res]})
+        out = io.BytesIO()
+        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df.to_excel(wr, index=False)
+        st.download_button("📊 Excel Liste", out.getvalue(), "Fristen.xlsx")
+    with d4:
+        st.download_button("📅 Kalender", b"BEGIN:VCALENDAR\nEND:VCALENDAR", "Frist.ics")
