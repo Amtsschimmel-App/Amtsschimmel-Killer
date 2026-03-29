@@ -74,16 +74,15 @@ def get_xlsx_bytes(data):
     bio = io.BytesIO()
     with pd.ExcelWriter(bio, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Analyse')
-        # Automatisches Anpassen der Spaltenbreite
         worksheet = writer.sheets['Analyse']
+        # Automatisches Anpassen der Spaltenbreite
         for i, col in enumerate(df.columns):
-            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
-            # Limitieren der Breite für bessere Lesbarkeit
-            worksheet.column_dimensions[chr(65 + i)].width = min(column_len, 50)
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 5
+            worksheet.column_dimensions[chr(65 + i)].width = min(column_len, 60)
     return bio.getvalue()
 
 def get_ics_bytes(data):
-    content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Frist: Amtsschimmel-Killer\nDESCRIPTION:{data.get('Fristen', 'Frist prüfen')}\nEND:VEVENT\nEND:VCALENDAR"
+    content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Frist: Amtsschimmel-Killer\nDESCRIPTION:{data.get('Fristen', 'Termin prüfen')}\nEND:VEVENT\nEND:VCALENDAR"
     return content.encode('utf-8')
 
 # ==========================================
@@ -91,7 +90,7 @@ def get_ics_bytes(data):
 # ==========================================
 st.markdown("""
     <style>
-        .block-container { padding-top: 3rem !important; }
+        .block-container { padding-top: 3.5rem !important; }
         .paket-card { 
             border: 1px solid #dee2e6; padding: 15px; border-radius: 12px; 
             background-color: #ffffff; margin-bottom: 10px; text-align: center;
@@ -111,7 +110,7 @@ st.markdown("""
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ==========================================
-# 4. INFOS & RECHTLICHES (EXPANDER)
+# 4. INFOS & RECHTLICHES (EXPANDER MIT ABSTÄNDEN)
 # ==========================================
 st.title("Amtsschimmel-Killer 🪓")
 
@@ -139,10 +138,10 @@ with t2:
         st.write("Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.")
         st.write("")
         st.write("**3. Dokumentenverarbeitung**")
-        st.write("Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.")
+        st.write("Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.")
         st.write("")
         st.write("**4. Zahlungsabwicklung (Stripe)**")
-        st.write("Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.")
+        st.write("Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung.")
         st.write("")
         st.write("**5. Ihre Rechte**")
         st.write("Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontakt unter amtsschimmel-killer@proton.me.")
@@ -150,16 +149,16 @@ with t2:
 with t3:
     with st.expander("❓ FAQ"):
         st.write("**Ist das ein Abonnement?**")
-        st.write("Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.")
+        st.write("Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung.")
         st.write("")
         st.write("**Wie sicher sind meine Dokumente?**")
-        st.write("Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.")
+        st.write("Verschlüsselte Übertragung, keine dauerhafte Speicherung auf unseren Servern. Löschung nach dem Scan.")
         st.write("")
         st.write("**Ersetzt die App eine Rechtsberatung?**")
-        st.write("Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.")
+        st.write("Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis.")
         st.write("")
         st.write("**Was passiert, wenn der Scan fehlschlägt?**")
-        st.write("Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.")
+        st.write("Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.")
         st.write("")
         st.write("**Wie erreiche ich Elisabeth Reinecke?**")
         st.write("Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
@@ -186,6 +185,9 @@ col_paks, col_up, col_res = st.columns([1, 1.2, 1.4])
 with col_paks:
     st.subheader("🌐 Sprachen")
     lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇺🇦 Ukrainska"], label_visibility="collapsed")
+    st.write("")
+    if os.path.exists("icon_final_blau.png"): 
+        st.image("icon_final_blau.png", width=110)
     st.write("---")
     
     paks = [
@@ -194,13 +196,14 @@ with col_paks:
         ("👑", "Sorglos Paket (10 Dokumente)", "19,99 €", STRIPE_3)
     ]
     for icon, t, p, l in paks:
-        st.markdown(f'<div class="paket-card"><span style="font-size: 24px;">{icon}</span><br>Amtsschimmel Killer: {t}<br><div class="price-tag">Einmalpreis {p}</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="paket-card"><span style="font-size: 26px;">{icon}</span><br>Amtsschimmel Killer: {t}<br><div class="price-tag">Einmalpreis {p}</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", l)
         st.write("")
 
 # --- SPALTE 2: UPLOAD (TIEFER GESETZT) ---
 with col_up:
-    st.write("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+    # Abstandshalter für tiefere Positionierung
+    st.write("<div style='height: 100px;'></div>", unsafe_allow_html=True)
     st.subheader("📑 Upload & Vorschau")
     st.info(f"Guthaben: **{st.session_state.credits} Scans**")
     upped = st.file_uploader("Upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
@@ -218,7 +221,7 @@ with col_res:
     st.subheader("🔍 Analyse & Antwort")
     if upped and st.button("🚀 JETZT ANALYSIEREN", type="primary", use_container_width=True):
         if st.session_state.credits > 0:
-            with st.spinner("KI liest den Amtsschimmel..."):
+            with st.spinner("Amtsschimmel wird bekämpft..."):
                 try:
                     text = ""
                     if upped.type == "application/pdf":
@@ -229,17 +232,19 @@ with col_res:
                     
                     prompt = f"Analysiere auf {lang}. Trenne: ###SUM### Zusammenfassung, ###FRIST### Fristen, ###ANTWORT### Antwortentwurf. Text: {text}"
                     res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                    full = res.choices.message.content
+                    
+                    # BUGFIX: choices[0] hinzugefügt
+                    full = res.choices[0].message.content
                     
                     st.session_state.full_res = {
-                        "Zusammenfassung": full.split("###SUM###")[-1].split("###FRIST###").strip(),
-                        "Fristen": full.split("###FRIST###")[-1].split("###ANTWORT###").strip(),
+                        "Zusammenfassung": full.split("###SUM###")[-1].split("###FRIST###")[0].strip(),
+                        "Fristen": full.split("###FRIST###")[-1].split("###ANTWORT###")[0].strip(),
                         "Antwort-Entwurf": full.split("###ANTWORT###")[-1].strip()
                     }
                     st.session_state.credits -= 1
                     st.balloons()
                     st.rerun()
-                except Exception as e: st.error(f"Fehler: {e}")
+                except Exception as e: st.error(f"Fehler bei der Analyse: {e}")
         else: st.warning("Bitte erst links Guthaben kaufen!")
 
     if st.session_state.full_res:
