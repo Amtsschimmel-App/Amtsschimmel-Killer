@@ -21,7 +21,7 @@ if "full_res" not in st.session_state:
 if "processed_sessions" not in st.session_state:
     st.session_state.processed_sessions = set()
 
-# STRIPE LINKS
+# DEINE STRIPE LINKS
 STRIPE_1 = "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" 
 STRIPE_2 = "https://buy.stripe.com/8x228retRbj50paalq1gs03" 
 STRIPE_3 = "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04" 
@@ -37,7 +37,7 @@ if "pack" in params and sid not in st.session_state.processed_sessions:
     if sid: st.session_state.processed_sessions.add(sid)
     st.toast("✅ Zahlung erfolgreich verbucht!", icon="💰")
 
-# Admin-Backdoor für Tests
+# Admin-Backdoor für Tests (wie im Screenshot: ?admin=GeheimAmt2024!)
 if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
@@ -60,16 +60,28 @@ def generate_pdf_bytes(data_dict):
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 3. DESIGN & STYLING
+# 3. DESIGN & STYLING (EXAKT WIE IM BILD)
 # ==========================================
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; }
-        .paket-card { border: 1px solid #0d47a1; padding: 10px; border-radius: 10px; background-color: #f8fbff; margin-bottom: 5px; text-align: center; }
-        .price-tag { font-size: 15px; font-weight: bold; color: #0d47a1; margin: 2px; }
-        .no-abo-text { font-size: 10px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
-        .result-box { background-color: #ffffff; padding: 15px; border-radius: 10px; border-left: 5px solid #0d47a1; margin-bottom: 15px; box-shadow: 2px 2px 8px rgba(0,0,0,0.1); }
-        .box-title { font-weight: bold; color: #0d47a1; margin-bottom: 5px; text-transform: uppercase; font-size: 13px; border-bottom: 1px solid #eee; padding-bottom: 3px; }
+        .paket-card { 
+            border: 1px solid #dee2e6; padding: 15px; border-radius: 10px; 
+            background-color: #ffffff; margin-bottom: 10px; text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .price-tag { font-size: 16px; font-weight: bold; color: #0d47a1; margin: 5px; }
+        .no-abo-text { font-size: 11px; color: #d32f2f; font-weight: bold; text-transform: uppercase; }
+        .result-box { 
+            background-color: #f0f7ff; padding: 15px; border-radius: 10px; 
+            border-left: 5px solid #0d47a1; margin-bottom: 15px; 
+        }
+        .box-title { font-weight: bold; color: #0d47a1; margin-bottom: 5px; text-transform: uppercase; }
+        .stLinkButton a {
+            background-color: #0d47a1 !important; color: white !important;
+            border-radius: 5px !important; width: 100% !important; display: block;
+            text-decoration: none; text-align: center; padding: 8px; font-weight: bold;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -99,106 +111,132 @@ with t1:
 with t2:
     with st.expander("🛡️ Datenschutz"):
         st.write("**1. Datenschutz auf einen Blick**")
-        st.write("Wir behandeln Ihre personenbezogenen Daten vertraulich (DSGVO).")
+        st.write("Wir behandeln Ihre Daten vertraulich (DSGVO).")
         st.write("")
-        st.write("**2. Datenerfassung & Hosting**")
-        st.write("Hosting auf Streamlit Cloud. Logfiles werden automatisch vom Hoster erfasst.")
+        st.write("**2. Hosting**")
+        st.write("Streamlit Cloud erfasst Logfiles (IP/Browser). Wir nutzen diese nicht.")
         st.write("")
-        st.write("**3. Dokumentenverarbeitung**")
-        st.write("Übertragung via TLS an OpenAI (USA). Keine Speicherung der Briefe auf unseren Servern.")
+        st.write("**3. Dokumente**")
+        st.write("TLS-Übertragung an OpenAI. Keine dauerhafte Speicherung der Briefe.")
         st.write("")
-        st.write("**4. Zahlungsabwicklung**")
-        st.write("Erfolgt über Stripe. Wir erhalten nur die Zahlungsbestätigung.")
+        st.write("**4. Stripe**")
+        st.write("Daten zur Abrechnung bei Stripe. Wir sehen nur die Bestätigung.")
         st.write("")
         st.write("**5. Ihre Rechte**")
-        st.write("Recht auf Auskunft & Löschung via amtsschimmel-killer@proton.me.")
+        st.write("Auskunft & Löschung via E-Mail.")
 
 with t3:
     with st.expander("❓ FAQ"):
-        st.write("**Ist das ein Abonnement?**")
-        st.write("Nein. Jede Zahlung ist eine Einmalzahlung. Kein Abo!")
+        st.write("**Abonnement?**")
+        st.write("Nein. Jede Zahlung ist einmalig. Wir hassen Abos!")
         st.write("")
-        st.write("**Wie sicher sind meine Dokumente?**")
-        st.write("Verschlüsselte Verarbeitung im Arbeitsspeicher, keine dauerhafte Speicherung.")
+        st.write("**Sicherheit?**")
+        st.write("Verschlüsselte Verarbeitung, Löschung nach dem Scan.")
         st.write("")
-        st.write("**Ersetzt die App eine Rechtsberatung?**")
-        st.write("Nein. Wir bieten eine Formulierungshilfe und Textverständnis.")
+        st.write("**Rechtsberatung?**")
+        st.write("Nein. Nur Formulierungshilfe & Textverständnis.")
         st.write("")
-        st.write("**Was passiert bei Fehlern?**")
-        st.write("Ein Scan wird nur bei erfolgreicher Analyse berechnet.")
+        st.write("**Fehlgeschlagen?**")
+        st.write("Nur erfolgreiche Analysen verbrauchen Guthaben.")
 
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.write("**Fristverlängerung:**")
-        st.code("Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.")
-        st.write("")
-        st.write("**Widerspruch:**")
-        st.code("Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein. Begründung folgt.")
-        st.write("")
-        st.write("**Akteneinsicht:**")
-        st.code("Sehr geehrte Damen und Herren, zur Prüfung beantrage ich gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht.")
+        st.info("Fristverlängerung")
+        st.code("...bitte ich um Verlängerung der gesetzten Frist bis zum [Datum]...")
+        st.info("Widerspruch")
+        st.code("...lege ich hiermit Widerspruch ein. Begründung folgt...")
+        st.info("Akteneinsicht")
+        st.code("...beantrage ich gemäß § 25 SGB X Akteneinsicht.")
 
 st.divider()
 
 # ==========================================
-# 5. HAUPTBEREICH
+# 5. HAUPTBEREICH (DREI-SPALTEN-LAYOUT)
 # ==========================================
-c_pak, c_up, c_res = st.columns([0.9, 1.2, 1.5])
+col_links, col_mitte, col_rechts = st.columns([1, 1.2, 1.3])
 
-with c_pak:
+# --- SPALTE LINKS: SPRACHEN & PAKETE ---
+with col_links:
     st.subheader("🌐 Sprachen")
-    lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇺🇦 Українська"], label_visibility="collapsed")
+    lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇺🇦 Ukrainska"], label_visibility="collapsed")
+    
+    st.write("")
+    if os.path.exists("icon_final_blau.png"):
+        st.image("icon_final_blau.png", width=120)
+    
     st.write("---")
-    for t, p, l in [("Analyse (1 Dok)", "3,99 €", STRIPE_1), ("Spar-Paket (3 Dok)", "9,99 €", STRIPE_2), ("Sorglos-Paket (10 Dok)", "19,99 €", STRIPE_3)]:
-        st.markdown(f'<div class="paket-card"><div class="paket-title">{t}</div><div class="price-tag">{p}</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", l)
+    
+    pakete = [
+        ("Amtsschimmel Killer: Analyse (1 Dokument)", "3,99 €", STRIPE_1),
+        ("Amtsschimmel Killer: Spar Paket (3 Dokumente)", "9,99 €", STRIPE_2),
+        ("Amtsschimmel Killer: Sorglos Paket (10 Dokumente)", "19,99 €", STRIPE_3)
+    ]
+    
+    for titel, preis, link in pakete:
+        st.markdown(f"""
+            <div class="paket-card">
+                <div style="font-size: 13px; font-weight: 500;">{titel}</div>
+                <div class="price-tag">Einmalpreis {preis}</div>
+                <div class="no-abo-text">❌ KEIN ABO</div>
+            </div>
+        """, unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", link, use_container_width=True)
+        st.write("")
 
-with c_up:
-    st.subheader("📄 Upload")
-    st.info(f"Guthaben: **{st.session_state.credits} Scans**")
-    upped = st.file_uploader("Datei", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
+# --- SPALTE MITTE: UPLOAD & VORSCHAU ---
+with col_mitte:
+    st.subheader("📑 Upload & Vorschau")
+    st.info(f"Guthaben: **{st.session_state.credits} Dokumente**")
+    
+    upped = st.file_uploader("Upload", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
     
     if upped:
         extracted_text = ""
-        if upped.type == "application/pdf":
-            raw = upped.read()
-            with pdfplumber.open(io.BytesIO(raw)) as pdf:
-                for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
-            st.image(convert_from_bytes(raw, first_page=1, last_page=1), caption="Vorschau", use_container_width=True)
-        else:
-            img = Image.open(upped)
-            st.image(img, caption="Vorschau", use_container_width=True)
-            extracted_text = pytesseract.image_to_string(img)
-        
-        if st.button("🚀 JETZT ANALYSIEREN", type="primary", use_container_width=True):
-            if st.session_state.credits > 0:
-                with st.spinner("KI analysiert..."):
-                    try:
-                        # Verbesserter Prompt für stabiles Splitting
-                        prompt = f"Analysiere diesen Text auf {lang}. Antworte NUR in diesem Format:\n###SUM###\n(Zusammenfassung)\n###FRIST###\n(Fristen)\n###ANTWORT###\n(Entwurf)\n\nText: {extracted_text}"
+        try:
+            if upped.type == "application/pdf":
+                raw = upped.read()
+                with pdfplumber.open(io.BytesIO(raw)) as pdf:
+                    for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
+                st.image(convert_from_bytes(raw, first_page=1, last_page=1), caption="Vorschau", use_container_width=True)
+            else:
+                img = Image.open(upped)
+                st.image(img, caption="Vorschau", use_container_width=True)
+                extracted_text = pytesseract.image_to_string(img)
+            
+            if st.button("🚀 JETZT ANALYSIEREN", type="primary", use_container_width=True):
+                if st.session_state.credits > 0:
+                    with st.spinner("Amtsschimmel wird bekämpft..."):
+                        # Stabiler Prompt mit Markern
+                        prompt = f"Analysiere diesen Text auf {lang}. Trenne exakt so:\n###SUM###\n(Zusammenfassung)\n###FRIST###\n(Fristen)\n###ANTWORT###\n(Entwurf)\n\nText: {extracted_text}"
                         res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
                         full = res.choices[0].message.content
                         
-                        # Sichereres Splitting
+                        # Sicherer Split
                         st.session_state.full_res = {
                             "Zusammenfassung": full.split("###SUM###")[-1].split("###FRIST###")[0].strip(),
                             "Fristen": full.split("###FRIST###")[-1].split("###ANTWORT###")[0].strip(),
                             "Antwort-Entwurf": full.split("###ANTWORT###")[-1].strip()
                         }
                         st.session_state.credits -= 1
-                        st.balloons() # <--- Die bunten Luftballons!
+                        st.balloons() # Bunte Luftballons!
                         st.rerun()
-                    except Exception as e: st.error(f"Fehler bei der Analyse: {e}")
-            else: st.error("Kein Guthaben! Bitte links ein Paket wählen.")
+                else:
+                    st.error("Kein Guthaben! Bitte links Paket wählen.")
+        except Exception as e:
+            st.error(f"Fehler: {e}")
 
-with c_res:
-    st.subheader("🔍 Ergebnis")
+# --- SPALTE RECHTS: ANALYSE & ANTWORT ---
+with col_rechts:
+    st.subheader("🔍 Analyse & Antwort")
     if st.session_state.full_res:
         for title, text in st.session_state.full_res.items():
             st.markdown(f'<div class="result-box"><div class="box-title">{title}</div>{text}</div>', unsafe_allow_html=True)
         
         pdf_data = generate_pdf_bytes(st.session_state.full_res)
-        st.download_button(label="📥 PDF herunterladen", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf")
-        if st.button("🔄 Neuer Scan"):
+        st.download_button("📥 PDF herunterladen", data=pdf_data, file_name="Analyse.pdf", mime="application/pdf", use_container_width=True)
+        
+        if st.button("🔄 Neuer Scan", use_container_width=True):
             st.session_state.full_res = None
             st.rerun()
+    else:
+        st.info("Hier erscheint das Ergebnis nach dem Scan.")
