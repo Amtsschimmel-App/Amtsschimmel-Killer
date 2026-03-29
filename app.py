@@ -18,13 +18,17 @@ import gc
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 LOGO_DATEI = "icon_final_blau.png"
 
-# 2. SESSION STATE & GUTHABEN-LOGIK (PRIORISIERT)
+# 2. SESSION STATE & ADMIN (GUTHABEN-FIX)
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# --- GUTHABEN-CHECK BEIM START ---
 params = st.query_params
+# Admin-Check (999 Scans)
+if params.get("admin") == "GeheimAmt2024!":
+    st.session_state.credits = 999
+
+# Stripe-Rückkehr Check
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
         pack_size = int(params.get("pack", 0))
@@ -32,11 +36,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
             st.session_state.credits += pack_size
             st.session_state.processed_sessions.append(params["session_id"])
             st.balloons()
-            st.toast(f"✅ {pack_size} Scan(s) gutgeschrieben!")
     except: pass
-
-if params.get("admin") == "GeheimAmt2024!":
-    st.session_state.credits = 999
 
 # 3. DESIGN (CSS)
 st.markdown("""
@@ -69,23 +69,14 @@ def get_text_hybrid(uploaded_file):
     return text.strip()
 
 def analyze_letter(raw_text, lang):
-    # Vor-Prüfung auf Lesbarkeit
-    if len(raw_text) < 25:
-        return "FEHLER_UNSCHARF"
-    
-    sys_p = f"""Rechtsexperte. Sprache: {lang}. 
-    Falls der Text völlig unleserlich oder sinnlos ist, antworte NUR mit dem Wort: FEHLER_UNSCHARF.
-    Ansonsten analysiere strikt in diesem Format:
-    ### FRISTEN & TERMINE ###
-    ...
-    ### ANTWORTBRIEF ###
-    ..."""
+    if len(raw_text) < 25: return "FEHLER_UNSCHARF"
+    sys_p = f"Rechtsexperte. Sprache: {lang}. Analysiere den Brief, liste Fristen auf und erstelle einen Antworttext mit Platzhaltern. Falls unleserlich, antworte nur: FEHLER_UNSCHARF."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices.message.content
+    return resp.choices[0].message.content # FIX: [0] hinzugefügt
 
 def create_excel_clean(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Frist-Datum": dates, "Details": ["Frist aus Behördenbrief" for _ in dates]})
+    df = pd.DataFrame({"Frist-Datum": dates, "Details": ["Frist aus Brief" for _ in dates]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Fristen')
@@ -95,7 +86,7 @@ def create_excel_clean(text):
 
 def create_ical(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    ical = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Amtsschimmel-Killer//DE\n"
+    ical = "BEGIN:VCALENDAR\nVERSION:2.0\n"
     for d in dates:
         try:
             dt = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
@@ -118,7 +109,6 @@ with st.sidebar:
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     lang_choice = st.radio("Antwort-Sprache", ["Deutsch", "English"], horizontal=True)
     st.divider()
-    st.subheader("Guthaben aufladen")
     pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), 
             ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), 
             ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
@@ -140,8 +130,7 @@ with t1:
                     images = convert_from_bytes(upload.getvalue(), dpi=72, first_page=1, last_page=1)
                     st.image(images, caption="Vorschau der 1. Seite", use_container_width=True)
                 except: st.info("✅ PDF geladen.")
-            else:
-                st.image(upload, caption="Vorschau deines Briefs", use_container_width=True)
+            else: st.image(upload, caption="Vorschau deines Briefs", use_container_width=True)
 
     with col_a:
         if upload and st.session_state.credits > 0 and not st.session_state.full_res:
@@ -149,10 +138,8 @@ with t1:
                 with st.spinner("Amtsschimmel wird vertrieben..."):
                     raw = get_text_hybrid(upload)
                     ergebnis = analyze_letter(raw, lang_choice)
-                    
                     if "FEHLER_UNSCHARF" in ergebnis:
-                        st.error("⚠️ **Text ist zu unscharf oder unleserlich.**")
-                        st.info("Bitte fotografiere den Brief nochmal mit **mehr Licht** und achte darauf, dass die Kamera **scharfstellt**. Es wurde **kein Scan** abgezogen!")
+                        st.error("⚠️ Text unleserlich. Bitte mit mehr Licht neu fotografieren. Kein Guthaben abgezogen.")
                     else:
                         st.session_state.full_res = ergebnis
                         st.session_state.credits -= 1
@@ -161,32 +148,26 @@ with t1:
         if st.session_state.full_res:
             st.success("Analyse abgeschlossen!")
             st.markdown(f'<div class="result-section">{st.session_state.full_res}</div>', unsafe_allow_html=True)
-            st.divider()
             d1, d2, d3, d4 = st.columns(4)
             with d1: st.download_button("💾 Text", st.session_state.full_res, "antwort.txt")
             with d2: st.download_button("📊 Excel", create_excel_clean(st.session_state.full_res), "fristen.xlsx")
-            with d3: st.download_button("📄 PDF", create_pdf_bytes(st.session_state.full_res), "antwortbrief.pdf")
+            with d3: st.download_button("📄 PDF", create_pdf_bytes(st.session_state.full_res), "antwort.pdf")
             with d4: st.download_button("📅 iCal", create_ical(st.session_state.full_res), "termin.ics")
             if st.button("🔄 Nächster Brief"): st.session_state.full_res = ""; st.rerun()
 
 with t2:
     st.subheader("Vorlagen")
     st.info("**Fristverlängerung:** Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
-    st.info("**Widerspruch einlegen (Fristwahrend):** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
-    st.info("**Akteneinsicht einfordern:** Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+    st.info("**Widerspruch (Fristwahrend):** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
+    st.info("**Akteneinsicht:** Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
 with t3:
     st.subheader("FAQ")
-    faq_data = [
-        ("Ist das ein Abonnement?", "Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung."),
-        ("Wie sicher sind meine Dokumente?", "Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht."),
-        ("Ersetzt die App eine Rechtsberatung?", "Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt."),
-        ("Was passiert, wenn der Scan fehlschlägt?", "Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen."),
-        ("Wie erreiche ich Elisabeth Reinecke?", "Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
-    ]
-    for q, a in faq_data:
-        st.markdown(f'<span class="faq-q">{q}</span>', unsafe_allow_html=True)
-        st.markdown(f'<div class="faq-a">{a}</div>', unsafe_allow_html=True)
+    st.markdown("<span class='faq-q'>Ist das ein Abonnement?</span><div class='faq-a'>Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.</div>", unsafe_allow_html=True)
+    st.markdown("<span class='faq-q'>Wie sicher sind meine Dokumente?</span><div class='faq-a'>Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.</div>", unsafe_allow_html=True)
+    st.markdown("<span class='faq-q'>Ersetzt die App eine Rechtsberatung?</span><div class='faq-a'>Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.</div>", unsafe_allow_html=True)
+    st.markdown("<span class='faq-q'>Was passiert, wenn der Scan fehlschlägt?</span><div class='faq-a'>Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen.</div>", unsafe_allow_html=True)
+    st.markdown("<span class='faq-q'>Wie erreiche ich Elisabeth Reinecke?</span><div class='faq-a'>Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>", unsafe_allow_html=True)
 
 # 7. FOOTER
 st.divider()
