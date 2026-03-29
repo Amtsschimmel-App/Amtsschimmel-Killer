@@ -12,7 +12,7 @@ import pandas as pd
 import re
 from fpdf import FPDF
 from datetime import datetime
-import gc
+import gc 
 
 # 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
@@ -23,7 +23,7 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# --- SOFORTIGE PRÜFUNG DER STRIPE-RÜCKKEHR ---
+# --- GUTHABEN-CHECK BEIM START ---
 params = st.query_params
 if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
     try:
@@ -32,10 +32,9 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
             st.session_state.credits += pack_size
             st.session_state.processed_sessions.append(params["session_id"])
             st.balloons()
-            st.toast(f"✅ {pack_size} Scan(s) erfolgreich gutgeschrieben!")
+            st.toast(f"✅ {pack_size} Scan(s) gutgeschrieben!")
     except: pass
 
-# Admin-Check
 if params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
 
@@ -72,7 +71,7 @@ def get_text_hybrid(uploaded_file):
 def analyze_letter(raw_text, lang):
     sys_p = f"Rechtsexperte. Sprache: {lang}. Analysiere strikt: ### FRISTEN ### und ### ANTWORTBRIEF ###."
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices[0].message.content
+    return resp.choices.message.content
 
 def create_excel_clean(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
@@ -120,13 +119,16 @@ t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ & Hilfe"])
 
 with t1:
     st.title("Amtsschimmel-Killer 📄🚀")
+    
     col_v, col_a = st.columns([1, 1.2]) 
     
     with col_v:
         upload = st.file_uploader("Brief hier hochladen:", type=['pdf', 'png', 'jpg', 'jpeg'])
         if upload:
-            if upload.type != "application/pdf": st.image(upload, use_container_width=True)
-            else: st.info("✅ PDF geladen.")
+            if upload.type != "application/pdf": 
+                st.image(upload, caption="Vorschau deines Briefs", use_container_width=True)
+            else: 
+                st.info("✅ PDF geladen. Vorschau für PDFs nicht direkt verfügbar.")
 
     with col_a:
         if upload and st.session_state.credits > 0 and not st.session_state.full_res:
@@ -148,12 +150,11 @@ with t1:
             with d4: st.download_button("📅 iCal", create_ical(st.session_state.full_res), "termin.ics")
             if st.button("🔄 Nächster Brief"): st.session_state.full_res = ""; st.rerun()
 
-# 7. FAQ, VORLAGEN & FOOTER (Texte wie vorgegeben)
 with t2:
     st.subheader("Vorlagen")
     st.info("**Fristverlängerung:** Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
-    st.info("**Widerspruch (Fristwahrend):** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
-    st.info("**Akteneinsicht:** Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+    st.info("**Widerspruch einlegen (Fristwahrend):** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
+    st.info("**Akteneinsicht einfordern:** Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
 with t3:
     st.subheader("FAQ")
@@ -170,4 +171,4 @@ with c_imp:
         st.markdown("""<div class="legal-box"><strong>Amtsschimmel-Killer</strong><br>Betreiberin: Elisabeth Reinecke<br>Ringelsweide 9, 40223 Düsseldorf<br><br><strong>Kontakt:</strong><br>Telefon: +49 211 15821329<br>E-Mail: amtsschimmel-killer@proton.me<br>Web: amtsschimmel-killer.streamlit.app<br><br><strong>Haftung:</strong><br>Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.</div>""", unsafe_allow_html=True)
 with c_dat:
     with st.expander("⚖️ Datenschutz"):
-        st.markdown("""<div class="legal-box"><strong>1. Datenschutz auf einen Blick</strong><br>Wir behandeln Ihre personenbezogenen Daten vertraulich (DSGVO).<br><br><strong>2. Datenerfassung & Hosting</strong><br>Streamlit Cloud Hosting. Logfiles werden automatisch erfasst, wir nutzen diese nicht.<br><br><strong>3. Dokumentenverarbeitung</strong><br>Übertragung via TLS an OpenAI (USA). Keine Speicherung auf unseren Servern.<br><br><strong>4. Zahlungsabwicklung (Stripe)</strong><br>Weiterleitung zu Stripe. Wir erhalten nur eine Bestätigung über die erfolgreiche Zahlung.<br><br><strong>5. Ihre Rechte</strong><br>Recht auf Auskunft, Löschung & Sperrung via amtsschimmel-killer@proton.me.</div>""", unsafe_allow_html=True)
+        st.markdown("""<div class="legal-box"><strong>1. Datenschutz auf einen Blick</strong><br>Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).<br><br><strong>2. Datenerfassung & Hosting</strong><br>Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.<br><br><strong>3. Dokumentenverarbeitung</strong><br>Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.<br><br><strong>4. Zahlungsabwicklung (Stripe)</strong><br>Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.<br><br><strong>5. Ihre Rechte</strong><br>Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.</div>""", unsafe_allow_html=True)
