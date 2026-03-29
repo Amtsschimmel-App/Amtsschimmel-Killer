@@ -97,7 +97,7 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN
+# 3. EXPORT FUNKTIONEN (PDF, DOCX, EXCEL, ICS)
 # ==========================================
 def clean_txt(t):
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
@@ -114,7 +114,7 @@ def create_pdf(text):
 
 def create_docx(text):
     doc = Document()
-    doc.add_heading('Analyse-Ergebnis', 0)
+    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
     doc.add_paragraph(text.replace("#", ""))
     bio = io.BytesIO()
     doc.save(bio)
@@ -122,7 +122,7 @@ def create_docx(text):
 
 def create_excel(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Fristen": dates if dates else ["Keine gefunden"], "Info": ["Aus Analyse" for _ in range(max(1, len(dates)))]})
+    df = pd.DataFrame({"Fristen": dates if dates else ["Keine gefunden"], "Info": ["Wichtiger Termin" for _ in range(max(1, len(dates)))]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
@@ -134,7 +134,7 @@ def create_ics(text):
     for d in dates:
         try:
             cd = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nEND:VEVENT\n"
+            ics += f"BEGIN:VEVENT\nSUMMARY:Amtsschimmel Frist\nDTSTART:{cd}\nDTEND:{cd}\nEND:VEVENT\n"
         except: pass
     ics += "END:VCALENDAR"
     return ics.encode('utf-8')
@@ -163,10 +163,10 @@ def run_ai(raw_text, lang, mode):
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
     sys_p = f"""Rechtsexperte. Sprache: {lang}. Erstelle: 
     1. ### 🚦 AMPEL ### (Dringlichkeit)
-    2. ### 📖 GLOSSAR ### (Begriffe erklärt)
-    3. ### 📅 FRISTEN ### (Alle Termine)
-    4. ### ✍️ {label.upper()} ### (Der Entwurf)
-    5. ### 📋 CHECKLISTE ### (Versand-Tipps)"""
+    2. ### 📖 GLOSSAR ### (Begriffe einfach erklärt)
+    3. ### 📅 FRISTEN ### (Datum | Aktion)
+    4. ### ✍️ {label.upper()} ### (Der vollständige Entwurf)
+    5. ### 📋 VERSAND-CHECKLISTE ### (Tipps)"""
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
     return resp.choices.message.content
 
@@ -186,34 +186,36 @@ with c4:
 st.divider()
 
 # ==========================================
-# 6. SIDEBAR - SHOP (KOMPAKT)
+# 6. SIDEBAR - SPRACHEN & PAKETE (FIXIERT)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI)
     
-    st.subheader("🌍 Sprache")
-    lang_choice = st.selectbox("Wählen:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski"], label_visibility="collapsed")
+    st.subheader("🌍 1. Sprache wählen")
+    lang_choice = st.selectbox("Ausgabe:", [
+        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
+        "🇮🇹 Italiano", "🇫🇷 Français", "🇪🇸 Español", "🇺🇦 Українська", 
+        "🇦🇪 العربية", "🇷🇴 Română", "🇬🇷 Ελληνικά"
+    ], label_visibility="collapsed")
     
     st.divider()
-    st.subheader("🛒 Scans kaufen")
+    st.subheader("🛒 2. Scans kaufen")
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
 
-    # PAKET BASIS
-    st.markdown('<div style="background-color:#f0f2f6; padding:10px; border-radius:5px; border:1px solid #ddd;">'
+    # PAKETE UNTEREINANDER
+    st.markdown('<div style="background-color:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #ddd; margin-bottom:5px;">'
                 '<b>BASIS</b>: 1 Scan | 2,99 €<br><small>Einmalzahlung - Kein Abo</small></div>', unsafe_allow_html=True)
-    st.link_button("Basis kaufen", "DEIN_LINK_1", use_container_width=True)
+    st.link_button("Basis kaufen", "DEIN_STRIPE_URL_1", use_container_width=True)
+    
     st.write("")
-
-    # PAKET SPAR
-    st.markdown('<div style="background-color:#e1f5fe; padding:10px; border-radius:5px; border:1px solid #b3e5fc;">'
+    st.markdown('<div style="background-color:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #bbdefb; margin-bottom:5px;">'
                 '<b>SPAR-PAKET</b>: 5 Scans | 9,99 €<br><small>Einmalzahlung - Kein Abo</small></div>', unsafe_allow_html=True)
-    st.link_button("Spar-Paket kaufen", "DEIN_LINK_5", use_container_width=True)
+    st.link_button("Spar-Paket kaufen", "DEIN_STRIPE_URL_5", use_container_width=True)
+    
     st.write("")
-
-    # PAKET PREMIUM
-    st.markdown('<div style="background-color:#e8f5e9; padding:10px; border-radius:5px; border:1px solid #c8e6c9;">'
+    st.markdown('<div style="background-color:#e8f5e9; padding:10px; border-radius:5px; border:1px solid #c8e6c9; margin-bottom:5px;">'
                 '<b>PREMIUM</b>: 10 Scans | 14,99 €<br><small>Einmalzahlung - Kein Abo</small></div>', unsafe_allow_html=True)
-    st.link_button("Premium kaufen", "DEIN_LINK_10", use_container_width=True)
+    st.link_button("Premium kaufen", "DEIN_STRIPE_URL_10", use_container_width=True)
 
 # ==========================================
 # 7. HAUPTBEREICH
@@ -222,26 +224,27 @@ st.title("📄 Amtsschimmel-Killer")
 
 m1, m2 = st.columns(2)
 with m1:
-    st.subheader("1. Dokument hochladen")
-    u_file = st.file_uploader("Bild oder PDF", type=['png', 'jpg', 'pdf'])
+    st.subheader("1. Brief hochladen")
+    u_file = st.file_uploader("Bild oder PDF hochladen", type=['png', 'jpg', 'pdf'])
     mode = st.radio("Ziel:", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
-    if u_file and st.button("🚀 Analyse starten"):
+    if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
-            with st.spinner("KI arbeitet..."):
+            with st.spinner("KI übersetzt Amtsschimmel-Deutsch..."):
                 raw = get_text(u_file)
                 st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
                 st.session_state.credits -= 1
                 st.rerun()
-        else: st.error("Guthaben leer! Bitte links aufladen.")
+        else: st.error("Guthaben leer! Bitte links ein Paket kaufen.")
 
 with m2:
-    st.subheader("2. Ergebnis & Downloads")
+    st.subheader("2. Analyse-Ergebnis & Export")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
+        st.write("📥 **Ergebnis speichern:**")
         ex1, ex2, ex3, ex4 = st.columns(4)
         with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
         with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
         with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
-        with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Fristen.ics")
-    else: st.info("Warte auf Dokument...")
+        with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Termine.ics")
+    else: st.info("Hier erscheint das Ergebnis nach dem Scan.")
