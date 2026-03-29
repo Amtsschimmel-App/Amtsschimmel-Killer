@@ -9,10 +9,11 @@ import os
 import pandas as pd
 import re
 from fpdf import FPDF 
+from docx import Document
 from datetime import datetime
 
 # ==========================================
-# 1. KONFIGURATION & RECHTSTEXTE (FIXIERT)
+# 1. RECHTSTEXTE & KONSTANTEN (FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -44,38 +45,21 @@ Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gese
 Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch vom Hoster erfasst.
 
 **3. Dokumentenverarbeitung**  
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.
-
-**4. Zahlungsabwicklung (Stripe)**  
-Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung.
-
-**5. Ihre Rechte**  
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontakt: amtsschimmel-killer@proton.me.
+Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) übertragen. Wir speichern keine Briefe.
 """
 
 FAQ_TEXT = """
 **Ist das ein Abonnement?**  
-Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine **Einmalzahlung** für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
+Nein. Jede Zahlung ist eine **Einmalzahlung** für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
 **Wie sicher sind meine Dokumente?**  
-Ihre Dokumente werden verschlüsselt an die KI übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert.
-
-**Ersetzt die App eine Rechtsberatung?**  
-Nein. Wir bieten eine Formulierungshilfe. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
-
-**Was passiert, wenn der Scan fehlschlägt?**  
-Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.
+Ihre Dokumente werden verschlüsselt verarbeitet und niemals dauerhaft gespeichert. Nach der Analyse werden die Daten gelöscht.
 """
 
 VORLAGEN_TEXT = """
-**Fristverlängerung:**  
-"Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum]..."
-
-**Widerspruch (Fristwahrend):**  
-"Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein. Begründung folgt."
-
-**Akteneinsicht:**  
-"Sehr geehrte Damen und Herren, ich beantrage hiermit Akteneinsicht gemäß § 25 SGB X."
+**Fristverlängerung:** "Ich bitte um Verlängerung bis [Datum]..."  
+**Widerspruch:** "Hiermit lege ich Widerspruch gegen [Bescheid] ein..."  
+**Akteneinsicht:** "Ich beantrage Akteneinsicht gemäß § 25 SGB X."
 """
 
 # ==========================================
@@ -97,12 +81,12 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. HILFSFUNKTIONEN (EXPORT & KI)
+# 3. EXPORT FUNKTIONEN (PDF, WORD, EXCEL, ICS)
 # ==========================================
 def clean_txt(t):
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
 
-def create_pdf_final(text):
+def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", 'B', 16)
@@ -112,6 +96,36 @@ def create_pdf_final(text):
     pdf.multi_cell(0, 8, txt=clean_txt(text))
     return pdf.output(dest='S').encode('latin-1')
 
+def create_docx(text):
+    doc = Document()
+    doc.add_heading('Amtsschimmel-Killer Analyse', 0)
+    doc.add_paragraph(text.replace("#", ""))
+    bio = io.BytesIO()
+    doc.save(bio)
+    return bio.getvalue()
+
+def create_excel(text):
+    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
+    df = pd.DataFrame({"Gefundene Fristen": dates if dates else ["Keine"], "Typ": ["Frist" for _ in range(len(dates)) if dates] or ["Info"]})
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False)
+    return output.getvalue()
+
+def create_ics(text):
+    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
+    ics = "BEGIN:VCALENDAR\nVERSION:2.0\n"
+    for d in dates:
+        try:
+            cd = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
+            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nEND:VEVENT\n"
+        except: pass
+    ics += "END:VCALENDAR"
+    return ics.encode('utf-8')
+
+# ==========================================
+# 4. KI-LOGIK
+# ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def get_text(file):
@@ -131,97 +145,93 @@ def get_text(file):
 def run_ai(raw_text, lang, mode):
     if len(raw_text.strip()) < 40: return "FEHLER_UNSCHARF"
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
-    sys_p = f"Rechtsexperte. Sprache: {lang}. Erstelle 1. Ampel, 2. Dolmetscher, 3. Fristen, 4. {label}, 5. Checkliste."
+    sys_p = f"""Sprache: {lang}. Erstelle: 
+    1. ### 🚦 AMPEL ### (Dringlichkeit)
+    2. ### 📖 GLOSSAR ### (Begriffe erklärt)
+    3. ### 📅 FRISTEN ### (Alle Termine)
+    4. ### ✍️ {label.upper()} ### (Der Entwurf)
+    5. ### 📋 CHECKLISTE ### (Versand-Tipps)"""
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
     return resp.choices.message.content
 
 # ==========================================
-# 4. UI LAYOUT OBEN (INFO-LEISTE FIXIERT)
+# 5. UI - OBERE LEISTE (FIXIERT)
 # ==========================================
-info_col1, info_col2, info_col3, info_col4 = st.columns(4)
-with info_col1:
+c1, c2, c3, c4 = st.columns(4)
+with c1: 
     with st.expander("⚖️ Impressum"): st.write(IMPRESSUM_TEXT)
-with info_col2:
+with c2: 
     with st.expander("🛡️ Datenschutz"): st.write(DATENSCHUTZ_TEXT)
-with info_col3:
+with c3: 
     with st.expander("❓ FAQ"): st.write(FAQ_TEXT)
-with info_col4:
+with c4: 
     with st.expander("📋 Vorlagen"): st.write(VORLAGEN_TEXT)
 
 st.divider()
 
 # ==========================================
-# 5. SIDEBAR (SPRACHE & SHOP OPTIMIERT)
+# 6. SIDEBAR - SPRACHE & SHOP UNTEREINANDER
 # ==========================================
 with st.sidebar:
-    if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
+    if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI)
     
     st.subheader("🌍 1. Sprache wählen")
-    lang_choice = st.selectbox("Ausgabe-Sprache:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский"], label_visibility="collapsed")
+    lang_choice = st.selectbox("Ausgabe:", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski"], label_visibility="collapsed")
     
     st.divider()
-    
-    st.subheader("🛒 2. Guthaben aufladen")
-    st.metric("Verfügbare Scans", f"{st.session_state.credits}")
-    
+    st.subheader("🛒 2. Scans kaufen")
+    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
+
     # PAKET 1
-    with st.container():
-        st.info("**PAKET S**")
-        st.write("Preis: **2,99 €**")
-        st.write("✅ **1 Scan**")
-        st.write("🚀 **Einmalzahlung**")
-        st.caption("KEIN Abo / Keine Bindung")
-        st.link_button("☕ Jetzt kaufen", "DEIN_STRIPE_LINK_1", use_container_width=True)
+    st.markdown('<div style="background-color:#f0f2f6; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:10px;">'
+                '<h4 style="margin:0;">☕ PAKET S</h4>'
+                '<p style="margin:5px 0;"><b>2,99 €</b> für <b>1 Scan</b></p>'
+                '<p style="font-size:0.8em; color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</p></div>', unsafe_allow_html=True)
+    st.link_button("1 Scan kaufen", "DEIN_LINK_1", use_container_width=True)
 
     # PAKET 2
-    with st.container():
-        st.success("**PAKET M (Bestseller)**")
-        st.write("Preis: **9,99 €**")
-        st.write("✅ **5 Scans**")
-        st.write("🚀 **Einmalzahlung**")
-        st.caption("KEIN Abo / Keine Bindung")
-        st.link_button("📦 Jetzt kaufen", "DEIN_STRIPE_LINK_5", use_container_width=True)
+    st.markdown('<div style="background-color:#e1f5fe; padding:15px; border-radius:10px; border:1px solid #b3e5fc; margin-bottom:10px;">'
+                '<h4 style="margin:0;">📦 PAKET M</h4>'
+                '<p style="margin:5px 0;"><b>9,99 €</b> für <b>5 Scans</b></p>'
+                '<p style="font-size:0.8em; color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</p></div>', unsafe_allow_html=True)
+    st.link_button("5 Scans kaufen", "DEIN_LINK_5", use_container_width=True)
 
     # PAKET 3
-    with st.container():
-        st.warning("**PAKET L (Profi)**")
-        st.write("Preis: **14,99 €**")
-        st.write("✅ **10 Scans**")
-        st.write("🚀 **Einmalzahlung**")
-        st.caption("KEIN Abo / Keine Bindung")
-        st.link_button("🚀 Jetzt kaufen", "DEIN_STRIPE_LINK_10", use_container_width=True)
+    st.markdown('<div style="background-color:#e8f5e9; padding:15px; border-radius:10px; border:1px solid #c8e6c9; margin-bottom:10px;">'
+                '<h4 style="margin:0;">🚀 PAKET L</h4>'
+                '<p style="margin:5px 0;"><b>14,99 €</b> für <b>10 Scans</b></p>'
+                '<p style="font-size:0.8em; color:green;">✅ EINMALZAHLUNG<br>❌ KEIN ABO</p></div>', unsafe_allow_html=True)
+    st.link_button("10 Scans kaufen", "DEIN_LINK_10", use_container_width=True)
 
 # ==========================================
-# 6. HAUPTBEREICH (ANALYSE)
+# 7. HAUPTBEREICH - ANALYSE & ERGEBNIS
 # ==========================================
 st.title("📄 Amtsschimmel-Killer")
 
-col_main1, col_main2 = st.columns(2)
-
-with col_main1:
-    st.subheader("1. Dokument hochladen")
-    u_file = st.file_uploader("Bild oder PDF hier reinziehen", type=['png', 'jpg', 'jpeg', 'pdf'])
-    mode = st.radio("Was soll die KI erstellen?", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
-    
+m1, m2 = st.columns(2)
+with m1:
+    st.subheader("1. Brief hochladen")
+    u_file = st.file_uploader("Bild oder PDF", type=['png', 'jpg', 'pdf'])
+    mode = st.radio("Ziel:", ["📝 Antwortbrief", "🛑 Widerspruch"], horizontal=True)
     if u_file and st.button("🚀 Jetzt analysieren (-1 Scan)"):
         if st.session_state.credits > 0:
-            with st.spinner("KI liest und analysiert..."):
+            with st.spinner("KI liest Amtsschimmel-Deutsch..."):
                 raw = get_text(u_file)
-                res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
-                if res == "FEHLER_UNSCHARF":
-                    st.error("Text zu unscharf! Bitte neu fotografieren.")
-                else:
-                    st.session_state.full_res = res
-                    st.session_state.credits -= 1
-                    st.rerun()
-        else:
-            st.error("Guthaben leer! Bitte links ein Paket kaufen (Einmalzahlung).")
+                st.session_state.full_res = run_ai(raw, lang_choice, "W" if "Widerspruch" in mode else "A")
+                st.session_state.credits -= 1
+                st.rerun()
+        else: st.error("Bitte Guthaben links aufladen!")
 
-with col_main2:
-    st.subheader("2. Analyse-Ergebnis")
+with m2:
+    st.subheader("2. Ergebnis & Downloads")
     if st.session_state.full_res:
         st.markdown(st.session_state.full_res)
         st.divider()
-        st.download_button("📥 Als PDF speichern", create_pdf_final(st.session_state.full_res), "Analyse.pdf")
-    else:
-        st.info("Hier erscheint Ihr Ergebnis, sobald die Analyse fertig ist.")
+        st.write("📥 **Ergebnis sichern:**")
+        # Export-Buttons nebeneinander
+        ex1, ex2, ex3, ex4 = st.columns(4)
+        with ex1: st.download_button("📄 PDF", create_pdf(st.session_state.full_res), "Analyse.pdf")
+        with ex2: st.download_button("📝 Word", create_docx(st.session_state.full_res), "Analyse.docx")
+        with ex3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
+        with ex4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Fristen.ics")
+    else: st.info("Warte auf Dokument...")
