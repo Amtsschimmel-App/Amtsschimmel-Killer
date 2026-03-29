@@ -14,7 +14,7 @@ from docx.shared import Inches
 from datetime import datetime
 
 # ==========================================
-# 1. RECHTSTEXTE & KONSTANTEN (UNVERÄNDERLICH)
+# 1. RECHTSTEXTE & KONSTANTEN (FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -76,7 +76,7 @@ VORLAGEN = [
 ]
 
 # ==========================================
-# 2. SESSION STATE & ADMIN-LOGIN
+# 2. SESSION STATE
 # ==========================================
 if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
@@ -94,10 +94,9 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN (Sicher & Robust)
+# 3. EXPORT FUNKTIONEN (REPARIERT)
 # ==========================================
 def clean_txt(t):
-    # Filtert Emojis für PDF-Stabilität
     return t.replace("###","").replace("**","").replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").encode('latin-1', 'replace').decode('latin-1')
 
 def create_pdf_final(text):
@@ -115,11 +114,15 @@ def create_pdf_final(text):
 
 def create_excel_final(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Datum": dates if dates else ["Gefunden"], "Analyse": * max(1, len(dates))})
+    count = max(1, len(dates))
+    df = pd.DataFrame({
+        "Datum": dates if dates else ["Gefunden"], 
+        "Analyse-Inhalt": * count
+    })
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
-        writer.sheets['Sheet1'].set_column(1, 1, 120) # Maximale Breite
+        writer.sheets['Sheet1'].set_column(1, 1, 120)
     return output.getvalue()
 
 def create_ics_final(text):
@@ -128,13 +131,13 @@ def create_ics_final(text):
     for d in dates:
         try:
             cd = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nEND:VEVENT\n"
+            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nDESCRIPTION:Termin aus Analyse\nEND:VEVENT\n"
         except: pass
     ics += "END:VCALENDAR"
     return ics.encode('utf-8')
 
 # ==========================================
-# 4. KI-LOGIK (Glossar, Ampel & Checkliste)
+# 4. KI-LOGIK
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -155,32 +158,23 @@ def get_text(file):
 def run_ai(raw_text, lang, mode):
     if len(raw_text.strip()) < 40: return "FEHLER_UNSCHARF"
     label = "Widerspruch" if mode == "W" else "Antwortbrief"
-    
-    # HIER SIND DIE FEATURES FEST VERANKERT
     sys_p = f"""Rechtsexperte. Sprache: {lang}. 
     Erstelle IMMER folgende Sektionen:
     1. ### 🚦 DRINGLICHKEITS-AMPEL ### (ROT/GELB/GRÜN + Begründung)
-    2. ### 📖 BEHÖRDEN-DOLMETSCHER ### (Erkläre 3-4 Fachbegriffe aus dem Brief einfach)
-    3. ### 📅 WICHTIGE FRISTEN ### (Liste: Datum | Aktion)
-    4. ### ✍️ DEIN {label.upper()} ### (Schreibe den vollständigen {label})
-    5. ### 📋 VERSAND-CHECKLISTE ### (Genaue Anleitung zum Versenden)"""
-    
+    2. ### 📖 BEHÖRDEN-DOLMETSCHER ### (Glossar: 3-4 Begriffe einfach erklärt)
+    3. ### 📅 WICHTIGE FRISTEN ### (Datum | Aktion)
+    4. ### ✍️ DEIN {label.upper()} ### (Der vollständige {label})
+    5. ### 📋 VERSAND-CHECKLISTE ### (Anleitung: Einschreiben etc.)"""
     resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": raw_text}])
-    return resp.choices[0].message.content
+    return resp.choices.message.content
 
 # ==========================================
-# 5. UI - LAYOUT (Vorschau links / Analyse rechts)
+# 5. UI (VORSCHAU LINKS / ANALYSE RECHTS)
 # ==========================================
 with st.sidebar:
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
-    
-    # FLAGGEN IM MULTI-LANGUAGE SUPPORT
-    lang_choice = st.selectbox("🌍 Sprache wählen", [
-        "🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", 
-        "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", 
-        "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"
-    ])
+    lang_choice = st.selectbox("🌍 Sprache wählen", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇪🇸 Español", "🇫🇷 Français", "🇦🇱 Albanian", "🇮🇹 Italiano", "🇳🇱 Nederlands", "🇸🇦 العربية", "🇺🇦 Українська"])
     st.divider()
     st.subheader("💳 Pakete (Einmalzahlung)")
     for n, l, c, p in [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]:
@@ -200,14 +194,13 @@ with t1:
     col_l, col_r = st.columns([1, 1.2])
     with col_l:
         st.subheader("1. Dokument")
-        upload = st.file_uploader("Bild oder PDF:", type=['pdf','png','jpg','jpeg'], key="up_vfinal")
+        upload = st.file_uploader("Upload Bild/PDF:", type=['pdf','png','jpg','jpeg'], key="up_vfinal_fix")
         if upload:
-            # VORSCHAU LINKS FEST VERANKERT
-            if upload.type.startswith("image"): st.image(upload, use_container_width=True, caption="Dokument-Vorschau")
-            else: st.success("✅ PDF erfolgreich geladen.")
+            if upload.type.startswith("image"): st.image(upload, use_container_width=True, caption="Vorschau")
+            else: st.success("✅ PDF geladen.")
 
     with col_r:
-        st.subheader("2. Ergebnis")
+        st.subheader("2. Analyse & Ergebnis")
         if upload and st.session_state.credits > 0:
             c1, c2 = st.columns(2)
             with c1:
@@ -233,7 +226,6 @@ with t1:
             with d3: st.download_button("📊 Excel", create_excel_final(st.session_state.full_res), "Fristen.xlsx")
             with d4: st.download_button("📅 Kalender", create_ics_final(st.session_state.full_res), "Termin.ics")
 
-# RECHTLICHE TABS (Fixiert)
 with t2:
     st.header("⚡ Schnell-Vorlagen")
     for title, text in VORLAGEN: st.markdown(f"**{title}:**"); st.info(text)
