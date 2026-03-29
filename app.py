@@ -10,11 +10,10 @@ import pandas as pd
 import re
 from fpdf import FPDF 
 from docx import Document
-from docx.shared import Inches
 from datetime import datetime
 
 # ==========================================
-# 1. FESTE TEXTE (FEST IM CODE FIXIERT)
+# 1. RECHTSTEXTE (FEST IM CODE FIXIERT)
 # ==========================================
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
 
@@ -67,12 +66,6 @@ Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. 
 Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
 """
 
-VORLAGEN_CONTENT = [
-    ("Fristverlängerung", "Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]"),
-    ("Widerspruch einlegen (Fristwahrend)", "Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]"),
-    ("Akteneinsicht einfordern", "Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
-]
-
 # ==========================================
 # 2. SESSION STATE & CREDITS
 # ==========================================
@@ -92,47 +85,32 @@ if "session_id" in params and params["session_id"] not in st.session_state.proce
     except: pass
 
 # ==========================================
-# 3. EXPORT FUNKTIONEN (WORD, PDF, EXCEL, ICS)
+# 3. EXPORT FUNKTIONEN (REPARIERT)
 # ==========================================
-def clean_txt(t):
-    # Filtert Emojis und Sonderzeichen für PDF-Stabilität
-    return t.replace("🚦","").replace("📖","").replace("📅","").replace("✍️","").replace("📋","").replace("###","").replace("**","").encode('latin-1', 'replace').decode('latin-1')
+def clean_for_pdf(t):
+    return t.replace("###","").replace("**","").encode('latin-1', 'replace').decode('latin-1')
 
-def create_pdf(text, mode):
+def create_pdf_data(text, mode):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", 'B', 16)
-    if mode == "W":
-        pdf.set_text_color(200, 0, 0)
-        pdf.cell(0, 10, clean_txt("OFFIZIELLER WIDERSPRUCH"), ln=True)
-    else:
-        pdf.set_text_color(30, 58, 138)
-        pdf.cell(0, 10, clean_txt("Amtsschimmel-Killer Analyse"), ln=True)
+    pdf.set_text_color(200, 0, 0) if mode == "W" else pdf.set_text_color(30, 58, 138)
+    pdf.cell(0, 10, "WIDERSPRUCH" if mode == "W" else "ANALYSE-ERGEBNIS", ln=True)
+    pdf.ln(10)
     pdf.set_text_color(0,0,0)
     pdf.set_font("Helvetica", size=11)
-    pdf.ln(10)
-    pdf.multi_cell(0, 8, txt=clean_txt(text))
-    return pdf.output()
+    pdf.multi_cell(0, 8, txt=clean_for_pdf(text))
+    # WICHTIG: Output als Bytes für Streamlit
+    return bytes(pdf.output())
 
-def create_excel(text):
+def create_excel_data(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Datum": dates if dates else ["Gefunden"], "Analyse": [text.replace("\n", " ")] * max(1, len(dates))})
+    df = pd.DataFrame({"Datum": dates if dates else ["Gefunden"], "Inhalt": [text.replace("\n", " ")] * max(1, len(dates))})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False)
         writer.sheets['Sheet1'].set_column(1, 1, 100)
     return output.getvalue()
-
-def create_ics(text):
-    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    ics = "BEGIN:VCALENDAR\nVERSION:2.0\n"
-    for d in dates:
-        try:
-            cd = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
-            ics += f"BEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{cd}\nDTEND:{cd}\nEND:VEVENT\n"
-        except: pass
-    ics += "END:VCALENDAR"
-    return ics.encode('utf-8')
 
 # ==========================================
 # 4. KI-LOGIK
@@ -178,17 +156,18 @@ with t1:
     col_l, col_r = st.columns([1, 1.2])
     with col_l:
         st.subheader("1. Dokument hochladen")
-        upload = st.file_uploader("Upload Bild/PDF:", type=['pdf','png','jpg','jpeg'], key="main_up")
+        upload = st.file_uploader("Upload Bild/PDF:", type=['pdf','png','jpg','jpeg'], key="up_vfinal")
         if upload:
             if upload.type.startswith("image"): st.image(upload, use_container_width=True)
-            else: st.info("✅ PDF geladen.")
+            else: st.success("✅ PDF geladen.")
+
     with col_r:
         st.subheader("2. Analyse & Ergebnis")
         if upload and st.session_state.credits > 0:
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("🚀 ANALYSE STARTEN"):
-                    with st.spinner("Läuft..."):
+                    with st.spinner("Analyse läuft..."):
                         txt = get_text(upload); res = run_ai(txt, lang_choice, "S")
                         if "FEHLER_UNSCHARF" in res: st.error("⚠️ Foto zu unscharf!")
                         else: st.session_state.full_res = res; st.session_state.credits -= 1; st.rerun()
@@ -202,16 +181,19 @@ with t1:
         if st.session_state.full_res:
             st.markdown(f'<div style="background:#f8fafc; padding:20px; border-radius:10px; border-left:5px solid #1e3a8a;">{st.session_state.full_res}</div>', unsafe_allow_html=True)
             st.divider()
-            d1, d2, d3, d4 = st.columns(4)
-            with d1: st.download_button("📝 Word", Document().add_paragraph(st.session_state.full_res) and io.BytesIO() or b"", "Antwort.docx")
-            with d2: st.download_button("📄 PDF", create_pdf(st.session_state.full_res, "S"), "Analyse.pdf")
-            with d3: st.download_button("📊 Excel", create_excel(st.session_state.full_res), "Fristen.xlsx")
-            with d4: st.download_button("📅 Kalender", create_ics(st.session_state.full_res), "Fristen.ics")
+            d1, d2, d3 = st.columns(3)
+            with d1: 
+                doc = Document(); doc.add_paragraph(st.session_state.full_res); b_word = io.BytesIO(); doc.save(b_word)
+                st.download_button("📝 Word", b_word.getvalue(), "Antwort.docx")
+            with d2: 
+                st.download_button("📄 PDF", create_pdf_data(st.session_state.full_res, "S"), "Analyse.pdf")
+            with d3: 
+                st.download_button("📊 Excel", create_excel_data(st.session_state.full_res), "Fristen.xlsx")
 
 with t2:
-    st.header("⚡ Schnell-Vorlagen")
-    for title, content in VORLAGEN_CONTENT:
-        st.markdown(f"**{title}:**"); st.info(content)
+    st.header("⚡ Vorlagen")
+    st.info("**Fristverlängerung:** Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.")
+    st.info("**Widerspruch:** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum] lege ich hiermit Widerspruch ein.")
 
 with t3: st.header("❓ FAQ"); st.markdown(FAQ_TEXT)
 with t4: st.header("⚖️ Impressum"); st.markdown(IMPRESSUM_TEXT)
