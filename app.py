@@ -1,27 +1,32 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-from datetime import datetime
 
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# Custom CSS für die Boxen und Buttons
+# Custom CSS für die Paket-Optik (Buttons IN der Box)
 st.markdown("""
 <style>
-    .p-box { padding: 20px; border-radius: 15px; border: 1px solid #e0e0e0; text-align: center; margin-bottom: 10px; height: 280px; }
-    .price { font-size: 26px; font-weight: bold; margin: 10px 0; color: #1f77b4; }
-    .no-abo { background-color: #ff4b4b; color: white; padding: 3px 10px; border-radius: 5px; font-size: 14px; font-weight: bold; }
-    div.stButton > button { width: 100% !important; }
+    .pkg-box {
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #e0e0e0;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    .pkg-title { font-weight: bold; font-size: 1.1em; margin-bottom: 5px; }
+    .pkg-price { font-size: 24px; font-weight: bold; color: #1f77b4; margin: 5px 0; }
+    .pkg-footer { font-size: 0.85em; font-weight: bold; color: #ff4b4b; text-transform: uppercase; }
+    div.stButton > button { width: 100% !important; border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. HILFSFUNKTIONEN FÜR EXPORT ---
-
-def create_excel_autofit(data_dict):
+# --- 2. HILFSFUNKTIONEN (EXCEL AUTO-FIT & ICS) ---
+def create_excel_autofit(data):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df = pd.DataFrame([data_dict])
+        df = pd.DataFrame([data])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
@@ -29,18 +34,9 @@ def create_excel_autofit(data_dict):
             worksheet.set_column(i, i, min(column_len, 50))
     return output.getvalue()
 
-def create_ics(summary, date_str):
-    # Einfaches ICS Format
-    ics_content = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20241224T090000Z\nSUMMARY:{summary}\nDESCRIPTION:Erstellt von Amtsschimmel-Killer\nEND:VEVENT\nEND:VCALENDAR"
-    return ics_content
-
-def create_simple_word(text):
-    # Da docx eine externe Library ist, hier als Text-Datei Simulation oder Platzhalter
-    return text.encode('utf-8')
-
-# --- 3. RECHTLICHES & VORLAGEN (Header) ---
-c1, c2, c3, c4 = st.columns(4)
-with c1:
+# --- 3. RECHTLICHES & VORLAGEN (Oben als Expander) ---
+c_exp1, c_exp2, c_exp3, c_exp4 = st.columns(4)
+with c_exp1:
     with st.expander("⚖️ Impressum"):
         st.text("""Amtsschimmel-Killer
 Betreiberin: Elisabeth Reinecke
@@ -54,7 +50,7 @@ Web: amtsschimmel-killer.streamlit.app
 
 Haftung:
 Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.""")
-with c2:
+with c_exp2:
     with st.expander("🛡️ Datenschutz"):
         st.text("""1. Datenschutz auf einen Blick
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
@@ -70,7 +66,7 @@ Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderliche
 
 5. Ihre Rechte
 Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.""")
-with c3:
+with c_exp3:
     with st.expander("❓ FAQ"):
         st.text("""Ist das ein Abonnement?
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
@@ -86,7 +82,7 @@ Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. 
 
 Wie erreiche ich Elisabeth Reinecke?
 Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.""")
-with c4:
+with c_exp4:
     with st.expander("📝 Vorlagen"):
         st.text("""Fristverlängerung:
 Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
@@ -99,67 +95,80 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 
 st.divider()
 
-# --- 4. LOGO & SPRACHE ---
-l1, l2 = st.columns([2, 1])
-with l1:
-    try: st.image("icon_final_blau.png", width=220)
+# --- 4. HAUPTBEREICH (Zwei Spalten: Pakete links, Upload rechts) ---
+col_main_left, col_main_right = st.columns([1, 1.8])
+
+with col_main_left:
+    try: st.image("icon_final_blau.png", width=180)
     except: st.title("🏛️ Amtsschimmel-Killer")
-with l2:
-    st.selectbox("🌐 Sprache wählen / Select Language", 
-                 ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "AR العربية", "FR Français", "ES Español", "IT Italiano"])
-
-# --- 5. HAUPT-LOGIK ---
-uploaded_file = st.file_uploader("Dokument hochladen (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"], label_visibility="collapsed")
-
-if not uploaded_file:
-    st.info("Bitte wählen Sie ein Paket aus, um Scans freizuschalten. Nach dem Kauf können Sie Ihr Dokument hier hochladen.")
-    p1, p2, p3 = st.columns(3)
-    with p1:
-        st.markdown('<div class="p-box" style="background-color: #f8f9fa;"><h4>Amtsschimmel-Killer:<br>Analyse (1 Dok.)</h4><div class="price">3,99 €</div><span class="no-abo">❌ KEIN ABO</span><br><br></div>', unsafe_allow_html=True)
-        st.link_button("🛒 Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
-    with p2:
-        st.markdown('<div class="p-box" style="background-color: #ebf5fb; border: 1px solid #3498db;"><h4>Amtsschimmel-Killer:<br>Spar-Paket (3 Dok.)</h4><div class="price">9,99 €</div><span class="no-abo">❌ KEIN ABO</span><br><br></div>', unsafe_allow_html=True)
-        st.link_button("🛒 Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
-    with p3:
-        st.markdown('<div class="p-box" style="background-color: #fef9e7; border: 1px solid #f1c40f;"><h4>Amtsschimmel-Killer:<br>Sorglos-Paket (10 Dok.)</h4><div class="price">19,99 €</div><span class="no-abo">❌ KEIN ABO</span><br><br></div>', unsafe_allow_html=True)
-        st.link_button("🛒 Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
-else:
-    # ANALYSE MODUS
-    st.success("👑 Admin Guthaben: 999 Scans verfügbar")
-    col_preview, col_results = st.columns([1, 1.2])
     
-    with col_preview:
-        st.subheader("🖼️ Dokumenten-Vorschau")
-        if uploaded_file.type == "application/pdf":
-            st.warning("Vorschau für PDF-Dateien im Browser eingeschränkt. Datei bereit zur Analyse.")
-        else:
-            st.image(uploaded_file, use_container_width=True, caption="Hochgeladener Brief")
-            
-    with col_results:
-        st.subheader("🔍 KI-Auswertung")
-        st.error("📅 **Wichtige Frist: 24.12.2024**")
+    st.markdown("### 🌐 Sprachen")
+    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "ES Español", "IT Italiano"], label_visibility="collapsed")
+    
+    st.markdown("### 💳 Scans laden")
+    
+    # Paket 1
+    with st.container():
+        st.markdown('<div class="pkg-box" style="background-color: #f9f9f9;">'
+                    '<div class="pkg-title">📄 Analyse (1 Dok.)</div>'
+                    '<div class="pkg-price">3,99 €</div>'
+                    '<div class="pkg-footer">❌ KEIN ABO • EINMALIG</div>'
+                    '</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
+
+    # Paket 2
+    with st.container():
+        st.markdown('<div class="pkg-box" style="background-color: #e3f2fd; border: 1px solid #2196f3;">'
+                    '<div class="pkg-title">🥈 Spar-Paket (3 Dok.)</div>'
+                    '<div class="pkg-price">9,99 €</div>'
+                    '<div class="pkg-footer">❌ KEIN ABO • EINMALIG</div>'
+                    '</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
+
+    # Paket 3
+    with st.container():
+        st.markdown('<div class="pkg-box" style="background-color: #fffde7; border: 1px solid #fbc02d;">'
+                    '<div class="pkg-title">🥇 Sorglos-Paket (10 Dok.)</div>'
+                    '<div class="pkg-price">19,99 €</div>'
+                    '<div class="pkg-footer">❌ KEIN ABO • EINMALIG</div>'
+                    '</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
+
+with col_main_right:
+    st.markdown("### 📥 Dokumenten-Upload")
+    st.success("👑 Admin Guthaben: 999 Scans verfügbar")
+    
+    uploaded_file = st.file_uploader("Datei hier reinziehen (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
+    
+    if uploaded_file:
+        st.divider()
+        col_pre, col_ana = st.columns([1, 1.2])
         
-        with st.container(border=True):
-            st.markdown("**📖 Glossar (Einfach erklärt)**")
-            st.write("- **Rechtsbehelfsbelehrung:** Der Abschnitt, der sagt, wie man sich wehren kann.\n- **Säumigkeitszuschlag:** Eine Strafe für zu spätes Zahlen.")
+        with col_pre:
+            st.markdown("#### 🖼️ Vorschau")
+            if uploaded_file.type == "application/pdf":
+                st.info("PDF erkannt. Bereit zur Analyse.")
+            else:
+                st.image(uploaded_file, use_container_width=True)
+        
+        with col_ana:
+            st.markdown("#### 🔍 Ergebnisse")
+            st.error("📅 **Frist erkannt: 24.12.2024**")
             
-        with st.container(border=True):
-            st.markdown("**✍️ Antwortschreiben (Vorschlag)**")
-            antwort_text = "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum] lege ich hiermit Widerspruch ein.\n\nMit freundlichen Grüßen,\n[Dein Name]"
-            st.code(antwort_text, language="text")
+            with st.container(border=True):
+                st.markdown("**📖 Glossar:**")
+                st.write("Verwaltungsakt: Eine verbindliche Entscheidung der Behörde.")
+            
+            with st.container(border=True):
+                st.markdown("**✍️ Antwortschreiben:**")
+                st.code("Sehr geehrte Damen und Herren...", language="text")
         
         st.divider()
-        st.markdown("### 📥 Ergebnisse sichern")
+        st.markdown("### 📥 Downloads")
         d1, d2, d3, d4 = st.columns(4)
-        
-        with d1:
-            st.download_button("📄 PDF", "PDF Inhalt", "Analyse.pdf", use_container_width=True)
-        with d2:
-            excel_data = create_excel_autofit({"Frist": "24.12.2024", "Betreff": "Widerspruch", "Empfänger": "Behörde"})
-            st.download_button("📊 Excel", excel_data, "Analyse.xlsx", use_container_width=True)
-        with d3:
-            word_data = create_simple_word(antwort_text)
-            st.download_button("📝 Word", word_data, "Antwort.doc", use_container_width=True)
-        with d4:
-            ics_data = create_ics("Frist: Amtsschimmel-Killer", "20241224")
-            st.download_button("📅 Termin", ics_data, "Frist.ics", use_container_width=True)
+        with d1: st.button("📄 PDF Export")
+        with d2: 
+            ex = create_excel_autofit({"Frist": "24.12.2024", "Thema": "Antrag"})
+            st.download_button("📊 Excel (Auto)", ex, "Analyse.xlsx")
+        with d3: st.button("📝 Word (.doc)")
+        with d4: st.download_button("📅 Termin (.ics)", "BEGIN:VCALENDAR...", "Termin.ics")
