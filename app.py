@@ -12,7 +12,7 @@ import pandas as pd
 import re
 from fpdf import FPDF
 from datetime import datetime
-import gc 
+import gc
 
 # 1. KONFIGURATION
 st.set_page_config(page_title="Amtsschimmel-Killer", page_icon="📄", layout="wide")
@@ -26,7 +26,7 @@ st.markdown("""
     .buy-button { text-decoration: none; display: block; padding: 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; color: #1e3a8a !important; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; }
     .buy-button:hover { border-color: #1e3a8a; background: #f8fafc; scale: 1.02; }
     .legal-box { font-size: 0.9em; color: #334155; line-height: 1.6; background: #f8fafc; padding: 25px; border-radius: 10px; border: 1px solid #e2e8f0; }
-    .result-section { background-color: #ffffff; border-left: 5px solid #1e3a8a; padding: 15px; margin-bottom: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .result-section { background-color: #ffffff; border-left: 5px solid #1e3a8a; padding: 15px; margin-bottom: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); white-space: pre-wrap; }
     .faq-q { font-weight: bold; color: #1e3a8a; margin-top: 15px; font-size: 1.1em; display: block; }
     .faq-a { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #cbd5e1; color: #475569; }
     </style>
@@ -37,17 +37,9 @@ if "credits" not in st.session_state: st.session_state.credits = 0
 if "full_res" not in st.session_state: st.session_state.full_res = ""
 if "processed_sessions" not in st.session_state: st.session_state.processed_sessions = []
 
-# Admin & Stripe Check
-params = st.query_params
-if params.get("admin") == "GeheimAmt2024!":
+# Admin Check
+if st.query_params.get("admin") == "GeheimAmt2024!":
     st.session_state.credits = 999
-if "session_id" in params and params["session_id"] not in st.session_state.processed_sessions:
-    try:
-        pack_val = int(params.get("pack", 0))
-        if pack_val > 0:
-            st.session_state.credits += pack_val
-            st.session_state.processed_sessions.append(params["session_id"])
-    except: pass
 
 # 4. FUNKTIONEN
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -77,21 +69,32 @@ def analyze_letter(raw_text, lang):
 
 def create_excel_clean(text):
     dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
-    df = pd.DataFrame({"Frist-Datum": dates, "Beschreibung": ["Ereignis aus dem Brief" for _ in dates]})
+    df = pd.DataFrame({"Frist-Datum": dates, "Details": ["Frist aus Behördenbrief" for _ in dates]})
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Fristen')
         worksheet = writer.sheets['Fristen']
-        for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, max(len(col), 30))
+        worksheet.set_column('A:B', 60) # Breite Spalten für Lesbarkeit
     return output.getvalue()
 
-def create_pdf(text):
+def create_ical(text):
+    dates = re.findall(r'(\d{2}\.\d{2}\.\d{4})', text)
+    ical_content = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Amtsschimmel-Killer//DE\n"
+    for d in dates:
+        try:
+            dt = datetime.strptime(d, "%d.%m.%Y").strftime("%Y%m%d")
+            ical_content += f"BEGIN:VEVENT\nDTSTART;VALUE=DATE:{dt}\nSUMMARY:Frist: Amtsschimmel-Killer\nDESCRIPTION:Automatisch erinnerte Frist aus deinem Brief.\nEND:VEVENT\n"
+        except: continue
+    ical_content += "END:VCALENDAR"
+    return ical_content.encode('utf-8')
+
+def create_pdf_bytes(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
-    pdf.multi_cell(0, 10, txt=text.encode('latin-1', 'replace').decode('latin-1'))
-    return pdf.output()
+    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 10, txt=clean_text)
+    return bytes(pdf.output())
 
 # 5. SIDEBAR
 with st.sidebar:
@@ -99,6 +102,7 @@ with st.sidebar:
     st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     lang_choice = st.radio("Sprache", ["Deutsch", "English"], horizontal=True)
     st.divider()
+    st.subheader("Guthaben aufladen")
     pkgs = [("📄 Basis", st.secrets["STRIPE_LINK_1"], "1 Scan", "3,99 €"), 
             ("🚀 Spar", st.secrets["STRIPE_LINK_3"], "3 Scans", "9,99 €"), 
             ("💎 Profi", st.secrets["STRIPE_LINK_10"], "10 Scans", "19,99 €")]
@@ -110,52 +114,45 @@ t1, t2, t3 = st.tabs(["🚀 Brief-Killer", "⚡ Vorlagen", "❓ FAQ & Hilfe"])
 
 with t1:
     st.title("Amtsschimmel-Killer 📄🚀")
-    
     col_v, col_a = st.columns([1, 1.2]) 
     
     with col_v:
-        upload = st.file_uploader("Brief hochladen", type=['pdf', 'png', 'jpg', 'jpeg'])
+        upload = st.file_uploader("Brief hier hochladen:", type=['pdf', 'png', 'jpg', 'jpeg'])
         if upload:
             if upload.type != "application/pdf":
                 st.image(upload, caption="Vorschau deines Briefs", use_container_width=True)
             else:
-                st.info("PDF zur Analyse bereit.")
+                st.info("✅ PDF erfolgreich geladen. Bereit zur Analyse.")
 
     with col_a:
         if upload and st.session_state.credits > 0 and not st.session_state.full_res:
-            if st.button("🚀 Analyse & Antwort jetzt erstellen"):
+            if st.button("🚀 Analyse starten"):
                 with st.spinner("Amtsschimmel wird vertrieben..."):
                     raw = get_text_hybrid(upload)
                     st.session_state.full_res = analyze_letter(raw, lang_choice)
                     st.session_state.credits -= 1
                     st.rerun()
-
+        
         if st.session_state.full_res:
-            st.success("Analyse erfolgreich abgeschlossen!")
+            st.success("Analyse abgeschlossen!")
+            st.markdown(f'<div class="result-section">{st.session_state.full_res}</div>', unsafe_allow_html=True)
             
-            # Blöcke trennen
-            if "### ANTWORTBRIEF ###" in st.session_state.full_res:
-                parts = st.session_state.full_res.split("### ANTWORTBRIEF ###")
-                st.markdown('<div class="result-section"><b>📅 Fristen & Termine</b><br>' + parts[0].replace("### FRISTEN & TERMINE ###", "") + '</div>', unsafe_allow_html=True)
-                st.markdown('<div class="result-section"><b>✍️ Antwortbrief Vorschlag</b><br>' + parts[1] + '</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="result-box">{st.session_state.full_res}</div>', unsafe_allow_html=True)
-
-            # DOWNLOADS
-            st.subheader("📥 Export & Download")
-            d1, d2, d3 = st.columns(3)
-            with d1: st.download_button("💾 Text download", st.session_state.full_res, "antwort.txt")
-            with d2: st.download_button("📅 Excel (breite Spalten)", create_excel_clean(st.session_state.full_res), "fristen.xlsx")
-            with d3: st.download_button("📄 PDF Brief", create_pdf(st.session_state.full_res), "antwortbrief.pdf")
+            st.subheader("📥 Export & Kalender")
+            d1, d2, d3, d4 = st.columns(4)
+            with d1: st.download_button("💾 Text (.txt)", st.session_state.full_res, "antwort.txt")
+            with d2: st.download_button("📊 Excel (.xlsx)", create_excel_clean(st.session_state.full_res), "fristen.xlsx")
+            with d3: st.download_button("📄 PDF Brief", create_pdf_bytes(st.session_state.full_res), "antwortbrief.pdf")
+            with d4: st.download_button("📅 iCal Kalender", create_ical(st.session_state.full_res), "termin.ics")
             
             if st.button("🔄 Nächsten Brief bearbeiten"):
                 st.session_state.full_res = ""; st.rerun()
 
+# 7. VORLAGEN, FAQ & FOOTER (Texte Wort für Wort wie vorgegeben)
 with t2:
     st.subheader("Vorlagen")
-    st.info("Fristverlängerung: Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
-    st.info("Widerspruch einlegen (Fristwahrend): Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
-    st.info("Akteneinsicht einfordern: Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+    st.info("**Fristverlängerung:** Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
+    st.info("**Widerspruch einlegen (Fristwahrend):** Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
+    st.info("**Akteneinsicht einfordern:** Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
 with t3:
     st.subheader("FAQ")
@@ -165,7 +162,6 @@ with t3:
     st.markdown("<span class='faq-q'>Was passiert, wenn der Scan fehlschlägt?</span><div class='faq-a'>Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern, wird kein Guthaben abgezogen.</div>", unsafe_allow_html=True)
     st.markdown("<span class='faq-q'>Wie erreiche ich Elisabeth Reinecke?</span><div class='faq-a'>Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.</div>", unsafe_allow_html=True)
 
-# 7. FOOTER
 st.divider()
 c_imp, c_dat = st.columns(2)
 with c_imp:
