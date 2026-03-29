@@ -59,7 +59,6 @@ st.markdown("""
             font-size: 13px !important; text-decoration: none;
             display: inline-block; text-align: center;
         }
-        .stExpander div { line-height: 1.4 !important; white-space: pre-wrap !important; font-size: 12px; }
         .result-box { 
             background-color: #ffffff; padding: 15px; border-radius: 10px; 
             border-left: 5px solid #0d47a1; margin-bottom: 15px; 
@@ -72,7 +71,6 @@ st.markdown("""
 LOGO_DATEI = "icon_final_blau.png"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# PDF GENERIERUNG FIX (Bytes Rückgabe ohne .encode Fehler)
 def generate_pdf(data_dict):
     pdf = FPDF()
     pdf.add_page()
@@ -83,14 +81,13 @@ def generate_pdf(data_dict):
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 10, title.upper(), ln=True)
         pdf.set_font("Arial", size=11)
-        # Fix für Latin-1 Encoding
         txt_safe = str(content).encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 7, txt=txt_safe)
         pdf.ln(5)
     return pdf.output(dest='S')
 
 # ==========================================
-# 3. OBERE ZEILE: EINGEKLAPPTE INFOS (WORTWÖRTLICH)
+# 3. OBERE ZEILE: INFOS (EXAKT WORTWÖRTLICH)
 # ==========================================
 st.title("Amtsschimmel-Killer 🪓")
 
@@ -115,13 +112,13 @@ with t2:
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
 2. Datenerfassung & Hosting
-Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
+Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
 
 3. Dokumentenverarbeitung
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern.
+Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
 
 4. Zahlungsabwicklung (Stripe)
-Bei Käufen werden Sie zu Stripe weitergeleitet. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
+Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
 
 5. Ihre Rechte
 Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.""")
@@ -131,28 +128,31 @@ with t3:
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
 Wie sicher sind meine Dokumente?
-Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert.
+Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
 
 Ersetzt die App eine Rechtsberatung?
-Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis.
+Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
 
 Was passiert, wenn der Scan fehlschlägt?
-Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.""")
+Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
+
+Wie erreiche ich Elisabeth Reinecke?
+Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.""")
 with t4:
     with st.expander("📝 Vorlagen", expanded=False):
         st.write("""Fristverlängerung:
-Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum]...
+Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
 
 Widerspruch einlegen (Fristwahrend):
-Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein...
+Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
 
 Akteneinsicht einfordern:
-Sehr geehrte Damen und Herren, ich beantrage hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht.""")
+Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]""")
 
 st.divider()
 
 # ==========================================
-# 4. HAUPTBEREICH (LAYOUT EXAKT WIE IM SCREENSHOT)
+# 4. HAUPTBEREICH (PAKETE | UPLOAD | ANALYSE)
 # ==========================================
 c_pak, c_up, c_res = st.columns([0.9, 1.2, 1.5])
 
@@ -161,7 +161,6 @@ with c_pak:
     lang = st.selectbox("Wahl", ["🇩🇪 Deutsch", "🇺🇸 English", "🇹🇷 Türkçe", "🇵🇱 Polski", "🇷🇺 Русский", "🇸🇦 العربية", "🇪🇸 Español", "🇫🇷 Français", "🇮🇹 Italiano", "🇺🇦 Українська"], label_visibility="collapsed")
     if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, width=110)
     st.write("---")
-    
     for t, p, l in [("Analyse (1 Dokument)", "3,99 €", STRIPE_1), ("Spar-Paket (3 Dokumente)", "9,99 €", STRIPE_2), ("Sorglos-Paket (10 Dokumente)", "19,99 €", STRIPE_3)]:
         st.markdown(f'<div class="paket-card"><div class="paket-title">Amtsschimmel-Killer: {t}</div><div class="price-tag">Einmalpreis {p}</div><div class="no-abo-text">❌ KEIN ABO</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", l)
@@ -180,7 +179,8 @@ with c_up:
                 raw = upped.read()
                 with pdfplumber.open(io.BytesIO(raw)) as pdf:
                     for page in pdf.pages: extracted_text += (page.extract_text() or "") + "\n"
-                st.image(convert_from_bytes(raw, first_page=1, last_page=1), caption="Vorschau", use_container_width=True)
+                imgs = convert_from_bytes(raw, first_page=1, last_page=1)
+                st.image(imgs, caption="Vorschau", use_container_width=True)
             except: st.info("PDF wird verarbeitet...")
         else:
             img = Image.open(upped)
@@ -191,31 +191,36 @@ with c_up:
             if st.session_state.credits > 0:
                 with st.spinner("Amtsschimmel wird bekämpft..."):
                     try:
-                        prompt = f"Analysiere auf {lang}. Gib mir strikt getrennt aus: [START_SUM] Zusammenfassung [END_SUM] [START_FRIST] Fristen [END_FRIST] [START_ANTWORT] Antwortschreiben [END_ANTWORT]. Text: {extracted_text}"
+                        # KI-Prompt mit strikter Strukturvorgabe
+                        prompt = f"Analysiere auf {lang}. Antworte strikt so: [SUM] Zusammenfassung [FRIST] Fristen [ANTWORT] Antwortbrief. Text: {extracted_text}"
                         res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-                        full = res.choices.message.content
+                        full = res.choices[0].message.content
                         
+                        # Parsing für die separaten Boxen
                         st.session_state.full_res = {
-                            "Zusammenfassung": full.split("[START_SUM]")[-1].split("[END_SUM]")[0].strip(),
-                            "Fristen": full.split("[START_FRIST]")[-1].split("[END_FRIST]")[0].strip(),
-                            "Antwort-Entwurf": full.split("[START_ANTWORT]")[-1].split("[END_ANTWORT]")[0].strip()
+                            "Zusammenfassung": full.split("[FRIST]")[0].replace("[SUM]", "").strip(),
+                            "Fristen": full.split("[ANTWORT]")[0].split("[FRIST]")[-1].strip(),
+                            "Antwort-Entwurf": full.split("[ANTWORT]")[-1].strip()
                         }
                         st.session_state.credits -= 1
                         st.balloons()
                         st.rerun()
-                    except Exception as e: st.error(f"Fehler: {e}")
-            else: st.error("Kein Guthaben!")
+                    except Exception as e: st.error(f"KI-Fehler: {e}")
+            else: st.error("Bitte erst Guthaben kaufen!")
 
 with c_res:
     st.subheader("🔍 Analyse & Antwort")
     if st.session_state.full_res:
+        # Ergebnisse in Boxen anzeigen
         for title, text in st.session_state.full_res.items():
             st.markdown(f'<div class="result-box"><div class="box-title">{title}</div>{text}</div>', unsafe_allow_html=True)
         
+        # PDF Download Fix
         pdf_bytes = generate_pdf(st.session_state.full_res)
-        st.download_button("📥 PDF Analyse herunterladen", data=pdf_bytes, file_name="Amtsschimmel_Analyse.pdf", mime="application/pdf")
+        st.download_button("📥 PDF Analyse herunterladen", data=pdf_bytes, file_name="Amtsschimmel_Killer_Analyse.pdf", mime="application/pdf")
         if st.button("🔄 Neuer Scan"):
             st.session_state.full_res = None
             st.rerun()
     else:
         st.info("Hier erscheint das Ergebnis nach dem Scan.")
+
