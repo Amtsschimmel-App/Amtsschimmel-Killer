@@ -6,7 +6,7 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (BOXEN-FARBEN & BUTTONS) ---
+# --- 2. CUSTOM CSS (FARBIGE BOXEN & BUTTONS) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
@@ -23,21 +23,28 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. EXPORT FUNKTIONEN (FIXED DOWNLOADS) ---
-def create_excel_auto_width(data_dict):
+# --- 3. FUNKTIONEN FÜR VORSCHAU & EXPORT ---
+def get_preview(uploaded_file):
+    # Sofortige Anzeige nach Upload
+    file_bytes = uploaded_file.getvalue()
+    base64_file = base64.b64encode(file_bytes).decode('utf-8')
+    if uploaded_file.type == "application/pdf":
+        display = f'<embed src="data:application/pdf;base64,{base64_file}" width="100%" height="800" type="application/pdf">'
+    else:
+        display = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
+    st.markdown(display, unsafe_allow_html=True)
+
+def create_excel(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df = pd.DataFrame([data_dict])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
-            # Automatische Spaltenbreite berechnen
-            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 10
+            # Automatische Spaltenbreite
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 15
             worksheet.set_column(i, i, min(column_len, 100))
     return output.getvalue()
-
-def get_binary_file_downloader_html(bin_file, file_label='File'):
-    return bin_file
 
 # --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
@@ -71,8 +78,8 @@ with col_left:
     
     # BASIS
     st.markdown('<div class="paket-box basis-box">', unsafe_allow_html=True)
-    st.markdown("### 🛡️ Basis")
-    st.write("Amtsschimmel-Killer Analyse (1 Dokument)")
+    st.markdown("### 🛡️ Amtsschimmel-Killer Analyse")
+    st.write("(1 Dokument)")
     st.markdown('<p class="price-tag">3,99 €</p>', unsafe_allow_html=True)
     st.markdown('<p class="no-abo">Einmalzahlung! kein Abo!</p>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
@@ -99,52 +106,43 @@ with col_left:
 with col_mid:
     st.subheader("📄 Dokument & Vorschau")
     uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
-    
     if uploaded_file:
-        # VORSCHAU-LOGIK: Sofortige Einblendung
-        file_bytes = uploaded_file.getvalue()
-        base64_file = base64.b64encode(file_bytes).decode('utf-8')
-        if uploaded_file.type == "application/pdf":
-            display = f'<embed src="data:application/pdf;base64,{base64_file}" width="100%" height="800" type="application/pdf">'
-        else:
-            display = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
-        st.markdown(display, unsafe_allow_html=True)
+        get_preview(uploaded_file)
     else:
         st.info("Bitte laden Sie ein Dokument hoch, um die Vorschau anzuzeigen.")
 
 with col_right:
     st.subheader("🔍 Analyse-Ergebnisse")
     if uploaded_file:
-        # Daten-Platzhalter für die Analyse
-        daten = {
+        # Hier werden die Analyse-Daten simuliert
+        analyse_ergebnis = {
             "Frist": "30.04.2026",
             "Glossar": "Rechtsbehelfsbelehrung: Erklärt, wie man gegen diesen Bescheid vorgeht.",
-            "Antwort": "Sehr geehrte Damen und Herren,\n\n...\n\nMit freundlichen Grüßen,\n[Name]",
-            "Widerspruch": "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen Ihren Bescheid vom [Datum] Widerspruch ein...\n\nMit freundlichen Grüßen,\n[Name]"
+            "Text": "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum]......\n\nIch bitte um Fristverlängerung bis zum [Datum].\n\nMit freundlichen Grüßen,\n[Name]"
         }
         
         with st.expander("📅 Fristen (Deadlines)", expanded=True):
-            st.warning(f"⚠️ Fristende: {daten['Frist']}")
+            st.warning(f"⚠️ Fristende erkannt: {analyse_ergebnis['Frist']}")
         with st.expander("📖 Glossar (Begriffserklärung)"):
-            st.info(daten['Glossar'])
+            st.info(analyse_ergebnis['Glossar'])
         
         st.markdown("### ✉️ Entwürfe")
         t_ant, t_wid = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
         with t_ant:
-            st.text_area("Antwortentwurf", daten['Antwort'], height=300)
+            st.text_area("Antwortentwurf", analyse_ergebnis, height=300)
         with t_wid:
-            st.text_area("Widerspruchstext", daten['Widerspruch'], height=300)
+            st.text_area("Widerspruchstext", "Sehr geehrte Damen und Herren,\n\nhiermit lege ich Widerspruch ein gegen Ihren Bescheid vom [Datum], erhalten am [Datum].\n\n[KI-BEGRÜNDUNG HIER]...\n\nMit freundlichen Grüßen,\n[Name]", height=300)
         
         st.write("---")
         st.markdown("### 📥 Downloads")
         d1, d2, d3 = st.columns(3)
-        with d1: 
-            st.download_button("📄 PDF", data=daten['Antwort'].encode('utf-8'), file_name="antwort.pdf")
-        with d2: 
-            st.download_button("📊 Excel", data=create_excel_auto_width(daten), file_name="analyse.xlsx")
-        with d3: 
-            st.download_button("📝 Word", data=daten['Antwort'].encode('utf-8'), file_name="antwort.docx")
+        with d1:
+            st.download_button("📄 PDF", data=analyse_ergebnis.encode('utf-8'), file_name="antwort.pdf", mime="application/pdf")
+        with d2:
+            st.download_button("📊 Excel", data=create_excel(analyse_ergebnis), file_name="analyse.xlsx")
+        with d3:
+            st.download_button("📝 Word", data=analyse_ergebnis.encode('utf-8'), file_name="antwort.docx")
         
-        st.download_button("📅 Kalender.ics hinzufügen", data="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", file_name="termin.ics")
+        st.download_button("📅 Kalender-Eintrag (.ics)", data="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", file_name="termin.ics")
     else:
         st.write("Warten auf Datei...")
