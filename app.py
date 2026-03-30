@@ -22,12 +22,11 @@ def create_excel_pro(data):
         df.to_excel(writer, index=False, sheet_name='Detaillierte_Analyse')
         worksheet = writer.sheets['Detaillierte_Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 100) # Maximale Breite für ausführliche Texte
+            worksheet.set_column(i, i, 100) 
     return output.getvalue()
 
 def get_pdf_display_fixed(uploaded_file):
     base64_pdf = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
-    # Robusteste Einbettung für Chrome (Object + Embed + Fallback)
     pdf_display = f'''
     <div style="text-align:center;">
         <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="600px">
@@ -40,6 +39,7 @@ def get_pdf_display_fixed(uploaded_file):
 
 # --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER) ---
 t1, t2, t3, t4 = st.columns(4)
+
 with t1:
     with st.expander("⚖️ Impressum"):
         st.text("""Amtsschimmel-Killer
@@ -117,27 +117,31 @@ with col_left:
         st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    # Sämtliche Sprachen eingebunden
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "IT Italiano", "ES Español", "FR Français"], label_visibility="collapsed")
+    # Alle Sprachen laut Anweisung integriert
+    st.selectbox("Sprache", [
+        "DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", 
+        "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", 
+        "PT Português", "NL Nederlands", "GR Ελληνικά", "RO Română", "BG Български",
+        "HR Hrvatski", "SR Српски", "HU Magyar", "CZ Čeština", "SK Slovenčina",
+        "CN 中文", "JP 日本語", "KR 한국어", "VN Tiếng Việt", "TH ภาษาไทย"
+    ], label_visibility="collapsed")
 
     st.write("")
     st.markdown("### 📦 Pakete")
     
-    # Paket 1: Basis
+    # 1. & 4. Pakete nach Grundanweisungen
     with st.container(border=True):
         st.markdown("#### 🛡️ Amtsschimmel-Killer")
         st.write("1 Scan")
         st.markdown("### 3,99 €")
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com")
 
-    # Paket 2: Standard
     with st.container(border=True):
         st.markdown("#### ⚔️ Amtsschimmel-Killer")
         st.write("3 Scans")
         st.markdown("### 9,99 €")
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com")
 
-    # Paket 3: Pro
     with st.container(border=True):
         st.markdown("#### 🚀 Amtsschimmel-Killer")
         st.write("10 Scans")
@@ -153,8 +157,8 @@ with col_mid:
 
 # RECHTE SPALTE: ANALYSE
 with col_right:
-    st.subheader("🔍 Analyse & Antwort")
+    st.subheader("🔍 Analyse")
     if uploaded_file:
-        st.write("Dokument bereit zur Analyse.")
+        st.info("Dokument erkannt. Bereit zur Analyse.")
     else:
-        st.info("Laden Sie einen Brief hoch, um zu starten.")
+        st.write("Bitte laden Sie ein Dokument hoch.")
