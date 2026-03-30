@@ -6,14 +6,25 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (BOXEN-DESIGN) ---
+# --- 2. CUSTOM CSS (BUTTONS IN BOXEN) ---
 st.markdown("""
 <style>
-    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
-    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
-    
-    /* Paket-Boxen Styling */
-    .paket-box { border-radius: 12px; padding: 20px; margin-bottom: 25px; border: 2px solid; background: white; text-align: center; }
+    /* Erzwingt Button-Styling innerhalb der HTML-Container */
+    div.stButton > button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: bold;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+    }
+    .paket-container {
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 2px solid;
+        background: white;
+        text-align: center;
+    }
     .blue-box { border-color: #007bff; }
     .green-box { border-color: #28a745; }
     .gold-box { border-color: #fcc419; }
@@ -21,9 +32,6 @@ st.markdown("""
     .header-text { font-size: 18px; font-weight: bold; margin-bottom: 10px; display: block; }
     .price-tag { font-size: 24px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
-    
-    /* PDF Vorschau Fix */
-    iframe { border-radius: 8px; border: 1px solid #ddd; width: 100%; height: 900px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,7 +43,7 @@ def create_excel(data_dict):
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 100) # Maximal breite Spalten
+            worksheet.set_column(i, i, 100)
     return output.getvalue()
 
 # --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE) ---
@@ -68,20 +76,23 @@ with col_left:
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # PAKET 1: BOX BLAU
-    st.markdown('<div class="paket-box blue-box"><span class="header-text" style="color:#007bff;">🛡️ Amtsschimmel-Killer Analyse</span>(1 Dokument)<div class="price-tag">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # PAKET 1
+    with st.container():
+        st.markdown('<div class="paket-container blue-box"><span class="header-text" style="color:#007bff;">🛡️ Amtsschimmel-Killer Analyse</span>(1 Dokument)<div class="price-tag">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # PAKET 2: BOX GRÜN
-    st.markdown('<div class="paket-box green-box"><span class="header-text" style="color:#28a745;">⚔️ Amtsschimmel-Killer Spar-Paket</span>(3 Dokumente)<div class="price-tag">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # PAKET 2
+    with st.container():
+        st.markdown('<div class="paket-container green-box"><span class="header-text" style="color:#28a745;">⚔️ Amtsschimmel-Killer Spar-Paket</span>(3 Dokumente)<div class="price-tag">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # PAKET 3: BOX GOLD
-    st.markdown('<div class="paket-box gold-box"><span class="header-text" style="color:#fcc419;">🚀 Amtsschimmel-Killer Sorglos-Paket</span>(10 Dokumente)<div class="price-tag">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # PAKET 3
+    with st.container():
+        st.markdown('<div class="paket-container gold-box"><span class="header-text" style="color:#fcc419;">🚀 Amtsschimmel-Killer Sorglos-Paket</span>(10 Dokumente)<div class="price-tag">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 with col_mid:
     st.subheader("📄 Dokument & Vorschau")
@@ -90,31 +101,18 @@ with col_mid:
         file_bytes = uploaded_file.getvalue()
         if uploaded_file.type == "application/pdf":
             base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
-            # Iframe für PDF Vorschau
-            st.markdown(f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0"></iframe>', unsafe_allow_html=True)
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="900px" style="border:none;"></iframe>'
+            st.markdown(pdf_display, unsafe_allow_html=True)
         else:
             st.image(uploaded_file, use_container_width=True)
-    else:
-        st.info("Bitte Dokument hochladen.")
 
 with col_right:
     st.subheader("🔍 Auswertung")
     if uploaded_file:
         st.error("📅 **Frist-Check:** Frist endet am 30.04.2026.")
-        
-        with st.expander("📚 Ausführliches Glossar", expanded=True):
-            st.write("**Rechtsbehelfsbelehrung:** Ein zwingender Bestandteil eines Bescheids, der erklärt, wie man Widerspruch einlegt.")
-            st.write("**Verwaltungsakt:** Eine amtliche Entscheidung einer Behörde.")
-        
-        with st.expander("✍️ Antwortschreiben (Lang)", expanded=False):
-            st.text_area("Vorschau:", "Sehr geehrte Damen und Herren,\n\nbezüglich Ihres Schreibens vom...\n\n[PLATZHALTER: Vorname, Nachname, Adresse, Datum]", height=250)
-            
-        with st.expander("⚖️ Widerspruch (Lang)", expanded=False):
-            st.text_area("Vorschau:", "Hiermit lege ich gegen den Bescheid vom... Widerspruch ein.\n\n[PLATZHALTER: Aktenzeichen, Name, Unterschrift]", height=250)
-        
+        with st.expander("📚 Glossar", expanded=True):
+            st.write("Detaillierte Analyse folgt...")
         st.write("---")
         st.download_button("📊 Excel (.xlsx)", create_excel({"Frist": "30.04.2026"}), "Analyse.xlsx")
-        st.download_button("📄 PDF Datei", uploaded_file.getvalue(), "Dokument.pdf")
-        st.button("📅 Termin merken (Kalender.ico)")
     else:
         st.write("Warten auf Upload...")
