@@ -6,10 +6,11 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS ---
+# --- 2. CUSTOM CSS (FARBIGE PAKETE & BUTTON-INTEGRATION) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
+    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -21,11 +22,12 @@ def create_excel_pro(data):
         df.to_excel(writer, index=False, sheet_name='Detaillierte_Analyse')
         worksheet = writer.sheets['Detaillierte_Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 100) 
+            worksheet.set_column(i, i, 100) # Maximale Breite für ausführliche Texte
     return output.getvalue()
 
 def get_pdf_display_fixed(uploaded_file):
     base64_pdf = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+    # Robusteste Einbettung für Chrome (Object + Embed + Fallback)
     pdf_display = f'''
     <div style="text-align:center;">
         <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="600px">
@@ -36,7 +38,7 @@ def get_pdf_display_fixed(uploaded_file):
     '''
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER MIT EXAKTEN TEXTEN) ---
+# --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER) ---
 t1, t2, t3, t4 = st.columns(4)
 
 with t1:
@@ -105,24 +107,23 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 
 st.divider()
 
-# --- 5. HAUPT-LAYOUT ---
+# --- 5. HAUPT-LAYOUT (PAKETE | UPLOAD | ANALYSE) ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
+# LINK SPALTE: LOGO & PAKETE
 with col_left:
-    # 3. Logo
     try:
         st.image("icon_final_blau.png", width=160)
     except:
         st.markdown("🏛️ **Amtsschimmel-Killer**")
     
-    # 2. Sprachen
     st.markdown("### 🌐 Sprachen")
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية"], label_visibility="collapsed")
-
-    st.write("")
-    # 1. & 4. Pakete mit Branding, Icons und Stripe-Links
+    
+    st.write("---")
     st.markdown("### 📦 Pakete")
     
+    # 1. & 4. Pakete mit Icons, Amtsschimmel-Killer Branding und Stripe-Codes
     with st.container(border=True):
         st.markdown("#### 🛡️ Amtsschimmel-Killer")
         st.write("1 Scan")
@@ -141,15 +142,17 @@ with col_left:
         st.markdown("### 19,99 €")
         st.link_button("Jetzt kaufen", "https://buy.stripe.com")
 
+# MITTLERE SPALTE: UPLOAD
 with col_mid:
-    st.subheader("📄 Dokumenten-Upload")
-    uploaded_file = st.file_uploader("Datei wählen", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
+    st.subheader("📄 Dokument hochladen")
+    uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
     if uploaded_file:
         get_pdf_display_fixed(uploaded_file)
 
+# RECHTE SPALTE: ANALYSE
 with col_right:
     st.subheader("🔍 Analyse")
     if uploaded_file:
-        st.write("Dokument erkannt. Analyse bereit.")
+        st.info("Dokument erkannt. Bereit für die Analyse.")
     else:
-        st.info("Laden Sie einen Brief hoch, um den Amtsschimmel zu besiegen.")
+        st.write("Bitte laden Sie ein Dokument hoch.")
