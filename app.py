@@ -6,7 +6,7 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (FARBIGE PAKETE & BUTTON-INTEGRATION) ---
+# --- 2. CUSTOM CSS ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
@@ -37,7 +37,7 @@ def get_pdf_display_fixed(uploaded_file):
     '''
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER) ---
+# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE BEIBEHALTEN) ---
 t1, t2, t3, t4 = st.columns(4)
 
 with t1:
@@ -106,52 +106,53 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 
 st.divider()
 
-# --- 5. HAUPT-LAYOUT (PAKETE | UPLOAD | ANALYSE) ---
+# --- 5. HAUPT-LAYOUT ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
-# LINK SPALTE: LOGO & PAKETE
+# LINK SPALTE: LOGO, SPRACHEN & PAKETE
 with col_left:
+    # 3. Logo
     try:
         st.image("icon_final_blau.png", width=160)
     except:
         st.markdown("🏛️ **Amtsschimmel-Killer**")
     
+    # 2. Alle Sprachen
     st.markdown("### 🌐 Sprachen")
-    # Alle Sprachen laut Anweisung integriert
     st.selectbox("Sprache", [
         "DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", 
         "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", 
         "PT Português", "NL Nederlands", "GR Ελληνικά", "RO Română", "BG Български",
         "HR Hrvatski", "SR Српски", "HU Magyar", "CZ Čeština", "SK Slovenčina",
-        "CN 中文", "JP 日本語", "KR 한국어", "VN Tiếng Việt", "TH ภาษาไทย"
+        "CN 中文", "JP 日本語", "KR 한국어", "VN Tiếng Việt", "TH ภาษาไทย", "FA فارسی"
     ], label_visibility="collapsed")
 
-    st.write("")
+    st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # 1. & 4. Pakete nach Grundanweisungen
+    # 1. & 4. Pakete mit Icon, Amtsschimmel-Killer Branding & korrekten Stripe Codes
     with st.container(border=True):
-        st.markdown("#### 🛡️ Amtsschimmel-Killer")
+        st.markdown("### 🛡️ Amtsschimmel-Killer")
+        st.write("1. Paket: 3,99 €")
         st.write("1 Scan")
-        st.markdown("### 3,99 €")
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com")
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
 
     with st.container(border=True):
-        st.markdown("#### ⚔️ Amtsschimmel-Killer")
+        st.markdown("### ⚔️ Amtsschimmel-Killer")
+        st.write("2. Paket: 9,99 €")
         st.write("3 Scans")
-        st.markdown("### 9,99 €")
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com")
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
 
     with st.container(border=True):
-        st.markdown("#### 🚀 Amtsschimmel-Killer")
+        st.markdown("### 🚀 Amtsschimmel-Killer")
+        st.write("3. Paket: 19,99 €")
         st.write("10 Scans")
-        st.markdown("### 19,99 €")
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com")
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
 
 # MITTLERE SPALTE: UPLOAD
 with col_mid:
     st.subheader("📄 Dokument hochladen")
-    uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Datei wählen", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
     if uploaded_file:
         get_pdf_display_fixed(uploaded_file)
 
@@ -159,6 +160,6 @@ with col_mid:
 with col_right:
     st.subheader("🔍 Analyse")
     if uploaded_file:
-        st.info("Dokument erkannt. Bereit zur Analyse.")
+        st.success("Dokument erkannt. Analyse bereit.")
     else:
-        st.write("Bitte laden Sie ein Dokument hoch.")
+        st.info("Bitte laden Sie ein Dokument hoch.")
