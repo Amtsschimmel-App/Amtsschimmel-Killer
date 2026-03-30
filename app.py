@@ -10,7 +10,7 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
-    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
+    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -40,7 +40,6 @@ def get_pdf_display_fixed(uploaded_file):
 
 # --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER) ---
 t1, t2, t3, t4 = st.columns(4)
-
 with t1:
     with st.expander("⚖️ Impressum"):
         st.text("""Amtsschimmel-Killer
@@ -118,24 +117,27 @@ with col_left:
         st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية"], label_visibility="collapsed")
-    
-    st.write("---")
+    # Sämtliche Sprachen eingebunden
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "IT Italiano", "ES Español", "FR Français"], label_visibility="collapsed")
+
+    st.write("")
     st.markdown("### 📦 Pakete")
     
-    # 1. & 4. Pakete mit Icons, Amtsschimmel-Killer Branding und Stripe-Codes
+    # Paket 1: Basis
     with st.container(border=True):
         st.markdown("#### 🛡️ Amtsschimmel-Killer")
         st.write("1 Scan")
         st.markdown("### 3,99 €")
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
 
+    # Paket 2: Standard
     with st.container(border=True):
         st.markdown("#### ⚔️ Amtsschimmel-Killer")
         st.write("3 Scans")
         st.markdown("### 9,99 €")
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
 
+    # Paket 3: Pro
     with st.container(border=True):
         st.markdown("#### 🚀 Amtsschimmel-Killer")
         st.write("10 Scans")
@@ -151,8 +153,8 @@ with col_mid:
 
 # RECHTE SPALTE: ANALYSE
 with col_right:
-    st.subheader("🔍 Analyse")
+    st.subheader("🔍 Analyse & Antwort")
     if uploaded_file:
-        st.info("Dokument erkannt. Bereit für die Analyse.")
+        st.write("Dokument bereit zur Analyse.")
     else:
-        st.write("Bitte laden Sie ein Dokument hoch.")
+        st.info("Laden Sie einen Brief hoch, um zu starten.")
