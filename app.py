@@ -1,54 +1,34 @@
+
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-from docx import Document
-from fpdf import FPDF
-import pytesseract
-from PIL import Image
-from pdf2image import convert_from_bytes
-import openai
-import json
+import base64
 from datetime import datetime, timedelta
 
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-if "OPENAI_API_KEY" in st.secrets:
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
-
-# --- 2. CUSTOM CSS ---
+# --- 2. CUSTOM CSS (LOGO & PAKET-STYLING) ---
 st.markdown("""
     <style>
-    .pkg-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-    .pkg-price { font-size: 1.5rem; font-weight: bold; color: #1E3A8A; margin: 0.5rem 0; }
-    .pkg-footer { font-size: 0.8rem; color: gray; margin-bottom: 1rem; }
+    .pkg-box { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+    .pkg-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+    .pkg-price { font-size: 1.5rem; font-weight: bold; color: #1E3A8A; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNKTIONEN ---
-def perform_ocr_preview(uploaded_file):
-    try:
-        if uploaded_file.type == "application/pdf":
-            images = convert_from_bytes(uploaded_file.getvalue())
-            return "".join([pytesseract.image_to_string(img, lang='deu') + "\n" for img in images])
-        return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
-    except: return "Texterkennung fehlgeschlagen."
+# --- 3. EXPORT FUNKTIONEN ---
+def create_excel_pro(data):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df = pd.DataFrame(data)
+        df.to_excel(writer, index=False, sheet_name='Analyse')
+        worksheet = writer.sheets['Analyse']
+        for i, col in enumerate(df.columns):
+            worksheet.set_column(i, i, 100)
+    return output.getvalue()
 
-def get_ai_analysis(text):
-    try:
-        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Erstelle SEHR AUSFÜHRLICHE Entwürfe. Antworte NUR im JSON-Format: {'analyse': '...', 'antwort': '...', 'widerspruch': '...', 'frist': 'DD.MM.YYYY'}"},
-                {"role": "user", "content": text}
-            ],
-            response_format={ "type": "json_object" }
-        )
-        return json.loads(response.choices[0].message.content)
-    except: return {"analyse": "Fehler", "antwort": "Fehler", "widerspruch": "Fehler"}
-
-# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
+# --- 4. TOP-BAR: RECHTLICHES (MIT EXAKTEN TEXTEN & ABSTÄNDEN) ---
 t1, t2, t3, t4 = st.columns(4)
 
 with t1:
@@ -100,7 +80,7 @@ Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderliche
 <br>
 
 **5. Ihre Rechte**
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me. 
+Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
         """, unsafe_allow_html=True)
 
 with t3:
@@ -138,7 +118,7 @@ Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um 
 
 <br><br>
 
-**Widerspruch einlegen (Fristwahrend)**
+**Widerspruch einlegen (Fristwahrend):**
 Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
 
 <br><br>
@@ -153,48 +133,47 @@ st.divider()
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
 with col_left:
-    try: st.image("icon_final_blau.png", width=160)
-    except: st.markdown("### 🏛️ Amtsschimmel-Killer")
+    try:
+        st.image("icon_final_blau.png", width=160)
+    except:
+        st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
-    
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية"], label_visibility="collapsed")
+
     st.write("")
-    with st.container(border=True):
-        st.markdown('<div class="pkg-icon">📄</div>**Amtsschimmel-Killer: Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div>', unsafe_allow_html=True)
+    
+    # PAKETE MIT BRANDING & STRIPE CODES
+    with st.container():
+        st.markdown('<div class="pkg-box">📄 <span class="pkg-title">Amtsschimmel-Killer: Basis</span><br><span class="pkg-price">3,99 €</span><br>1 Analyse</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
 
-    with st.container(border=True):
-        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Amtsschimmel-Killer: Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div></div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="pkg-box" style="background-color: #ebf5fb;">🥈 <span class="pkg-title">Amtsschimmel-Killer: Spar-Paket</span><br><span class="pkg-price">9,99 €</span><br>3 Analysen</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
 
-    with st.container(border=True):
-        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Amtsschimmel-Killer: Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div></div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="pkg-box" style="background-color: #fef9e7;">🥇 <span class="pkg-title">Amtsschimmel-Killer: Sorglos</span><br><span class="pkg-price">19,99 €</span><br>10 Analysen</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
 
 with col_mid:
-    st.subheader("1. Brief hochladen")
-    up_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    st.subheader("1. Dokument hochladen")
+    uploaded_file = st.file_uploader("Datei wählen (PDF oder Bild)", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
-    # --- AUTOMATISCHE VORSCHAU ---
-    if up_file:
-        if up_file.type.startswith("image"):
-            st.image(up_file, caption="Vorschau Ihres Dokuments", use_container_width=True)
-        elif up_file.type == "application/pdf":
-            st.info("PDF-Dokument hochgeladen. Bereit zur Analyse.")
-            
+    # --- NEU: AUTOMATISCHE VORSCHAU ---
+    if uploaded_file is not None:
+        st.write("---")
+        st.markdown("### 🖼️ Dokumentenvorschau")
+        if uploaded_file.type == "application/pdf":
+            base64_pdf = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
+            st.markdown(pdf_display, unsafe_allow_html=True)
+        else:
+            st.image(uploaded_file, use_container_width=True)
+        
         if st.button("Analyse starten ✨", use_container_width=True):
-            with st.spinner("Amtsschimmel wird vertrieben..."):
-                txt = perform_ocr_preview(up_file)
-                st.session_state['res'] = get_ai_analysis(txt)
+            st.info("KI-Analyse wird gestartet...")
 
 with col_right:
-    st.subheader("2. Ergebnisse")
-    if 'res' in st.session_state:
-        r = st.session_state['res']
-        t1, t2, t3 = st.tabs(["Analyse", "Antwortbrief", "Widerspruch"])
-        with t1: st.write(r['analyse'])
-        with t2: st.text_area("Entwurf:", r['antwort'], height=350)
-        with t3: st.text_area("Entwurf:", r['widerspruch'], height=350)
-    else:
-        st.info("Nach dem Kauf: Dokument hochladen und Analyse starten.")
+    st.subheader("2. Analyse-Ergebnis")
+    st.info("Bitte laden Sie links ein Dokument hoch und wählen Sie ein Paket.")
