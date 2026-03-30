@@ -10,25 +10,41 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
+    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
+    
     /* Paket-Boxen Styling */
     .paket-container { border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 2px solid; background: white; }
     .blue-header { background-color: #e3f2fd; padding: 10px; border-radius: 8px; font-weight: bold; color: #007bff; margin-bottom: 10px; }
     .green-header { background-color: #e8f5e9; padding: 10px; border-radius: 8px; font-weight: bold; color: #28a745; margin-bottom: 10px; }
     .gold-header { background-color: #fff9e6; padding: 10px; border-radius: 8px; font-weight: bold; color: #fcc419; margin-bottom: 10px; }
+    
     .price-tag { font-size: 22px; font-weight: bold; color: #1E3A8A; margin: 5px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNKTIONEN ---
+# --- 3. TECHNISCHE FUNKTIONEN (STABILISIERT) ---
 def render_preview(uploaded_file):
     file_bytes = uploaded_file.getvalue()
     if uploaded_file.type == "application/pdf":
         base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="800px" style="border:none;"></iframe>'
+        # PDF Embed mit Fallback
+        pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf">'
         st.markdown(pdf_display, unsafe_allow_html=True)
     else:
         st.image(uploaded_file, use_container_width=True)
+
+def create_excel(data_dict):
+    output = BytesIO()
+    try:
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df = pd.DataFrame([data_dict])
+            df.to_excel(writer, index=False, sheet_name='Analyse')
+    except:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df = pd.DataFrame([data_dict])
+            df.to_excel(writer, index=False)
+    return output.getvalue()
 
 # --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
@@ -47,7 +63,7 @@ with t4:
 
 st.divider()
 
-# --- 5. HAUPT-LAYOUT (PAKETE | VORSCHAU | ANALYSE) ---
+# --- 5. HAUPT-LAYOUT ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
 with col_left:
@@ -81,7 +97,7 @@ with col_left:
     st.write("(10 Dokumente)")
     st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
     st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com")
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col_mid:
@@ -93,6 +109,8 @@ with col_mid:
         st.info("Bitte Dokument hochladen.")
 
 with col_right:
-    st.subheader("🔍 Analyse")
+    st.subheader("🔍 Auswertung")
     if uploaded_file:
-        st.write("Wählen Sie links ein Paket, um die KI-Auswertung zu starten.")
+        st.write("Analyse bereit. Bitte Paket wählen.")
+    else:
+        st.write("Warten auf Dokument...")
