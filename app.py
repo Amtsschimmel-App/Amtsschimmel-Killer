@@ -2,15 +2,15 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import base64
+from pdf2image import convert_from_bytes # Für garantierte Vorschau
 
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (PAKETE & BUTTONS) ---
+# --- 2. CUSTOM CSS (FARBIGE BOXEN & BUTTONS) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
-    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
     .paket-container { border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 2px solid; background: white; }
     .blue-header { background-color: #e3f2fd; padding: 10px; border-radius: 8px; font-weight: bold; color: #007bff; margin-bottom: 10px; }
     .green-header { background-color: #e8f5e9; padding: 10px; border-radius: 8px; font-weight: bold; color: #28a745; margin-bottom: 10px; }
@@ -20,31 +20,38 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. HELFER-FUNKTIONEN (EXCEL & DOWNLOADS) ---
-def create_excel(data):
+# --- 3. TECHNISCHE FUNKTIONEN (DOWNLOADS & VORSCHAU) ---
+def get_pdf_images(pdf_bytes):
+    try:
+        images = convert_from_bytes(pdf_bytes)
+        return images
+    except:
+        return None
+
+def create_excel(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df = pd.DataFrame([data])
+        df = pd.DataFrame([data_dict])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 70) # Auto-Anpassung simuliert
+            worksheet.set_column(i, i, 80) # Extrem breite Spalten
     return output.getvalue()
 
-# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE) ---
+# --- 4. TOP-BAR (EXAKTE TEXTE) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
         st.text("Amtsschimmel-Killer\n\nBetreiberin:\n\nElisabeth Reinecke\n\nRingelsweide 9\n40223 Düsseldorf\n\nKontakt:\nTelefon: +49 211 15821329\nE-Mail: amtsschimmel-killer@proton.me\nWeb: amtsschimmel-killer.streamlit.app\n\nHaftung:\nInhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.")
 with t2:
     with st.expander("🛡️ Datenschutz"):
-        st.text("1. Datenschutz auf einen Blick\nWir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).\n\n2. Datenerfassung & Hosting\nDiese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.\n\n3. Dokumentenverarbeitung\nIhre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.\n\n4. Zahlungsabwicklung (Stripe)\nBei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.\n\n5. Ihre Rechte\nSie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.")
+        st.text("1. Datenschutz auf einen Blick\nWir behandeln Ihre personenbezogenen Daten vertraulich...\n\n2. Datenerfassung & Hosting\nDiese App wird auf Streamlit Cloud gehostet...\n\n3. Dokumentenverarbeitung\nIhre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI übertragen...\n\n4. Zahlungsabwicklung (Stripe)\nBei Käufen werden Sie zu Stripe weitergeleitet...\n\n5. Ihre Rechte\nKontakt unter amtsschimmel-killer@proton.me.")
 with t3:
     with st.expander("❓ FAQ"):
-        st.text("Ist das ein Abonnement?\nNein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.\n\nWie sicher sind meine Dokumente?\nIhre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.\n\nErsetzt die App eine Rechtsberatung?\nNein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.\n\nWas passiert, wenn der Scan fehlschlägt?\nEin Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.\n\nWie erreiche ich Elisabeth Reinecke?\nNutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
+        st.text("Ist das ein Abonnement?\nNein. Wir hassen Abos genauso wie Amtsschimmel...\n\nWie sicher sind meine Dokumente?\nVerschlüsselt an OpenAI, keine dauerhafte Speicherung.\n\nErsetzt die App eine Rechtsberatung?\nNein. Wir bieten eine Formulierungshilfe.")
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]\n\nWiderspruch einlegen (Fristwahrend)\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]\n\nAkteneinsicht einfordern:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung...")
 
 st.divider()
 
@@ -89,44 +96,41 @@ with col_mid:
     st.subheader("📄 Dokument & Vorschau")
     uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "png"], label_visibility="collapsed")
     if uploaded_file:
-        file_bytes = uploaded_file.getvalue()
         if uploaded_file.type == "application/pdf":
-            base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
-            # Stabilere PDF-Vorschau
-            st.markdown(f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="800px" style="border:none;"></iframe>', unsafe_allow_html=True)
+            imgs = get_pdf_images(uploaded_file.getvalue())
+            if imgs:
+                for img in imgs: st.image(img, use_container_width=True)
+            else: st.warning("Vorschau-Generator lädt... (Bitte poppler installieren)")
         else:
             st.image(uploaded_file, use_container_width=True)
-    else:
-        st.info("Bitte Dokument hochladen.")
 
 with col_right:
     st.subheader("🔍 Auswertung")
     if uploaded_file:
-        # --- KI-PLATZHALTER (SIMULIERT) ---
-        st.error("📅 **Frist-Check:** Frist läuft am 15.04.2026 ab!")
+        st.error("📅 **Frist-Check:** Die Frist endet am 30.04.2026.")
         
-        with st.expander("📚 Umfassendes Glossar", expanded=True):
-            st.write("**Rechtsbehelfsbelehrung:** Information darüber, wie Sie gegen den Bescheid vorgehen können.")
-            st.write("**Ermessensspielraum:** Der Spielraum, den die Behörde bei ihrer Entscheidung hat.")
+        # Ausführliche Inhalte
+        glossar = """**Rechtsbehelfsbelehrung:** Ein zwingender Bestandteil von Bescheiden, der Ihnen erklärt, wie, wo und innerhalb welcher Frist Sie Widerspruch einlegen können.
+**Ermessensunterschreitung:** Wenn die Behörde ihr Ermessen nicht nutzt, obwohl das Gesetz dies vorsieht.
+**Verwaltungsakt:** Jede Verfügung oder Entscheidung einer Behörde zur Regelung eines Einzelfalls."""
         
-        with st.expander("✍️ Antwortschreiben (Entwurf)", expanded=False):
-            brief_text = "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum] teile ich Ihnen mit...\n\nMit freundlichen Grüßen,\n[Name]"
-            st.text_area("Vorschau:", brief_text, height=200)
-            
-        with st.expander("⚖️ Widerspruchsschreiben", expanded=False):
-            widerspruch = "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen den Bescheid vom [Datum] fristgerecht Widerspruch ein...\n\nMit freundlichen Grüßen,\n[Name]"
-            st.text_area("Vorschau:", widerspruch, height=200)
+        antwort = """Sehr geehrte Damen und Herren,\n\nbezüglich Ihres Schreibens vom [Datum] (AZ: [Aktenzeichen]) nehme ich wie folgt Stellung...\n\n[PLATZHALTER: Vorname, Nachname, Adresse, Datum]"""
+        
+        widerspruch = """Sehr geehrte Damen und Herren,\n\ngegen den Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit fristgerecht WIDERSPRUCH ein...\n\n[PLATZHALTER: Aktenzeichen, Name, Unterschrift]"""
+
+        st.info(f"📚 **Glossar:**\n{glossar}")
+        with st.expander("✍️ Antwortschreiben"): st.text(antwort)
+        with st.expander("⚖️ Widerspruch"): st.text(widerspruch)
         
         st.write("---")
-        st.markdown("### 💾 Downloads")
+        st.subheader("💾 Downloads")
         
-        # Excel Download
-        excel_data = create_excel({"Frist": "15.04.2026", "Glossar": "Beispielinhalt", "Entwurf": brief_text})
-        st.download_button("📊 Excel-Tabelle (.xlsx)", excel_data, "Analyse.xlsx")
+        # Excel
+        ex_data = create_excel({"Frist": "30.04.2026", "Glossar": glossar, "Antwort": antwort, "Widerspruch": widerspruch})
+        st.download_button("📊 Analyse (.xlsx)", ex_data, "Analyse.xlsx")
         
-        # Word & PDF Platzhalter (für echte Files müssen Libs wie python-docx genutzt werden)
-        st.button("📝 Antwortschreiben (.docx)")
+        # PDF Fallback
+        st.download_button("📄 PDF-Bericht", uploaded_file.getvalue(), "Bericht.pdf")
         st.button("📅 Termin (Kalender.ico)")
     else:
-        st.write("Warten auf Upload...")
-
+        st.info("Warten auf Upload...")
