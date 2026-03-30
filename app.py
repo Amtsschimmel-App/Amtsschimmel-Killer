@@ -16,75 +16,37 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. CUSTOM CSS (Paket-Design & Branding) ---
+# --- 2. CUSTOM CSS ---
 st.markdown("""
     <style>
     .pkg-icon { font-size: 2rem; margin-bottom: 0.5rem; }
     .pkg-price { font-size: 1.5rem; font-weight: bold; color: #1E3A8A; margin: 0.5rem 0; }
     .pkg-footer { font-size: 0.8rem; color: gray; margin-bottom: 1rem; }
-    .amt-brand { font-size: 0.9rem; font-weight: bold; color: #1E3A8A; text-transform: uppercase; letter-spacing: 1px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNKTIONEN (KI, EXCEL, WORD, PDF) ---
-def get_ai_analysis(text):
-    try:
-        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        sys_msg = (
-            "Du bist ein Experte für deutsches Verwaltungsrecht. Erstelle SEHR AUSFÜHRLICHE Entwürfe. "
-            "Antwortschreiben und Widerspruch müssen detailliert sein und folgende Platzhalter am Ende enthalten: "
-            "[Vorname Nachname], [Straße Hausnummer], [PLZ Ort], [Datum]. "
-            "Antworte NUR im JSON-Format: {'analyse': '...', 'antwort': '...', 'widerspruch': '...', 'frist': 'DD.MM.YYYY'}"
-        )
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": text}],
-            response_format={ "type": "json_object" }
-        )
-        return json.loads(response.choices[0].message.content)
-    except:
-        return {"analyse": "Fehler", "antwort": "Fehler", "widerspruch": "Fehler"}
-
-def create_excel_pro(ana, ant, wid):
-    output = BytesIO()
-    df = pd.DataFrame([{"Kategorie": "Analyse", "Inhalt": ana}, {"Kategorie": "Antwort", "Inhalt": ant}, {"Kategorie": "Widerspruch", "Inhalt": wid}])
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Ergebnis')
-        worksheet = writer.sheets['Ergebnis']
-        wrap = writer.book.add_format({'text_wrap': True, 'valign': 'top', 'border': 1})
-        worksheet.set_column(0, 0, 20, wrap)
-        worksheet.set_column(1, 1, 120, wrap)
-    return output.getvalue()
-
-def create_word_complete(ana, ant, wid):
-    doc = Document()
-    doc.add_heading('Amtsschimmel-Killer Report', 0)
-    for t, c in [("1. Analyse", ana), ("2. Antwortschreiben", ant), ("3. Widerspruch", wid)]:
-        doc.add_heading(t, level=1)
-        doc.add_paragraph(str(c))
-    target = BytesIO()
-    doc.save(target)
-    return target.getvalue()
-
-def create_pdf_adobe_ready(ana, ant, wid):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("helvetica", 'B', 16)
-    pdf.cell(0, 10, "Amtsschimmel-Killer Analyse-Report", ln=True, align='C')
-    for title, content in [("1. Analyse", ana), ("2. Antwort", ant), ("3. Widerspruch", wid)]:
-        pdf.ln(10); pdf.set_font("helvetica", 'B', 14); pdf.cell(0, 10, title, ln=True)
-        pdf.set_font("helvetica", '', 11)
-        pdf.multi_cell(0, 6, str(content).encode('latin-1', 'replace').decode('latin-1'))
-    return bytes(pdf.output())
-
+# --- 3. FUNKTIONEN ---
 def perform_ocr_preview(uploaded_file):
     try:
         if uploaded_file.type == "application/pdf":
             images = convert_from_bytes(uploaded_file.getvalue())
             return "".join([pytesseract.image_to_string(img, lang='deu') + "\n" for img in images])
         return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
-    except: return "Fehler bei der Texterkennung."
+    except: return "Texterkennung fehlgeschlagen."
+
+def get_ai_analysis(text):
+    try:
+        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Erstelle SEHR AUSFÜHRLICHE Entwürfe. Antworte NUR im JSON-Format: {'analyse': '...', 'antwort': '...', 'widerspruch': '...', 'frist': 'DD.MM.YYYY'}"},
+                {"role": "user", "content": text}
+            ],
+            response_format={ "type": "json_object" }
+        )
+        return json.loads(response.choices[0].message.content)
+    except: return {"analyse": "Fehler", "antwort": "Fehler", "widerspruch": "Fehler"}
 
 # --- 4. TOP-BAR: RECHTLICHES (VOLLSTÄNDIG & MIT GROSSEN ABSTÄNDEN) ---
 t1, t2, t3, t4 = st.columns(4)
@@ -117,8 +79,6 @@ Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
 with t2:
     with st.expander("🛡️ Datenschutz"):
         st.markdown("""
-**Datenschutz:**
-
 **1. Datenschutz auf einen Blick**
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
@@ -146,8 +106,6 @@ Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktier
 with t3:
     with st.expander("❓ FAQ"):
         st.markdown("""
-**FAQ**
-
 **Ist das ein Abonnement?**
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
@@ -175,8 +133,6 @@ Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnumm
 with t4:
     with st.expander("📝 Vorlagen"):
         st.markdown("""
-**Vorlagen:**
-
 **Fristverlängerung:**
 Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
 
@@ -205,27 +161,27 @@ with col_left:
     
     st.write("")
     with st.container(border=True):
-        st.markdown('<div class="amt-brand">Amtsschimmel-Killer</div><div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
 
     with st.container(border=True):
-        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="amt-brand">Amtsschimmel-Killer</div><div class="pkg-icon">🥈</div>**Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
 
     with st.container(border=True):
-        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="amt-brand">Amtsschimmel-Killer</div><div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", use_container_width=True)
 
 with col_mid:
     st.subheader("1. Brief hochladen")
     up_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
-    # --- AUTOMATISCHE VORSCHAU NACH UPLOAD ---
+    # --- AUTOMATISCHE VORSCHAU ---
     if up_file:
         if up_file.type.startswith("image"):
             st.image(up_file, caption="Vorschau Ihres Dokuments", use_container_width=True)
         elif up_file.type == "application/pdf":
-            st.info("PDF-Dokument bereit zur Analyse.")
+            st.info("PDF-Dokument hochgeladen. Klicken Sie auf Analyse, um fortzufahren.")
             
         if st.button("Analyse starten ✨", use_container_width=True):
             with st.spinner("Amtsschimmel wird vertrieben..."):
@@ -236,22 +192,9 @@ with col_right:
     st.subheader("2. Ergebnisse")
     if 'res' in st.session_state:
         r = st.session_state['res']
-        
-        # --- FRIST-CHECKER (KALENDER) ---
-        st.markdown("### 📅 Frist-Checker")
-        erhalt = st.date_input("Wann kam der Brief offiziell an?", datetime.now())
-        frist_calc = erhalt + timedelta(days=30)
-        st.info(f"Ihre Frist endet voraussichtlich am: **{frist_calc.strftime('%d.%m.%Y')}**")
-        
-        st.write("---")
         t1, t2, t3 = st.tabs(["Analyse", "Antwortbrief", "Widerspruch"])
         with t1: st.write(r['analyse'])
-        with t2: st.text_area("Entwurf Antwort:", r['antwort'], height=350)
-        with t3: st.text_area("Entwurf Widerspruch:", r['widerspruch'], height=350)
-        
-        st.divider()
-        st.download_button("📥 Excel Download", create_excel_pro(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.xlsx", use_container_width=True)
-        st.download_button("📥 Word Download", create_word_complete(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.docx", use_container_width=True)
-        st.download_button("📥 PDF Download", create_pdf_adobe_ready(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.pdf", use_container_width=True)
+        with t2: st.text_area("Entwurf:", r['antwort'], height=350)
+        with t3: st.text_area("Entwurf:", r['widerspruch'], height=350)
     else:
-        st.info("Bitte Dokument hochladen und Analyse starten.")
+        st.info("Nach dem Kauf: Dokument hochladen und Analyse starten.")
