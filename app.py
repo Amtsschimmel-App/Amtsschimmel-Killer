@@ -79,8 +79,6 @@ Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
 with t2:
     with st.expander("🛡️ Datenschutz"):
         st.markdown("""
-**Datenschutz:**
-
 **1. Datenschutz auf einen Blick**
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
@@ -108,8 +106,6 @@ Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktier
 with t3:
     with st.expander("❓ FAQ"):
         st.markdown("""
-**FAQ**
-
 **Ist das ein Abonnement?**
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
@@ -137,8 +133,6 @@ Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnumm
 with t4:
     with st.expander("📝 Vorlagen"):
         st.markdown("""
-**Vorlagen:**
-
 **Fristverlängerung:**
 Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
 
@@ -166,31 +160,28 @@ with col_left:
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     
     st.write("")
-    # PAKET 1
     with st.container(border=True):
-        st.markdown('<div class="pkg-icon">📄</div>**Amtsschimmel-Killer: Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-icon">📄</div>**Amtsschimmel-Killer: Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
 
-    # PAKET 2
     with st.container(border=True):
-        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Amtsschimmel-Killer: Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Amtsschimmel-Killer: Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
 
-    # PAKET 3
     with st.container(border=True):
-        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Amtsschimmel-Killer: Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Amtsschimmel-Killer: Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
 
 with col_mid:
     st.subheader("1. Brief hochladen")
     up_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
-    # NEU: AUTOMATISCHE VORSCHAU DIREKT NACH UPLOAD
+    # --- AUTOMATISCHE VORSCHAU ---
     if up_file:
         if up_file.type.startswith("image"):
             st.image(up_file, caption="Vorschau Ihres Dokuments", use_container_width=True)
         elif up_file.type == "application/pdf":
-            st.success("PDF-Dokument hochgeladen. Bereit zur Analyse.")
+            st.info("PDF-Dokument hochgeladen. Bereit zur Analyse.")
             
         if st.button("Analyse starten ✨", use_container_width=True):
             with st.spinner("Amtsschimmel wird vertrieben..."):
