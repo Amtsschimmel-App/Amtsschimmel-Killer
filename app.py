@@ -13,17 +13,26 @@ st.markdown("""
     .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
     
     /* Paket-Boxen Design */
-    .paket-box { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 2px solid; }
-    .basis-box { background-color: #f0f7ff; border-color: #007bff; }
-    .spar-box { background-color: #f2faf3; border-color: #28a745; }
-    .sorglos-box { background-color: #fff9e6; border-color: #fcc419; }
+    .basis-box { background-color: #f0f7ff; border: 2px solid #007bff; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .spar-box { background-color: #f2faf3; border: 2px solid #28a745; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .sorglos-box { background-color: #fff9e6; border: 2px solid #fcc419; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
     
-    .price-tag { font-size: 24px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
-    .no-abo { font-size: 15px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
+    .price-tag { font-size: 24px; font-weight: bold; color: #1E3A8A; margin: 5px 0; }
+    .no-abo { font-size: 15px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. EXPORT FUNKTIONEN (VOLLSTÄNDIG) ---
+# --- 3. FUNKTIONEN FÜR VORSCHAU & EXPORT ---
+def get_pdf_preview(uploaded_file):
+    # Sofortige Anzeige fixiert für PDF und Bilder
+    file_bytes = uploaded_file.getvalue()
+    base64_file = base64.b64encode(file_bytes).decode('utf-8')
+    if uploaded_file.type == "application/pdf":
+        display = f'<iframe src="data:application/pdf;base64,{base64_file}#toolbar=0" width="100%" height="800px" style="border:none;"></iframe>'
+    else:
+        display = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
+    st.markdown(display, unsafe_allow_html=True)
+
 def create_excel(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -31,19 +40,10 @@ def create_excel(data_dict):
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
-            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 15
+            # Automatische Spaltenbreite Fix
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 20
             worksheet.set_column(i, i, min(column_len, 100))
     return output.getvalue()
-
-def get_preview(uploaded_file):
-    # FIX: Robuste Vorschau-Einbindung
-    file_bytes = uploaded_file.getvalue()
-    base64_file = base64.b64encode(file_bytes).decode('utf-8')
-    if uploaded_file.type == "application/pdf":
-        display = f'<iframe src="data:application/pdf;base64,{base64_file}" width="100%" height="800" style="border:none;"></iframe>'
-    else:
-        display = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
-    st.markdown(display, unsafe_allow_html=True)
 
 # --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
@@ -70,13 +70,13 @@ with col_left:
     except: st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "PT Português", "NL Nederlands", "VN Tiếng Việt", "TH ภาษาไทย"], label_visibility="collapsed")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "PT Português", "NL Nederlands"], label_visibility="collapsed")
     
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # BASIS
-    st.markdown('<div class="paket-box basis-box">', unsafe_allow_html=True)
+    # PAKET 1
+    st.markdown('<div class="basis-box">', unsafe_allow_html=True)
     st.markdown("### 🛡️ Amtsschimmel-Killer Analyse")
     st.write("(1 Dokument)")
     st.markdown('<p class="price-tag">3,99 €</p>', unsafe_allow_html=True)
@@ -84,8 +84,8 @@ with col_left:
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # SPAR
-    st.markdown('<div class="paket-box spar-box">', unsafe_allow_html=True)
+    # PAKET 2
+    st.markdown('<div class="spar-box">', unsafe_allow_html=True)
     st.markdown("### ⚔️ Amtsschimmel-Killer Spar-Paket")
     st.write("(3 Dokumente)")
     st.markdown('<p class="price-tag">9,99 €</p>', unsafe_allow_html=True)
@@ -93,8 +93,8 @@ with col_left:
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # SORGLOS
-    st.markdown('<div class="paket-box sorglos-box">', unsafe_allow_html=True)
+    # PAKET 3
+    st.markdown('<div class="sorglos-box">', unsafe_allow_html=True)
     st.markdown("### 🚀 Amtsschimmel-Killer Sorglos-Paket")
     st.write("(10 Dokumente)")
     st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
@@ -106,44 +106,46 @@ with col_mid:
     st.subheader("📄 Dokument & Vorschau")
     uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
     if uploaded_file:
-        get_preview(uploaded_file)
+        get_pdf_preview(uploaded_file)
     else:
-        st.info("Bitte laden Sie ein Dokument hoch, um die Vorschau anzuzeigen.")
+        st.info("Laden Sie ein Dokument hoch, um die Vorschau sofort zu sehen.")
 
 with col_right:
     st.subheader("🔍 Analyse-Ergebnisse")
     if uploaded_file:
-        # Simulationsdaten für die ausführliche Analyse
-        analyse_daten = {
-            "Datum": "30.03.2026",
+        # Simulationsdaten mit Platzhaltern
+        daten = {
             "Frist": "30.04.2026",
-            "Glossar": "Rechtsbehelfsbelehrung: Erklärt, wie man gegen diesen Bescheid vorgeht.",
-            "Antwort": "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer], nehme ich wie folgt Stellung...\n\n[Detaillierte Analyse-Platzhalter]...\n\nMit freundlichen Grüßen,\n[Name]",
-            "Widerspruch": "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen den Bescheid vom [Datum], erhalten am [Datum], fristgerecht Widerspruch ein...\n\n[Detaillierte Begründung-Platzhalter]...\n\nMit freundlichen Grüßen,\n[Name]"
+            "Glossar": "Rechtsbehelfsbelehrung: Ein Abschnitt am Ende eines Bescheids, der erklärt, wie, wo und innerhalb welcher Frist Sie Widerspruch einlegen können.",
+            "Antwort": "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer], nehme ich wie folgt Stellung:\n\n...\n\nIch bitte um schriftliche Bestätigung des Eingangs.\n\nMit freundlichen Grüßen,\n[Name]",
+            "Widerspruch": "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen Ihren Bescheid vom [Datum], erhalten am [Datum], fristgerecht Widerspruch ein.\n\nBegründung:\n\n[Detaillierte Begründungs-Platzhalter: Hier wird die rechtliche Argumentation der KI eingefügt]...\n\nEin ausführlicher Schriftsatz folgt.\n\nMit freundlichen Grüßen,\n[Name]"
         }
         
         with st.expander("📅 Fristen (Deadlines)", expanded=True):
-            st.warning(f"⚠️ Fristende erkannt: {analyse_daten['Frist']}")
+            st.warning(f"⚠️ Fristende erkannt: {daten['Frist']}")
         with st.expander("📖 Glossar (Begriffserklärung)"):
-            st.info(analyse_daten['Glossar'])
+            st.info(daten['Glossar'])
+            st.write("**Bescheid:** Eine verbindliche Entscheidung einer Behörde.")
+            st.write("**Aktenzeichen:** Die Kennnummer, unter der Ihr Vorgang bei der Behörde geführt wird.")
         
         st.markdown("### ✉️ Entwürfe")
-        t_ant, t_wid = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
-        with t_ant:
-            st.text_area("Antwortentwurf", analyse_daten['Antwort'], height=300)
-        with t_wid:
-            st.text_area("Widerspruchstext", analyse_daten['Widerspruch'], height=300)
+        tab1, tab2 = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
+        with tab1:
+            st.text_area("Antwortentwurf", daten['Antwort'], height=350)
+        with tab2:
+            st.text_area("Widerspruchstext", daten['Widerspruch'], height=350)
         
         st.write("---")
         st.markdown("### 📥 Downloads")
         d1, d2, d3 = st.columns(3)
         with d1: 
-            st.download_button("📄 PDF", data=analyse_daten['Antwort'].encode('utf-8'), file_name="antwort.pdf", mime="application/pdf")
+            # PDF Download Fix (UTF-8 encoded)
+            st.download_button("📄 PDF", data=daten['Antwort'].encode('utf-8-sig'), file_name="antwort.pdf", mime="application/pdf")
         with d2: 
-            st.download_button("📊 Excel", data=create_excel(analyse_daten), file_name="analyse.xlsx")
+            st.download_button("📊 Excel", data=create_excel(daten), file_name="analyse.xlsx")
         with d3: 
-            st.download_button("📝 Word", data=analyse_daten['Antwort'].encode('utf-8'), file_name="antwort.docx")
+            st.download_button("📝 Word", data=daten['Antwort'].encode('utf-8-sig'), file_name="antwort.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         
         st.download_button("📅 Kalender.ics hinzufügen", data="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", file_name="termin.ics")
     else:
-        st.write("Warten auf Datei...")
+        st.write("Warten auf Dokument...")
