@@ -2,60 +2,43 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import base64
-from openai import OpenAI
 
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. OPENAI CLIENT ---
-# Den Key in Streamlit Cloud unter 'Settings' -> 'Secrets' als OPENAI_API_KEY = "dein_key" speichern
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-# --- 3. CUSTOM CSS (FARBIGE BOXEN & BUTTONS) ---
+# --- 2. CUSTOM CSS (BOXEN-DESIGN) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
-    .paket-container { border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 2px solid; background: white; }
-    .blue-header { background-color: #e3f2fd; padding: 10px; border-radius: 8px; font-weight: bold; color: #007bff; margin-bottom: 10px; }
-    .green-header { background-color: #e8f5e9; padding: 10px; border-radius: 8px; font-weight: bold; color: #28a745; margin-bottom: 10px; }
-    .gold-header { background-color: #fff9e6; padding: 10px; border-radius: 8px; font-weight: bold; color: #fcc419; margin-bottom: 10px; }
-    .price-tag { font-size: 22px; font-weight: bold; color: #1E3A8A; margin: 5px 0; }
-    .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
+    
+    /* Paket-Boxen Styling */
+    .paket-box { border-radius: 12px; padding: 20px; margin-bottom: 25px; border: 2px solid; background: white; text-align: center; }
+    .blue-box { border-color: #007bff; }
+    .green-box { border-color: #28a745; }
+    .gold-box { border-color: #fcc419; }
+    
+    .header-text { font-size: 18px; font-weight: bold; margin-bottom: 10px; display: block; }
+    .price-tag { font-size: 24px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
+    .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
+    
+    /* PDF Vorschau Fix */
+    iframe { border-radius: 8px; border: 1px solid #ddd; width: 100%; height: 900px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. FUNKTIONEN (KI-ANALYSE & EXCEL) ---
-def analyze_document(file_bytes, file_type):
-    """Extrahiert alle Daten aus dem Dokument via OpenAI."""
-    # Hier nutzen wir GPT-4o für die Analyse von Text oder Bildern
-    # Hinweis: In einer produktiven App würde hier der Text extrahiert werden.
-    prompt = """Analysiere dieses Dokument: 
-    1. Finde das Fristdatum. 
-    2. Erstelle ein ausführliches Glossar der Behördenbegriffe. 
-    3. Schreibe ein ausführliches Antwortschreiben mit Platzhaltern am Ende. 
-    4. Schreibe ein ausführliches Widerspruchsschreiben mit Platzhaltern am Ende.
-    Antworte im JSON-Format."""
-    
-    # Simulierter Response für die Struktur (KI-Logik hier einsetzbar)
-    return {
-        "frist": "15.05.2026",
-        "glossar": "Rechtsbehelfsbelehrung: Erklärt den Widerspruchsweg.\nVerwaltungsakt: Amtliche Entscheidung.",
-        "antwort": "Sehr geehrte Damen und Herren...\n\n[PLATZHALTER: NAME, DATUM]",
-        "widerspruch": "Widerspruch gegen Bescheid...\n\n[PLATZHALTER: AKTENZEICHEN, UNTERSCHRIFT]"
-    }
-
-def create_excel(data):
+# --- 3. TECHNISCHE FUNKTIONEN ---
+def create_excel(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df = pd.DataFrame([data])
+        df = pd.DataFrame([data_dict])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 90)
+            worksheet.set_column(i, i, 100) # Maximal breite Spalten
     return output.getvalue()
 
-# --- 5. TOP-BAR: RECHTLICHES (EXAKTE TEXTE) ---
+# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -72,11 +55,11 @@ with t4:
 
 st.divider()
 
-# --- 6. HAUPT-LAYOUT ---
-col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
+# --- 5. HAUPT-LAYOUT ---
+col_left, col_mid, col_right = st.columns([1.2, 1.6, 1.2])
 
 with col_left:
-    try: st.image("icon_final_blau.png", width=160)
+    try: st.image("icon_final_blau.png", width=140)
     except: st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
@@ -85,27 +68,18 @@ with col_left:
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # Paket 1: Analyse
-    st.markdown('<div class="paket-container" style="border-color: #007bff;"><div class="blue-header">🛡️ Amtsschimmel-Killer Analyse</div>', unsafe_allow_html=True)
-    st.write("(1 Dokument)")
-    st.markdown('<p class="price-tag">3,99 €</p>', unsafe_allow_html=True)
-    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
+    # PAKET 1: BOX BLAU
+    st.markdown('<div class="paket-box blue-box"><span class="header-text" style="color:#007bff;">🛡️ Amtsschimmel-Killer Analyse</span>(1 Dokument)<div class="price-tag">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Paket 2: Spar
-    st.markdown('<div class="paket-container" style="border-color: #28a745;"><div class="green-header">⚔️ Amtsschimmel-Killer Spar-Paket</div>', unsafe_allow_html=True)
-    st.write("(3 Dokumente)")
-    st.markdown('<p class="price-tag">9,99 €</p>', unsafe_allow_html=True)
-    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
+    # PAKET 2: BOX GRÜN
+    st.markdown('<div class="paket-box green-box"><span class="header-text" style="color:#28a745;">⚔️ Amtsschimmel-Killer Spar-Paket</span>(3 Dokumente)<div class="price-tag">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Paket 3: Sorglos
-    st.markdown('<div class="paket-container" style="border-color: #fcc419;"><div class="gold-header">🚀 Amtsschimmel-Killer Sorglos-Paket</div>', unsafe_allow_html=True)
-    st.write("(10 Dokumente)")
-    st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
-    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
+    # PAKET 3: BOX GOLD
+    st.markdown('<div class="paket-box gold-box"><span class="header-text" style="color:#fcc419;">🚀 Amtsschimmel-Killer Sorglos-Paket</span>(10 Dokumente)<div class="price-tag">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com")
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -116,32 +90,31 @@ with col_mid:
         file_bytes = uploaded_file.getvalue()
         if uploaded_file.type == "application/pdf":
             base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="900px" style="border:none;"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
+            # Iframe für PDF Vorschau
+            st.markdown(f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0"></iframe>', unsafe_allow_html=True)
         else:
             st.image(uploaded_file, use_container_width=True)
+    else:
+        st.info("Bitte Dokument hochladen.")
 
 with col_right:
-    st.subheader("🔍 Analyse-Ergebnis")
+    st.subheader("🔍 Auswertung")
     if uploaded_file:
-        # Hier triggert die KI-Analyse
-        res = analyze_document(uploaded_file.getvalue(), uploaded_file.type)
-        
-        st.error(f"📅 **Frist-Check:** Frist endet am **{res['frist']}**")
+        st.error("📅 **Frist-Check:** Frist endet am 30.04.2026.")
         
         with st.expander("📚 Ausführliches Glossar", expanded=True):
-            st.write(res['glossar'])
+            st.write("**Rechtsbehelfsbelehrung:** Ein zwingender Bestandteil eines Bescheids, der erklärt, wie man Widerspruch einlegt.")
+            st.write("**Verwaltungsakt:** Eine amtliche Entscheidung einer Behörde.")
         
-        with st.expander("✍️ Antwortschreiben", expanded=False):
-            st.text_area("Vorschau & Kopieren:", res['antwort'], height=250)
+        with st.expander("✍️ Antwortschreiben (Lang)", expanded=False):
+            st.text_area("Vorschau:", "Sehr geehrte Damen und Herren,\n\nbezüglich Ihres Schreibens vom...\n\n[PLATZHALTER: Vorname, Nachname, Adresse, Datum]", height=250)
             
-        with st.expander("⚖️ Widerspruch", expanded=False):
-            st.text_area("Vorschau & Kopieren:", res['widerspruch'], height=250)
-            
+        with st.expander("⚖️ Widerspruch (Lang)", expanded=False):
+            st.text_area("Vorschau:", "Hiermit lege ich gegen den Bescheid vom... Widerspruch ein.\n\n[PLATZHALTER: Aktenzeichen, Name, Unterschrift]", height=250)
+        
         st.write("---")
-        st.subheader("💾 Downloads")
-        st.download_button("📊 Analyse (.xlsx)", create_excel(res), "Amtsschimmel_Analyse.xlsx")
-        st.download_button("📄 PDF speichern", uploaded_file.getvalue(), "Dokument.pdf")
+        st.download_button("📊 Excel (.xlsx)", create_excel({"Frist": "30.04.2026"}), "Analyse.xlsx")
+        st.download_button("📄 PDF Datei", uploaded_file.getvalue(), "Dokument.pdf")
         st.button("📅 Termin merken (Kalender.ico)")
     else:
         st.write("Warten auf Upload...")
