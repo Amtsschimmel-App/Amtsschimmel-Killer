@@ -11,34 +11,34 @@ st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
+    .stTabs [data-baseweb="tab"] { font-size: 14px; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. EXPORT FUNKTIONEN (EXCEL AUTO-BREITE, PDF & WORD) ---
+# --- 3. EXPORT FUNKTIONEN (EXCEL AUTO-SPALTEN & PREVIEW) ---
 def create_excel_pro(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df = pd.DataFrame([data_dict])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
-        # Automatisches Anpassen der Spaltenbreite
         for i, col in enumerate(df.columns):
             column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
             worksheet.set_column(i, i, min(column_len, 100))
     return output.getvalue()
 
-def get_preview(uploaded_file):
-    # FIX: Sofortige Anzeige nach Upload
+def get_pdf_display_fixed(uploaded_file):
     file_bytes = uploaded_file.getvalue()
     base64_file = base64.b64encode(file_bytes).decode('utf-8')
     if uploaded_file.type == "application/pdf":
-        display = f'<embed src="data:application/pdf;base64,{base64_file}" width="100%" height="700" type="application/pdf">'
+        display_code = f'<embed src="data:application/pdf;base64,{base64_file}" width="100%" height="700" type="application/pdf">'
     else:
-        display = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
-    st.markdown(display, unsafe_allow_html=True)
+        display_code = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
+    st.markdown(display_code, unsafe_allow_html=True)
 
 # --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
+
 with t1:
     with st.expander("⚖️ Impressum"):
         st.text("""Amtsschimmel-Killer
@@ -108,66 +108,72 @@ st.divider()
 # --- 5. HAUPT-LAYOUT ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
+# LINKS: LOGO, SPRACHEN & PAKETE
 with col_left:
     try: st.image("icon_final_blau.png", width=160)
     except: st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano"], label_visibility="collapsed")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "PT Português", "NL Nederlands", "VN Tiếng Việt"], label_visibility="collapsed")
     
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # PAKET 1: 3,99€
+    # BASIS PAKET
     with st.container(border=True):
-        st.markdown("#### 🛡️ Amtsschimmel-Killer")
-        st.write("1. Paket: 3,99 € (1 Scan)")
+        st.markdown("#### 🛡️ Basis")
+        st.write("Amtsschimmel-Killer")
+        st.markdown("**1 Scan**")
+        st.markdown("### 3,99 €")
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
 
-    # PAKET 2: 9,99€
+    # SPAR PAKET
     with st.container(border=True):
-        st.markdown("#### ⚔️ Amtsschimmel-Killer")
-        st.write("2. Paket: 9,99 € (3 Scans)")
+        st.markdown("#### ⚔️ Spar")
+        st.write("Amtsschimmel-Killer")
+        st.markdown("**3 Scans**")
+        st.markdown("### 9,99 €")
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
 
-    # PAKET 3: 19,99€
+    # PREMIUM PAKET
     with st.container(border=True):
-        st.markdown("#### 🚀 Amtsschimmel-Killer")
-        st.write("3. Paket: 19,99 € (10 Scans)")
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
+        st.markdown("#### 🚀 Premium")
+        st.write("Amtsschimmel-Killer")
+        st.markdown("**10 Scans**")
+        st.markdown("### 19,99 €")
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com")
 
+# MITTE: UPLOAD & VORSCHAU
 with col_mid:
     st.subheader("📄 Dokument & Vorschau")
-    uploaded_file = st.file_uploader("Hier hochladen", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
     if uploaded_file:
-        get_preview(uploaded_file)
+        get_pdf_display_fixed(uploaded_file)
     else:
         st.info("Bitte laden Sie ein Dokument hoch.")
 
+# RECHTS: ANALYSE & DOWNLOADS
 with col_right:
     st.subheader("🔍 Analyse-Ergebnisse")
     if uploaded_file:
-        # Fristen & Glossar
         with st.expander("📅 Fristen (Deadlines)", expanded=True):
             st.warning("⚠️ Fristende: [Datum aus KI extrahieren]")
         with st.expander("📖 Glossar (Begriffserklärung)"):
-            st.info("Hier finden Sie Erklärungen zu Fachbegriffen aus Ihrem Dokument.")
+            st.info("Erklärung schwieriger Begriffe aus Ihrem Brief.")
         
-        # Entwürfe ausführlich
         st.markdown("### ✉️ Entwürfe")
-        tab1, tab2 = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
-        with tab1:
-            st.text_area("Antwortentwurf", "Sehr geehrte Damen und Herren,\n\n...\n\nMit freundlichen Grüßen,\n[Name]", height=250)
-        with tab2:
-            st.text_area("Widerspruch", "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen den Bescheid vom [Datum] Widerspruch ein...\n\nMit freundlichen Grüßen,\n[Name]", height=250)
+        t_ant, t_wid = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
+        with t_ant:
+            st.text_area("Antworttext", "Sehr geehrte Damen und Herren,\n\n...\n\nMit freundlichen Grüßen,\n[Name]", height=250)
+        with t_wid:
+            st.text_area("Widerspruchstext", "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen den Bescheid vom [Datum] Widerspruch ein...\n\nMit freundlichen Grüßen,\n[Name]", height=250)
         
-        # Downloads
         st.write("---")
         st.markdown("### 📥 Downloads")
         d1, d2, d3 = st.columns(3)
-        with d1: st.download_button("📄 PDF", data=b"", file_name="antwort.pdf")
+        with d1: st.button("📄 PDF")
         with d2: st.download_button("📊 Excel", data=create_excel_pro({"Analyse": "Inhalt"}), file_name="analyse.xlsx")
-        with d3: st.download_button("📝 Word", data=b"", file_name="antwort.docx")
-        st.button("📅 Kalender.ico hinzufügen")
+        with d3: st.button("📝 Word")
+        st.button("📅 Kalender.ico")
     else:
         st.write("Warten auf Datei...")
