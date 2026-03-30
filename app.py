@@ -199,7 +199,7 @@ with col_left:
     try: st.image("icon_final_blau.png", width=160)
     except: st.markdown("### 🏛️ Amtsschimmel-Killer")
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
+    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     
     st.write("")
     with st.container(border=True):
@@ -218,12 +218,12 @@ with col_mid:
     st.subheader("1. Brief hochladen")
     up_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
-    # --- AUTOMATISCHE VORSCHAU ---
+    # --- AUTOMATISCHE VORSCHAU NACH UPLOAD ---
     if up_file:
         if up_file.type.startswith("image"):
             st.image(up_file, caption="Vorschau Ihres Dokuments", use_container_width=True)
         elif up_file.type == "application/pdf":
-            st.success("PDF-Dokument hochgeladen. Bereit zur Analyse.")
+            st.info("PDF-Dokument hochgeladen. Bereit zur Analyse.")
             
         if st.button("Analyse starten ✨", use_container_width=True):
             with st.spinner("Amtsschimmel wird vertrieben..."):
@@ -235,7 +235,7 @@ with col_right:
     if 'res' in st.session_state:
         r = st.session_state['res']
         
-        # --- FRIST-CHECKER (KALENDER) ---
+        # --- FRIST-CHECKER MIT KALENDER.ICO ---
         st.markdown("### 📅 Frist-Checker")
         erhalt = st.date_input("Wann kam der Brief offiziell an?", datetime.now())
         frist_calc = erhalt + timedelta(days=30)
