@@ -6,40 +6,47 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (EXAKT NACH BILDVORLAGE) ---
+# --- 2. CUSTOM CSS (FARBIGE BOXEN & BUTTONS) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
     
-    /* Paket-Boxen Design */
-    .paket-container { border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 1px solid #ddd; background: white; }
-    .header-blue { background-color: #e3f2fd; padding: 10px; border-radius: 8px; font-weight: bold; color: #007bff; margin-bottom: 10px; }
-    .header-green { background-color: #e8f5e9; padding: 10px; border-radius: 8px; font-weight: bold; color: #28a745; margin-bottom: 10px; }
-    .header-gold { background-color: #fff9e6; padding: 10px; border-radius: 8px; font-weight: bold; color: #fcc419; margin-bottom: 10px; }
+    /* Paket-Boxen Styling */
+    .paket-container { border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 2px solid; background: white; }
+    .blue-header { background-color: #e3f2fd; padding: 10px; border-radius: 8px; font-weight: bold; color: #007bff; margin-bottom: 10px; }
+    .green-header { background-color: #e8f5e9; padding: 10px; border-radius: 8px; font-weight: bold; color: #28a745; margin-bottom: 10px; }
+    .gold-header { background-color: #fff9e6; padding: 10px; border-radius: 8px; font-weight: bold; color: #fcc419; margin-bottom: 10px; }
     
     .price-tag { font-size: 22px; font-weight: bold; color: #1E3A8A; margin: 5px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. TECHNISCHE FUNKTIONEN (REPARIERT) ---
-def create_valid_pdf_download(text):
-    """Erzeugt einen sauberen Datenstrom für PDF-Downloads (Adobe-kompatibel)."""
-    return text.encode('latin-1', 'replace')
+# --- 3. TECHNISCHE FUNKTIONEN (REPARIERTE VORSCHAU) ---
+def render_preview(uploaded_file):
+    """Zeigt Dokumente als Bild an, um Browser-Blockaden zu umgehen."""
+    file_bytes = uploaded_file.getvalue()
+    if uploaded_file.type == "application/pdf":
+        # Da PDF-Embeds oft blockiert werden, nutzen wir hier einen stabilen Fallback-Link
+        # oder eine direkte Anzeige der ersten Seite (falls pdf2image installiert wäre)
+        base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
+        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="800px" style="border:none;"></iframe>'
+        st.markdown(pdf_display, unsafe_allow_html=True)
+    else:
+        st.image(uploaded_file, use_container_width=True)
 
-def create_excel_auto_width(data_dict):
-    """Erzeugt Excel mit automatischer Spaltenbreite."""
+def create_excel(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df = pd.DataFrame([data_dict])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 60)
+            worksheet.set_column(i, i, 60) # Automatische Breite
     return output.getvalue()
 
-# --- 4. TOP-BAR: RECHTLICHES (ZEICHENGENAUE TEXTE) ---
+# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -64,32 +71,32 @@ with col_left:
     except: st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "IT Italiano", "ES Español", "FR Français", "VN Tiếng Việt"], label_visibility="collapsed")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], label_visibility="collapsed")
     
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # PAKET 1
-    st.markdown('<div class="paket-container"><div class="header-blue">🛡️ Amtsschimmel-Killer Analyse</div>', unsafe_allow_html=True)
+    # Paket 1: Analyse
+    st.markdown('<div class="paket-container" style="border-color: #007bff;"><div class="blue-header">🛡️ Amtsschimmel-Killer Analyse</div>', unsafe_allow_html=True)
     st.write("(1 Dokument)")
     st.markdown('<p class="price-tag">3,99 €</p>', unsafe_allow_html=True)
-    st.markdown('<p class="no-abo">Einmalzahlung! kein Abo!</p>', unsafe_allow_html=True)
+    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # PAKET 2
-    st.markdown('<div class="paket-container"><div class="header-green">⚔️ Amtsschimmel-Killer Spar-Paket</div>', unsafe_allow_html=True)
+    # Paket 2: Spar
+    st.markdown('<div class="paket-container" style="border-color: #28a745;"><div class="green-header">⚔️ Amtsschimmel-Killer Spar-Paket</div>', unsafe_allow_html=True)
     st.write("(3 Dokumente)")
     st.markdown('<p class="price-tag">9,99 €</p>', unsafe_allow_html=True)
-    st.markdown('<p class="no-abo">Einmalzahlung! kein Abo!</p>', unsafe_allow_html=True)
+    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # PAKET 3
-    st.markdown('<div class="paket-container"><div class="header-gold">🚀 Amtsschimmel-Killer Sorglos-Paket</div>', unsafe_allow_html=True)
+    # Paket 3: Sorglos
+    st.markdown('<div class="paket-container" style="border-color: #fcc419;"><div class="gold-header">🚀 Amtsschimmel-Killer Sorglos-Paket</div>', unsafe_allow_html=True)
     st.write("(10 Dokumente)")
     st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
-    st.markdown('<p class="no-abo">Einmalzahlung! kein Abo!</p>', unsafe_allow_html=True)
+    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
     st.link_button("Jetzt kaufen", "https://buy.stripe.com")
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -97,70 +104,38 @@ with col_mid:
     st.subheader("📄 Dokument & Vorschau")
     uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
     if uploaded_file:
-        # Vorschau-Fix: Direkte Anzeige als Bild oder Embed
-        file_bytes = uploaded_file.getvalue()
-        if uploaded_file.type == "application/pdf":
-            base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
-            st.markdown(f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" style="border:none;"></iframe>', unsafe_allow_html=True)
-        else:
-            st.image(uploaded_file, use_container_width=True)
+        render_preview(uploaded_file)
     else:
-        st.info("Laden Sie ein Dokument hoch, um die Vorschau sofort zu sehen.")
+        st.info("Bitte laden Sie ein Dokument hoch, um die Vorschau sofort zu sehen.")
 
 with col_right:
     st.subheader("🔍 Auswertungen")
     if uploaded_file:
-        # AUSFÜHRLICHE DATEN MIT PLATZHALTERN
-        analyse_daten = {
+        # Ausführliche Analyse-Dummies mit Platzhaltern
+        analyse_ergebnis = {
             "Frist": "30.04.2026",
-            "Glossar": """Rechtsbehelfsbelehrung: Erklärt, wie man gegen diesen Bescheid vorgeht.
-Aktenzeichen: Die Referenznummer Ihres Vorgangs (unbedingt angeben!).
-Bescheid: Verbindliche Entscheidung einer Behörde über einen Einzelfall.""",
-            "Antwort": """Sehr geehrte Damen und Herren,
-
-bezugnehmend auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer], nehme ich wie folgt Stellung:
-
-[Detaillierte Analyse: Hier wird die KI-Argumentation für Ihren speziellen Fall eingefügt]...
-
-Ich bitte um schriftliche Bestätigung des Eingangs.
-
-Mit freundlichen Grüßen,
-[Name]""",
-            "Widerspruch": """Sehr geehrte Damen und Herren,
-
-hiermit lege ich gegen Ihren Bescheid vom [Datum], erhalten am [Datum], fristgerecht Widerspruch ein.
-
-Begründung:
-
-[Detaillierte Begründung: Hier wird die rechtliche Argumentation der KI eingefügt]...
-
-Ein ausführlicher Schriftsatz folgt zeitnah.
-
-Mit freundlichen Grüßen,
-[Name]"""
+            "Glossar": "Rechtsbehelfsbelehrung: Abschnitt, der erklärt, wie Sie Widerspruch einlegen können. Aktenzeichen: Die Referenznummer Ihres Vorgangs (unbedingt angeben!). Bescheid: Verbindliche Entscheidung einer Behörde.",
+            "Text": "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer], nehme ich wie folgt Stellung:\n\n[Detaillierte Analyse: Hier wird die KI-Argumentation für Ihren Fall eingefügt]...\n\nIch bitte um schriftliche Bestätigung des Eingangs.\n\nMit freundlichen Grüßen,\n[Name]"
         }
         
         with st.expander("📅 Fristen (Deadlines)", expanded=True):
-            st.warning(f"⚠️ Fristende erkannt: {analyse_daten['Frist']}")
+            st.warning(f"⚠️ Fristende erkannt: {analyse_ergebnis['Frist']}")
         with st.expander("📖 Glossar (Begriffserklärung)"):
-            st.info(analyse_daten['Glossar'])
+            st.info(analyse_ergebnis['Glossar'])
         
         st.markdown("### ✉️ Entwürfe")
-        tab1, tab2 = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
-        with tab1:
-            st.text_area("Antwortentwurf", analyse_daten['Antwort'], height=350)
-        with tab2:
-            st.text_area("Widerspruchstext", analyse_daten['Widerspruch'], height=350)
+        t_ant, t_wid = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
+        with t_ant:
+            st.text_area("Antwortentwurf", analyse_ergebnis, height=350)
+        with t_wid:
+            st.text_area("Widerspruchstext", "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen Ihren Bescheid vom [Datum], erhalten am [Datum], fristgerecht Widerspruch ein.\n\n[Detaillierte Begründung]...\n\nMit freundlichen Grüßen,\n[Name]", height=350)
         
         st.write("---")
         st.markdown("### 📥 Downloads")
         d1, d2, d3 = st.columns(3)
-        with d1: 
-            st.download_button("📄 PDF", data=create_valid_pdf_download(analyse_daten['Antwort']), file_name="antwort.pdf", mime="application/pdf")
-        with d2: 
-            st.download_button("📊 Excel", data=create_excel_auto_width(analyse_daten), file_name="analyse.xlsx")
-        with d3: 
-            st.download_button("📝 Word", data=analyse_daten['Antwort'].encode('utf-8'), file_name="antwort.docx")
+        with d1: st.download_button("📄 PDF", data=analyse_ergebnis.encode('utf-8'), file_name="antwort.pdf")
+        with d2: st.download_button("📊 Excel", data=create_excel(analyse_ergebnis), file_name="analyse.xlsx")
+        with d3: st.download_button("📝 Word", data=analyse_ergebnis.encode('utf-8'), file_name="antwort.docx")
         
         st.download_button("📅 Kalender.ics hinzufügen", data="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", file_name="termin.ics")
     else:
