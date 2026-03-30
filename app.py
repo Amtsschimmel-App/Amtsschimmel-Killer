@@ -16,12 +16,13 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. CUSTOM CSS ---
+# --- 2. CUSTOM CSS (Paket-Design & Branding) ---
 st.markdown("""
     <style>
     .pkg-icon { font-size: 2rem; margin-bottom: 0.5rem; }
     .pkg-price { font-size: 1.5rem; font-weight: bold; color: #1E3A8A; margin: 0.5rem 0; }
     .pkg-footer { font-size: 0.8rem; color: gray; margin-bottom: 1rem; }
+    .amt-brand { font-size: 0.9rem; font-weight: bold; color: #1E3A8A; text-transform: uppercase; letter-spacing: 1px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -40,9 +41,9 @@ def get_ai_analysis(text):
             messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": text}],
             response_format={ "type": "json_object" }
         )
-        return json.loads(response.choices.message.content)
+        return json.loads(response.choices[0].message.content)
     except:
-        return {"analyse": "Fehler bei der Analyse", "antwort": "Fehler", "widerspruch": "Fehler"}
+        return {"analyse": "Fehler", "antwort": "Fehler", "widerspruch": "Fehler"}
 
 def create_excel_pro(ana, ant, wid):
     output = BytesIO()
@@ -57,7 +58,7 @@ def create_excel_pro(ana, ant, wid):
 
 def create_word_complete(ana, ant, wid):
     doc = Document()
-    doc.add_heading('Amtsschimmel-Killer Analyse-Report', 0)
+    doc.add_heading('Amtsschimmel-Killer Report', 0)
     for t, c in [("1. Analyse", ana), ("2. Antwortschreiben", ant), ("3. Widerspruch", wid)]:
         doc.add_heading(t, level=1)
         doc.add_paragraph(str(c))
@@ -70,7 +71,7 @@ def create_pdf_adobe_ready(ana, ant, wid):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("helvetica", 'B', 16)
-    pdf.cell(0, 10, "Amtsschimmel-Killer Report", ln=True, align='C')
+    pdf.cell(0, 10, "Amtsschimmel-Killer Analyse-Report", ln=True, align='C')
     for title, content in [("1. Analyse", ana), ("2. Antwort", ant), ("3. Widerspruch", wid)]:
         pdf.ln(10); pdf.set_font("helvetica", 'B', 14); pdf.cell(0, 10, title, ln=True)
         pdf.set_font("helvetica", '', 11)
@@ -83,7 +84,7 @@ def perform_ocr_preview(uploaded_file):
             images = convert_from_bytes(uploaded_file.getvalue())
             return "".join([pytesseract.image_to_string(img, lang='deu') + "\n" for img in images])
         return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
-    except: return "Texterkennung fehlgeschlagen."
+    except: return "Fehler bei der Texterkennung."
 
 # --- 4. TOP-BAR: RECHTLICHES (VOLLSTÄNDIG & MIT GROSSEN ABSTÄNDEN) ---
 t1, t2, t3, t4 = st.columns(4)
@@ -198,20 +199,21 @@ col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 with col_left:
     try: st.image("icon_final_blau.png", width=160)
     except: st.markdown("### 🏛️ Amtsschimmel-Killer")
+    
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     
     st.write("")
     with st.container(border=True):
-        st.markdown('<div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div class="amt-brand">Amtsschimmel-Killer</div><div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
 
     with st.container(border=True):
-        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="amt-brand">Amtsschimmel-Killer</div><div class="pkg-icon">🥈</div>**Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
 
     with st.container(border=True):
-        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="amt-brand">Amtsschimmel-Killer</div><div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", use_container_width=True)
 
 with col_mid:
@@ -223,7 +225,7 @@ with col_mid:
         if up_file.type.startswith("image"):
             st.image(up_file, caption="Vorschau Ihres Dokuments", use_container_width=True)
         elif up_file.type == "application/pdf":
-            st.info("PDF-Dokument hochgeladen. Bereit zur Analyse.")
+            st.info("PDF-Dokument bereit zur Analyse.")
             
         if st.button("Analyse starten ✨", use_container_width=True):
             with st.spinner("Amtsschimmel wird vertrieben..."):
@@ -235,7 +237,7 @@ with col_right:
     if 'res' in st.session_state:
         r = st.session_state['res']
         
-        # --- FRIST-CHECKER MIT KALENDER.ICO ---
+        # --- FRIST-CHECKER (KALENDER) ---
         st.markdown("### 📅 Frist-Checker")
         erhalt = st.date_input("Wann kam der Brief offiziell an?", datetime.now())
         frist_calc = erhalt + timedelta(days=30)
