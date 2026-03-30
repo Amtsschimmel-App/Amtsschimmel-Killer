@@ -48,7 +48,7 @@ def get_ai_analysis(text):
         return json.loads(response.choices[0].message.content)
     except: return {"analyse": "Fehler", "antwort": "Fehler", "widerspruch": "Fehler"}
 
-# --- 4. TOP-BAR: RECHTLICHES (VOLLSTÄNDIG & MIT GROSSEN ABSTÄNDEN) ---
+# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
 
 with t1:
@@ -166,28 +166,31 @@ with col_left:
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     
     st.write("")
+    # PAKET 1
     with st.container(border=True):
-        st.markdown('<div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-icon">📄</div>**Amtsschimmel-Killer: Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
 
+    # PAKET 2
     with st.container(border=True):
-        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Amtsschimmel-Killer: Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
 
+    # PAKET 3
     with st.container(border=True):
-        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div></div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", use_container_width=True)
+        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Amtsschimmel-Killer: Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div></div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
 
 with col_mid:
     st.subheader("1. Brief hochladen")
     up_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
-    # --- AUTOMATISCHE VORSCHAU ---
+    # NEU: AUTOMATISCHE VORSCHAU DIREKT NACH UPLOAD
     if up_file:
         if up_file.type.startswith("image"):
             st.image(up_file, caption="Vorschau Ihres Dokuments", use_container_width=True)
         elif up_file.type == "application/pdf":
-            st.info("PDF-Dokument hochgeladen. Klicken Sie auf Analyse, um fortzufahren.")
+            st.success("PDF-Dokument hochgeladen. Bereit zur Analyse.")
             
         if st.button("Analyse starten ✨", use_container_width=True):
             with st.spinner("Amtsschimmel wird vertrieben..."):
