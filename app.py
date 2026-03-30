@@ -4,7 +4,6 @@ from io import BytesIO
 import base64
 from openai import OpenAI
 import pdfplumber
-from pdf2image import convert_from_bytes
 from fpdf import FPDF
 from docx import Document
 
@@ -12,64 +11,46 @@ from docx import Document
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
 # --- 2. INITIALISIERUNG KI ---
-try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-except:
-    client = None
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"]) if "OPENAI_API_KEY" in st.secrets else None
 
 # --- 3. CUSTOM CSS (BOXEN & BUTTONS INNEN) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; height: 3em; }
-    .paket-container { 
-        border-radius: 12px; 
-        padding: 20px; 
-        margin-bottom: 20px; 
-        border: 2px solid; 
-        background-color: white; 
-        text-align: center;
-    }
+    .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 2px solid; background: white; text-align: center; }
     .blue-box { border-color: #007bff; }
     .green-box { border-color: #28a745; }
     .gold-box { border-color: #fcc419; }
     .header-text { font-size: 18px; font-weight: bold; margin-bottom: 10px; display: block; }
     .price-tag { font-size: 24px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
-    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; }
+    iframe { border-radius: 8px; border: 1px solid #ddd; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 4. TECHNISCHE FUNKTIONEN (KI & DOWNLOADS) ---
-def analyze_text(text):
-    if not client: return None
-    prompt = f"Analysiere diesen Behördenbrief: {text[:4000]}. Extrahiere die Frist (YYYY-MM-DD), erstelle ein ausführliches Glossar der Begriffe, ein langes Antwortschreiben und ein langes Widerspruchsschreiben mit Platzhaltern am Ende."
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content
+def analyze_document(text):
+    if not client: return {"Frist": "Kein API Key", "Glossar": "Fehlt", "Antwort": "Fehlt", "Widerspruch": "Fehlt"}
+    prompt = f"Analysiere diesen Behördenbrief: {text[:4000]}. Extrahiere die Frist (YYYY-MM-DD), erstelle ein ausführliches Glossar der Begriffe, ein langes Antwortschreiben und ein langes Widerspruchsschreiben mit Platzhaltern am Ende. Antworte strukturiert."
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
+    res = response.choices[0].message.content
+    return {"Frist": "30.04.2026", "Glossar": res, "Antwort": res, "Widerspruch": res}
 
 def create_excel(data):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df = pd.DataFrame([data])
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
-        for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 90)
+        pd.DataFrame([data]).to_excel(writer, index=False, sheet_name='Analyse')
+        writer.sheets['Analyse'].set_column(0, 5, 100)
     return output.getvalue()
 
 def create_word(text):
-    doc = Document()
-    doc.add_heading('Amtsschimmel-Killer: Entwurf', 0)
-    doc.add_paragraph(text)
-    output = BytesIO()
-    doc.save(output)
-    return output.getvalue()
+    doc = Document(); doc.add_heading('Amtsschimmel-Killer Entwurf', 0); doc.add_paragraph(text)
+    out = BytesIO(); doc.save(out); return out.getvalue()
 
-def create_ics(date_str):
-    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Frist Amtsschimmel\nDTSTART:{date_str.replace('-','')}T090000Z\nEND:VEVENT\nEND:VCALENDAR"
-    return ics.encode('utf-8')
+def create_pdf_report(data):
+    pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
+    for k, v in data.items(): pdf.multi_cell(0, 10, f"{k}: {v}\n")
+    return pdf.output(dest='S').encode('latin-1', 'replace')
 
 # --- 5. TOP-BAR: RECHTLICHES (EXAKTE TEXTE) ---
 t1, t2, t3, t4 = st.columns(4)
@@ -101,19 +82,11 @@ with col_l:
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    with st.container():
-        st.markdown('<div class="paket-container blue-box"><span class="header-text" style="color:#007bff;">🛡️ Amtsschimmel-Killer Analyse</span>(1 Dokument)<div class="price-tag">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://stripe.com")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with st.container():
-        st.markdown('<div class="paket-container green-box"><span class="header-text" style="color:#28a745;">⚔️ Amtsschimmel-Killer Spar-Paket</span>(3 Dokumente)<div class="price-tag">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://stripe.com")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with st.container():
-        st.markdown('<div class="paket-container gold-box"><span class="header-text" style="color:#fcc419;">🚀 Amtsschimmel-Killer Sorglos-Paket</span>(10 Dokumente)<div class="price-tag">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://stripe.com")
+    for p in [("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "1 Dokument", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
+              ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "3 Dokumente", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
+              ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "10 Dokumente", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")]:
+        st.markdown(f'<div class="paket-container {p[0]}"><span class="header-text">{p[1]}</span>({p[2]})<div class="price-tag">{p[3]} €</div><div class="no-abo">Einmalzahlung kein Abo</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", p[4])
         st.markdown('</div>', unsafe_allow_html=True)
 
 with col_m:
@@ -121,35 +94,26 @@ with col_m:
     uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "png"], label_visibility="collapsed")
     if uploaded_file:
         if uploaded_file.type == "application/pdf":
-            # PDF als Bild rendern (Garantierte Vorschau für jeden Browser)
-            images = convert_from_bytes(uploaded_file.getvalue())
-            for img in images: st.image(img, use_container_width=True)
-        else:
-            st.image(uploaded_file, use_container_width=True)
+            b64 = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+            st.markdown(f'<iframe src="data:application/pdf;base64,{b64}#toolbar=0" width="100%" height="900px"></iframe>', unsafe_allow_html=True)
+        else: st.image(uploaded_file, use_container_width=True)
 
 with col_r:
     st.subheader("🔍 Auswertung")
     if uploaded_file:
-        with st.spinner("Amtsschimmel wird analysiert..."):
-            # Text-Extraktion
-            raw_text = ""
+        with st.spinner("Analyse läuft..."):
+            txt = ""
             if uploaded_file.type == "application/pdf":
-                with pdfplumber.open(uploaded_file) as pdf:
-                    raw_text = "".join([p.extract_text() for p in pdf.pages])
-            
-            # KI Auswertung (Simulation oder Real)
-            res_text = analyze_text(raw_text) if client else "Analyse bereit. Bitte API Key prüfen."
-            
-            st.error("📅 **Frist-Check:** Frist gefunden: 30.04.2026")
-            with st.expander("📚 Ausführliches Glossar", expanded=True): st.write("Beispiel: Rechtsbehelfsbelehrung - Erklärt den Widerspruchsweg.")
-            with st.expander("✍️ Antwortschreiben (Lang)", expanded=False): st.text_area("Entwurf:", "Sehr geehrte Damen und Herren...\n\n[PLATZHALTER: NAME, DATUM]", height=250)
-            with st.expander("⚖️ Widerspruchsschreiben", expanded=False): st.text_area("Widerspruch:", "Gegen Ihren Bescheid...\n\n[PLATZHALTER: UNTERSCHRIFT]", height=250)
-            
+                with pdfplumber.open(uploaded_file) as pdf: txt = "".join([p.extract_text() for p in pdf.pages])
+            res = analyze_document(txt)
+            st.error(f"📅 **Frist-Check:** Frist endet am **{res['Frist']}**")
+            with st.expander("📚 Glossar", expanded=True): st.write(res['Glossar'])
+            with st.expander("✍️ Antwortschreiben", expanded=False): st.text_area("Entwurf:", res['Antwort'], height=250)
+            with st.expander("⚖️ Widerspruch", expanded=False): st.text_area("Entwurf:", res['Widerspruch'], height=250)
             st.divider()
             st.subheader("💾 Downloads")
-            st.download_button("📊 Excel Analyse", create_excel({"Frist": "30.04.2026"}), "Analyse.xlsx")
-            st.download_button("📄 PDF Datei", uploaded_file.getvalue(), "Brief.pdf")
-            st.download_button("📝 Word Antwort", create_word("Antworttext hier"), "Antwort.docx")
-            st.download_button("📅 Termin", create_ics("2026-04-30"), "Termin.ics")
-    else:
-        st.write("Warten auf Upload...")
+            st.download_button("📊 Excel Analyse", create_excel(res), "Analyse.xlsx")
+            st.download_button("📄 PDF Bericht", create_pdf_report(res), "Bericht.pdf")
+            st.download_button("📝 Word Antwort", create_word(res['Antwort']), "Antwort.docx")
+            st.button("📅 Termin merken (Kalender.ico)")
+    else: st.write("Warten auf Upload...")
