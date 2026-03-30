@@ -21,7 +21,7 @@ def create_excel_pro(data):
         df.to_excel(writer, index=False, sheet_name='Detaillierte_Analyse')
         worksheet = writer.sheets['Detaillierte_Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 100) # Maximale Breite für ausführliche Texte
+            worksheet.set_column(i, i, 100) 
     return output.getvalue()
 
 def get_pdf_display_fixed(uploaded_file):
@@ -38,6 +38,7 @@ def get_pdf_display_fixed(uploaded_file):
 
 # --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER MIT EXAKTEN TEXTEN) ---
 t1, t2, t3, t4 = st.columns(4)
+
 with t1:
     with st.expander("⚖️ Impressum"):
         st.text("""Amtsschimmel-Killer
@@ -104,25 +105,24 @@ Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] bean
 
 st.divider()
 
-# --- 5. HAUPT-LAYOUT (PAKETE | UPLOAD | ANALYSE) ---
+# --- 5. HAUPT-LAYOUT ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
-# LINK SPALTE: LOGO, SPRACHEN & PAKETE
 with col_left:
-    # 3. Logo beibehalten
+    # 3. Logo
     try:
         st.image("icon_final_blau.png", width=160)
     except:
         st.markdown("🏛️ **Amtsschimmel-Killer**")
     
-    # 2. Sprachen beibehalten
+    # 2. Sprachen
     st.markdown("### 🌐 Sprachen")
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية"], label_visibility="collapsed")
 
     st.write("")
+    # 1. & 4. Pakete mit Branding, Icons und Stripe-Links
     st.markdown("### 📦 Pakete")
-
-    # 1. & 4. Pakete beibehalten mit allen Angaben & Stripe-Codes
+    
     with st.container(border=True):
         st.markdown("#### 🛡️ Amtsschimmel-Killer")
         st.write("1 Scan")
@@ -141,17 +141,15 @@ with col_left:
         st.markdown("### 19,99 €")
         st.link_button("Jetzt kaufen", "https://buy.stripe.com")
 
-# MITTLERE SPALTE: UPLOAD
 with col_mid:
-    st.subheader("📄 Dokument hochladen")
-    uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
+    st.subheader("📄 Dokumenten-Upload")
+    uploaded_file = st.file_uploader("Datei wählen", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
     if uploaded_file:
         get_pdf_display_fixed(uploaded_file)
 
-# RECHTE SPALTE: ANALYSE
 with col_right:
     st.subheader("🔍 Analyse")
     if uploaded_file:
-        st.write("Analysiere Dokument...")
+        st.write("Dokument erkannt. Analyse bereit.")
     else:
-        st.info("Bitte laden Sie ein Dokument hoch.")
+        st.info("Laden Sie einen Brief hoch, um den Amtsschimmel zu besiegen.")
