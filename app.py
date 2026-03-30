@@ -17,13 +17,12 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. CUSTOM CSS (PAKETE & RECHTLICHES) ---
+# --- 2. CUSTOM CSS ---
 st.markdown("""
     <style>
     .pkg-icon { font-size: 2rem; margin-bottom: 0.5rem; }
     .pkg-price { font-size: 1.5rem; font-weight: bold; color: #1E3A8A; margin: 0.5rem 0; }
     .pkg-footer { font-size: 0.8rem; color: gray; margin-bottom: 1rem; }
-    .legal-text { white-space: pre-wrap; font-family: sans-serif; line-height: 1.6; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -35,12 +34,13 @@ def get_ai_analysis(text):
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Analysiere den Brief, erkenne Fristen und erstelle ein ausführliches Antwortschreiben sowie einen Widerspruch. Antworte NUR im JSON-Format mit den Feldern: 'analyse', 'antwort', 'widerspruch', 'frist'."},
+                {"role": "system", "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Analysiere den Brief, erkenne Fristen und erstelle ein ausführliches Antwortschreiben sowie einen detaillierten Widerspruch. Antworte NUR im JSON-Format mit den Feldern: 'analyse', 'antwort', 'widerspruch', 'frist'."},
                 {"role": "user", "content": text}
             ],
             response_format={ "type": "json_object" }
         )
-        return json.loads(response.choices.message.content)
+        # Fix für API-Struktur
+        return json.loads(response.choices[0].message.content)
     except Exception as e:
         return {"analyse": f"Fehler: {str(e)}", "antwort": "KI-Fehler", "widerspruch": "KI-Fehler", "frist": "Nicht erkannt"}
 
@@ -90,8 +90,9 @@ def perform_ocr_preview(uploaded_file):
         return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     except: return "Vorschautext konnte nicht generiert werden."
 
-# --- 4. TOP-BAR: RECHTLICHES (MIT ORIGINAL ABSTÄNDEN) ---
+# --- 4. TOP-BAR: RECHTLICHES ---
 t1, t2, t3, t4 = st.columns(4)
+
 with t1:
     with st.expander("⚖️ Impressum"):
         st.markdown("""
@@ -106,7 +107,8 @@ E-Mail: amtsschimmel-killer@proton.me
 Web: amtsschimmel-killer.streamlit.app
 
 Haftung:
-Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.""")
+Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
+        """)
 
 with t2:
     with st.expander("🛡️ Datenschutz"):
@@ -124,7 +126,8 @@ Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenA
 Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
 
 5. Ihre Rechte
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.""")
+Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
+        """)
 
 with t3:
     with st.expander("❓ FAQ"):
@@ -142,7 +145,8 @@ Was passiert, wenn der Scan fehlschlägt?
 Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
 
 Wie erreiche ich Elisabeth Reinecke?
-Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.""")
+Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
+        """)
 
 with t4:
     with st.expander("📝 Vorlagen"):
@@ -154,17 +158,18 @@ Widerspruch einlegen (Fristwahrend)
 Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
 
 Akteneinsicht einfordern:
-Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]""")
+Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]
+        """)
 
 st.divider()
 
 # --- 5. HAUPT-LAYOUT ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
-# LINKS: FARBIGE PAKET-BOXEN & STRIPE LINKS
 with col_left:
     try: st.image("icon_final_blau.png", width=160)
     except: st.markdown("### 🏛️ Amtsschimmel-Killer")
+    
     st.markdown("### 🌐 Sprachen")
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     st.write("")
@@ -185,7 +190,6 @@ with col_left:
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# MITTE: UPLOAD & OCR
 with col_mid:
     st.markdown("### 📑 Upload & Vorschau")
     st.success("👑 Admin Guthaben: 999 Dokumente")
@@ -196,19 +200,20 @@ with col_mid:
         st.markdown("**Erkannter Inhalt:**")
         st.text_area("OCR-Vorschau", ocr_text, height=450)
 
-# RECHTE SPALTE: KI ANALYSE & DOWNLOADS
 with col_right:
     st.markdown("### 🔍 Analyse & Antwort")
     if uploaded_file:
-        with st.spinner("KI analysiert..."):
+        with st.spinner("KI arbeitet..."):
             res = get_ai_analysis(ocr_text)
         
         st.error(f"📅 FRIST ERKANNT: {res.get('frist', 'Nicht erkannt')}")
         st.info(res.get('analyse'))
         
         tab1, tab2, tab3 = st.tabs(["✍️ Antwort", "⚖️ Widerspruch", "📥 Downloads"])
-        with tab1: st.text_area("Antwort:", res.get('antwort'), height=280)
-        with tab2: st.text_area("Widerspruch:", res.get('widerspruch'), height=280)
+        with tab1:
+            st.text_area("Antwort:", res.get('antwort'), height=280)
+        with tab2:
+            st.text_area("Widerspruch:", res.get('widerspruch'), height=280)
         with tab3:
             st.download_button("📊 Excel-Bericht", create_excel_pro(res['analyse'], res['antwort'], res['widerspruch']), "Analyse.xlsx")
             st.download_button("📝 Word-Dokument", create_word_complete(res['analyse'], res['antwort'], res['widerspruch']), "Bericht.docx")
