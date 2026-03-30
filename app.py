@@ -25,16 +25,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNKTIONEN (KI, PDF, WORD, EXCEL) ---
-
+# --- 3. FUNKTIONEN (KI, EXCEL, WORD, PDF) ---
 def get_ai_analysis(text):
     try:
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         sys_msg = (
-            "Du bist ein Experte für deutsches Verwaltungsrecht. Erstelle SEHR AUSFÜHRLICHE, lange und rechtlich fundierte Entwürfe. "
-            "Sowohl das Antwortschreiben als auch der Widerspruch müssen detailliert begründet sein. "
-            "Füge am Ende von Antwortschreiben und Widerspruch zwingend folgende Platzhalter ein:\n\n"
-            "[Vorname Nachname]\n[Straße Hausnummer]\n[PLZ Ort]\n[Datum]\n\n"
+            "Du bist ein Experte für deutsches Verwaltungsrecht. Erstelle SEHR AUSFÜHRLICHE Entwürfe. "
+            "Antwortschreiben und Widerspruch müssen detailliert sein und folgende Platzhalter am Ende enthalten: "
+            "[Vorname Nachname], [Straße Hausnummer], [PLZ Ort], [Datum]. "
             "Antworte NUR im JSON-Format: {'analyse': '...', 'antwort': '...', 'widerspruch': '...', 'frist': 'DD.MM.YYYY'}"
         )
         response = client.chat.completions.create(
@@ -42,44 +40,42 @@ def get_ai_analysis(text):
             messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": text}],
             response_format={ "type": "json_object" }
         )
-        return json.loads(response.choices[0].message.content)
-    except Exception as e:
-        return {"analyse": f"Fehler: {str(e)}", "antwort": "Fehler", "widerspruch": "Fehler", "frist": "Nicht erkannt"}
+        return json.loads(response.choices.message.content)
+    except:
+        return {"analyse": "Fehler bei der Analyse", "antwort": "Fehler", "widerspruch": "Fehler"}
 
-def create_pdf_adobe_ready(ana, ant, wid):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("helvetica", 'B', 16)
-    pdf.cell(0, 10, "Amtsschimmel-Killer Analyse-Report", ln=True, align='C')
-    for title, content in [("1. Analyse", ana), ("2. Antwortschreiben", ant), ("3. Widerspruch", wid)]:
-        pdf.ln(10)
-        pdf.set_font("helvetica", 'B', 14)
-        pdf.cell(0, 10, title, ln=True)
-        pdf.set_font("helvetica", '', 11)
-        safe_text = str(content).replace('•', '-').replace('–', '-').replace('„', '"').replace('“', '"')
-        pdf.multi_cell(0, 6, safe_text.encode('latin-1', 'replace').decode('latin-1'))
-    return bytes(pdf.output())
+def create_excel_pro(ana, ant, wid):
+    output = BytesIO()
+    df = pd.DataFrame([{"Kategorie": "Analyse", "Inhalt": ana}, {"Kategorie": "Antwort", "Inhalt": ant}, {"Kategorie": "Widerspruch", "Inhalt": wid}])
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Ergebnis')
+        worksheet = writer.sheets['Ergebnis']
+        wrap = writer.book.add_format({'text_wrap': True, 'valign': 'top', 'border': 1})
+        worksheet.set_column(0, 0, 20, wrap)
+        worksheet.set_column(1, 1, 120, wrap)
+    return output.getvalue()
 
 def create_word_complete(ana, ant, wid):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Analyse-Report', 0)
-    for t, c in [("Analyse", ana), ("Antwortschreiben", ant), ("Widerspruch", wid)]:
+    for t, c in [("1. Analyse", ana), ("2. Antwortschreiben", ant), ("3. Widerspruch", wid)]:
         doc.add_heading(t, level=1)
         doc.add_paragraph(str(c))
     target = BytesIO()
     doc.save(target)
     return target.getvalue()
 
-def create_excel_pro(ana, ant, wid):
-    output = BytesIO()
-    df = pd.DataFrame([{"Kategorie": "Analyse", "Inhalt": ana}, {"Kategorie": "Antwort", "Inhalt": ant}, {"Kategorie": "Widerspruch", "Inhalt": wid}])
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
-        wrap = writer.book.add_format({'text_wrap': True, 'valign': 'top', 'border': 1})
-        worksheet.set_column(1, 1, 120, wrap)
-    return output.getvalue()
+def create_pdf_adobe_ready(ana, ant, wid):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("helvetica", 'B', 16)
+    pdf.cell(0, 10, "Amtsschimmel-Killer Report", ln=True, align='C')
+    for title, content in [("1. Analyse", ana), ("2. Antwort", ant), ("3. Widerspruch", wid)]:
+        pdf.ln(10); pdf.set_font("helvetica", 'B', 14); pdf.cell(0, 10, title, ln=True)
+        pdf.set_font("helvetica", '', 11)
+        pdf.multi_cell(0, 6, str(content).encode('latin-1', 'replace').decode('latin-1'))
+    return bytes(pdf.output())
 
 def perform_ocr_preview(uploaded_file):
     try:
@@ -87,9 +83,9 @@ def perform_ocr_preview(uploaded_file):
             images = convert_from_bytes(uploaded_file.getvalue())
             return "".join([pytesseract.image_to_string(img, lang='deu') + "\n" for img in images])
         return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
-    except: return "OCR fehlgeschlagen."
+    except: return "Texterkennung fehlgeschlagen."
 
-# --- 4. TOP-BAR: RECHTLICHES (EXAKTE ABSTÄNDE) ---
+# --- 4. TOP-BAR: RECHTLICHES (VOLLSTÄNDIG & MIT GROSSEN ABSTÄNDEN) ---
 t1, t2, t3, t4 = st.columns(4)
 
 with t1:
@@ -143,7 +139,7 @@ Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderliche
 <br>
 
 **5. Ihre Rechte**
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
+Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me. 
         """, unsafe_allow_html=True)
 
 with t3:
@@ -204,8 +200,8 @@ with col_left:
     except: st.markdown("### 🏛️ Amtsschimmel-Killer")
     st.markdown("### 🌐 Sprachen")
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
+    
     st.write("")
-
     with st.container(border=True):
         st.markdown('<div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
@@ -219,43 +215,41 @@ with col_left:
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", use_container_width=True)
 
 with col_mid:
-    st.subheader("1. Dokument hochladen")
-    up_file = st.file_uploader("Datei wählen (Bild oder PDF)", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    st.subheader("1. Brief hochladen")
+    up_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
+    # --- AUTOMATISCHE VORSCHAU ---
     if up_file:
-        # KORREKTUR 1: Vorschau nach Upload
         if up_file.type.startswith("image"):
             st.image(up_file, caption="Vorschau Ihres Dokuments", use_container_width=True)
         elif up_file.type == "application/pdf":
-            st.info("PDF-Dokument bereit zur Analyse.")
+            st.success("PDF-Dokument hochgeladen. Bereit zur Analyse.")
             
         if st.button("Analyse starten ✨", use_container_width=True):
             with st.spinner("Amtsschimmel wird vertrieben..."):
-                ocr_text = perform_ocr_preview(up_file)
-                st.session_state['res'] = get_ai_analysis(ocr_text)
+                txt = perform_ocr_preview(up_file)
+                st.session_state['res'] = get_ai_analysis(txt)
 
 with col_right:
     st.subheader("2. Ergebnisse")
     if 'res' in st.session_state:
         r = st.session_state['res']
         
-        # KORREKTUR 6: Kalender-Icon & Funktion nach Analyse
+        # --- FRIST-CHECKER (KALENDER) ---
         st.markdown("### 📅 Frist-Checker")
         erhalt = st.date_input("Wann kam der Brief offiziell an?", datetime.now())
-        frist_ende = erhalt + timedelta(days=30)
-        st.info(f"Ihre Frist endet voraussichtlich am: **{frist_ende.strftime('%d.%m.%Y')}**")
+        frist_calc = erhalt + timedelta(days=30)
+        st.info(f"Ihre Frist endet voraussichtlich am: **{frist_calc.strftime('%d.%m.%Y')}**")
         
         st.write("---")
         t1, t2, t3 = st.tabs(["Analyse", "Antwortbrief", "Widerspruch"])
-        # KORREKTUR 2-4: Ausführliche Texte
         with t1: st.write(r['analyse'])
         with t2: st.text_area("Entwurf Antwort:", r['antwort'], height=350)
         with t3: st.text_area("Entwurf Widerspruch:", r['widerspruch'], height=350)
         
         st.divider()
-        # KORREKTUR 5: Alle Downloads (PDF, Word, Excel)
-        st.download_button("📥 PDF herunterladen", create_pdf_adobe_ready(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.pdf", use_container_width=True)
-        st.download_button("📥 Word herunterladen", create_word_complete(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.docx", use_container_width=True)
-        st.download_button("📥 Excel herunterladen", create_excel_pro(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.xlsx", use_container_width=True)
+        st.download_button("📥 Excel Download", create_excel_pro(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.xlsx", use_container_width=True)
+        st.download_button("📥 Word Download", create_word_complete(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.docx", use_container_width=True)
+        st.download_button("📥 PDF Download", create_pdf_adobe_ready(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.pdf", use_container_width=True)
     else:
-        st.info("Bitte laden Sie links ein Dokument hoch und starten Sie die Analyse.")
+        st.info("Bitte Dokument hochladen und Analyse starten.")
