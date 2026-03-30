@@ -79,6 +79,8 @@ Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
 with t2:
     with st.expander("🛡️ Datenschutz"):
         st.markdown("""
+**Datenschutz:**
+
 **1. Datenschutz auf einen Blick**
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
@@ -106,6 +108,8 @@ Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktier
 with t3:
     with st.expander("❓ FAQ"):
         st.markdown("""
+**FAQ**
+
 **Ist das ein Abonnement?**
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
@@ -133,6 +137,8 @@ Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnumm
 with t4:
     with st.expander("📝 Vorlagen"):
         st.markdown("""
+**Vorlagen:**
+
 **Fristverlängerung:**
 Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
 
