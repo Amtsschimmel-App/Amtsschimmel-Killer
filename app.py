@@ -6,47 +6,32 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (FARBIGE BOXEN & BUTTONS) ---
+# --- 2. CUSTOM CSS (PAKETE & BUTTONS) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
-    
-    /* Paket-Boxen Styling */
     .paket-container { border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 2px solid; background: white; }
     .blue-header { background-color: #e3f2fd; padding: 10px; border-radius: 8px; font-weight: bold; color: #007bff; margin-bottom: 10px; }
     .green-header { background-color: #e8f5e9; padding: 10px; border-radius: 8px; font-weight: bold; color: #28a745; margin-bottom: 10px; }
     .gold-header { background-color: #fff9e6; padding: 10px; border-radius: 8px; font-weight: bold; color: #fcc419; margin-bottom: 10px; }
-    
     .price-tag { font-size: 22px; font-weight: bold; color: #1E3A8A; margin: 5px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. TECHNISCHE FUNKTIONEN (STABILISIERT) ---
-def render_preview(uploaded_file):
-    file_bytes = uploaded_file.getvalue()
-    if uploaded_file.type == "application/pdf":
-        base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
-        # PDF Embed mit Fallback
-        pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf">'
-        st.markdown(pdf_display, unsafe_allow_html=True)
-    else:
-        st.image(uploaded_file, use_container_width=True)
-
-def create_excel(data_dict):
+# --- 3. HELFER-FUNKTIONEN (EXCEL & DOWNLOADS) ---
+def create_excel(data):
     output = BytesIO()
-    try:
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df = pd.DataFrame([data_dict])
-            df.to_excel(writer, index=False, sheet_name='Analyse')
-    except:
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df = pd.DataFrame([data_dict])
-            df.to_excel(writer, index=False)
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df = pd.DataFrame([data])
+        df.to_excel(writer, index=False, sheet_name='Analyse')
+        worksheet = writer.sheets['Analyse']
+        for i, col in enumerate(df.columns):
+            worksheet.set_column(i, i, 70) # Auto-Anpassung simuliert
     return output.getvalue()
 
-# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
+# --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -97,20 +82,51 @@ with col_left:
     st.write("(10 Dokumente)")
     st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
     st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
-    st.link_button("Jetzt kaufen", "https://buy.stripe.com")
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col_mid:
     st.subheader("📄 Dokument & Vorschau")
-    uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "png"], label_visibility="collapsed")
     if uploaded_file:
-        render_preview(uploaded_file)
+        file_bytes = uploaded_file.getvalue()
+        if uploaded_file.type == "application/pdf":
+            base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
+            # Stabilere PDF-Vorschau
+            st.markdown(f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="800px" style="border:none;"></iframe>', unsafe_allow_html=True)
+        else:
+            st.image(uploaded_file, use_container_width=True)
     else:
         st.info("Bitte Dokument hochladen.")
 
 with col_right:
     st.subheader("🔍 Auswertung")
     if uploaded_file:
-        st.write("Analyse bereit. Bitte Paket wählen.")
+        # --- KI-PLATZHALTER (SIMULIERT) ---
+        st.error("📅 **Frist-Check:** Frist läuft am 15.04.2026 ab!")
+        
+        with st.expander("📚 Umfassendes Glossar", expanded=True):
+            st.write("**Rechtsbehelfsbelehrung:** Information darüber, wie Sie gegen den Bescheid vorgehen können.")
+            st.write("**Ermessensspielraum:** Der Spielraum, den die Behörde bei ihrer Entscheidung hat.")
+        
+        with st.expander("✍️ Antwortschreiben (Entwurf)", expanded=False):
+            brief_text = "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum] teile ich Ihnen mit...\n\nMit freundlichen Grüßen,\n[Name]"
+            st.text_area("Vorschau:", brief_text, height=200)
+            
+        with st.expander("⚖️ Widerspruchsschreiben", expanded=False):
+            widerspruch = "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen den Bescheid vom [Datum] fristgerecht Widerspruch ein...\n\nMit freundlichen Grüßen,\n[Name]"
+            st.text_area("Vorschau:", widerspruch, height=200)
+        
+        st.write("---")
+        st.markdown("### 💾 Downloads")
+        
+        # Excel Download
+        excel_data = create_excel({"Frist": "15.04.2026", "Glossar": "Beispielinhalt", "Entwurf": brief_text})
+        st.download_button("📊 Excel-Tabelle (.xlsx)", excel_data, "Analyse.xlsx")
+        
+        # Word & PDF Platzhalter (für echte Files müssen Libs wie python-docx genutzt werden)
+        st.button("📝 Antwortschreiben (.docx)")
+        st.button("📅 Termin (Kalender.ico)")
     else:
-        st.write("Warten auf Dokument...")
+        st.write("Warten auf Upload...")
+
