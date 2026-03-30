@@ -27,23 +27,13 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. FUNKTIONEN ---
-
 def get_ai_analysis(text):
     try:
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": """Du bist ein Experte für deutsches Verwaltungsrecht. 
-                Erstelle SEHR AUSFÜHRLICHE, rechtlich fundierte und sauber formatierte Entwürfe. 
-                Die Antwortschreiben und Widersprüche müssen lang genug sein, um professionell zu wirken.
-                Füge UNTEN in jedem Schreiben (Antwort & Widerspruch) zwingend Platzhalter für die Adresse ein:
-                [Vorname Nachname]
-                [Straße Hausnummer]
-                [PLZ Ort]
-                [Datum]
-                
-                Antworte NUR im JSON-Format: {'analyse': '...', 'antwort': '...', 'widerspruch': '...', 'frist': 'DD.MM.YYYY'}"""},
+                {"role": "system", "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Erstelle SEHR AUSFÜHRLICHE, rechtlich fundierte und sauber formatierte Entwürfe. Die Antwortschreiben und Widersprüche müssen lang und detailliert sein. Füge UNTEN in jedem Schreiben (Antwort & Widerspruch) zwingend Platzhalter für die Adresse ein: [Vorname Nachname], [Straße Hausnummer], [PLZ Ort], [Datum]. Antworte NUR im JSON-Format: {'analyse': '...', 'antwort': '...', 'widerspruch': '...', 'frist': 'DD.MM.YYYY'}"},
                 {"role": "user", "content": text}
             ],
             response_format={ "type": "json_object" }
@@ -80,17 +70,6 @@ def create_word_complete(analyse, antwort, widerspruch):
     doc.save(target)
     return target.getvalue()
 
-def create_excel_pro(ana, ant, wid):
-    output = BytesIO()
-    df = pd.DataFrame([{"Kategorie": "1. Analyse", "Inhalt": ana}, {"Kategorie": "2. Antwort", "Inhalt": ant}, {"Kategorie": "3. Widerspruch", "Inhalt": wid}])
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
-        wrap = writer.book.add_format({'text_wrap': True, 'valign': 'top', 'border': 1})
-        worksheet.set_column(0, 0, 25, wrap)
-        worksheet.set_column(1, 1, 120, wrap)
-    return output.getvalue()
-
 def perform_ocr_preview(uploaded_file):
     try:
         if uploaded_file.type == "application/pdf":
@@ -99,111 +78,97 @@ def perform_ocr_preview(uploaded_file):
         return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     except: return "Vorschau nicht möglich."
 
-# --- 4. TOP-BAR: RECHTLICHES (MIT DEN GEWÜNSCHTEN ABSTÄNDEN) ---
+# --- 4. TOP-BAR: RECHTLICHES (EXAKTE ABSTÄNDE BEIBEHALTEN) ---
 t1, t2, t3, t4 = st.columns(4)
 
 with t1:
     with st.expander("⚖️ Impressum"):
         st.markdown("""
-### Amtsschimmel-Killer
+Amtsschimmel-Killer
 
-**Betreiberin:**  
-Elisabeth Reinecke  
-Ringelsweide 9  
-40223 Düsseldorf  
+Betreiberin:
+Elisabeth Reinecke
+Ringelsweide 9
+40223 Düsseldorf
 
-<br><br><br>
+Kontakt:
+Telefon: +49 211 15821329
+E-Mail: amtsschimmel-killer@proton.me
+Web: amtsschimmel-killer.streamlit.app
 
-**Kontakt:**  
-Telefon: +49 211 15821329  
-E-Mail: amtsschimmel-killer@proton.me  
-Web: amtsschimmel-killer.streamlit.app  
-
-<br><br><br>
-
-**Haftung:**  
-Inhalte nach § 5 TMG.  
-Keine Haftung für KI-generierte Texte.
+Haftung:
+Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
         """, unsafe_allow_html=True)
 
 with t2:
     with st.expander("🛡️ Datenschutz"):
         st.markdown("""
-**1. Datenschutz auf einen Blick**  
+Datenschutz:
+
+1. Datenschutz auf einen Blick
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
-**2. Datenerfassung & Hosting**  
+2. Datenerfassung & Hosting
 Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
 
-**3. Dokumentenverarbeitung**  
+3. Dokumentenverarbeitung
 Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
 
-**4. Zahlungsabwicklung (Stripe)**  
+4. Zahlungsabwicklung (Stripe)
 Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
 
-**5. Ihre Rechte**  
+5. Ihre Rechte
 Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
         """)
 
 with t3:
     with st.expander("❓ FAQ"):
         st.markdown("""
-**Ist das ein Abonnement?**  
+FAQ
+
+Ist das ein Abonnement?
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
-**Wie sicher sind meine Dokumente?**  
+Wie sicher sind meine Dokumente?
 Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
 
-**Ersetzt die App eine Rechtsberatung?**  
+Ersetzt die App eine Rechtsberatung?
 Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
 
-**Was passiert, wenn der Scan fehlschlägt?**  
+Was passiert, wenn der Scan fehlschlägt?
 Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
 
-**Wie erreiche ich Elisabeth Reinecke?**  
+Wie erreiche ich Elisabeth Reinecke?
 Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
         """)
 
 with t4:
     with st.expander("📝 Vorlagen"):
         st.markdown("""
-**Fristverlängerung:**  
-Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen.  
-<br>
-Mit freundlichen Grüßen,  
-[Name]
+Vorlagen:
 
-<br><br>
+Fristverlängerung:
+Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
 
-**Widerspruch einlegen (Fristwahrend):**  
-Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben.  
-<br>
-Mit freundlichen Grüßen,  
-[Name]
+Widerspruch einlegen (Fristwahrend)
+Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
 
-<br><br>
-
-**Akteneinsicht einfordern:**  
-Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht.  
-<br>
-Mit freundlichen Grüßen,  
-[Name]
-        """, unsafe_allow_html=True)
+Akteneinsicht einfordern:
+Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]
+        """)
 
 st.divider()
 
 # --- 5. HAUPT-LAYOUT ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
-# LINKS: PAKETE & STRIPE LINKS
 with col_left:
     try: st.image("icon_final_blau.png", width=160)
     except: st.markdown("### 🏛️ Amtsschimmel-Killer")
-    
     st.markdown("### 🌐 Sprachen")
     st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     st.write("")
-    
+
     with st.container(border=True):
         st.markdown('<div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
@@ -215,19 +180,20 @@ with col_left:
         st.markdown('</div>', unsafe_allow_html=True)
 
     with st.container(border=True):
-        st.markdown('<div class="pkg-icon">🏛️</div>**Pro-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
+        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;">'
+                    '<div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.link_button("Jetzt kaufen", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs04", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 with col_mid:
     st.subheader("1. Dokument hochladen")
     uploaded_file = st.file_uploader("Brief fotografieren oder PDF wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
-    # NEU: KALENDER / FRIST-CHECKER
-    st.write("")
+    st.write("---")
     st.subheader("📅 Frist-Checker")
     erhalt_datum = st.date_input("Wann haben Sie den Brief erhalten?", datetime.now())
     frist_ende = erhalt_datum + timedelta(days=30)
-    st.info(f"Die gesetzliche Frist endet voraussichtlich am: **{frist_ende.strftime('%d.%m.%Y')}**")
+    st.info(f"Die gesetzliche Frist (1 Monat) endet voraussichtlich am: **{frist_ende.strftime('%d.%m.%Y')}**")
 
     if uploaded_file is not None:
         if st.button("Analyse starten ✨", use_container_width=True):
@@ -239,22 +205,14 @@ with col_right:
     st.subheader("2. Ergebnisse")
     if 'analysis_results' in st.session_state:
         res = st.session_state['analysis_results']
+        t_ana, t_ant, t_wid = st.tabs(["Analyse", "Antwortbrief", "Widerspruch"])
+        with t_ana: st.write(res['analyse'])
+        with t_ant: st.text_area("Entwurf:", res['antwort'], height=400)
+        with t_wid: st.text_area("Entwurf:", res['widerspruch'], height=400)
         
-        tab1, tab2, tab3 = st.tabs(["Analyse", "Antwortbrief", "Widerspruch"])
-        with tab1:
-            st.write(res['analyse'])
-        with tab2:
-            st.text_area("Ihr Antwortbrief-Entwurf:", res['antwort'], height=300)
-        with tab3:
-            st.text_area("Ihr Widerspruch-Entwurf:", res['widerspruch'], height=300)
-            
         st.divider()
-        col_dl1, col_dl2 = st.columns(2)
-        with col_dl1:
-            pdf_data = create_pdf_adobe_ready(res['analyse'], res['antwort'], res['widerspruch'])
-            st.download_button("📥 PDF Download", pdf_data, "Analyse.pdf", "application/pdf", use_container_width=True)
-        with col_dl2:
-            word_data = create_word_complete(res['analyse'], res['antwort'], res['widerspruch'])
-            st.download_button("📥 Word Download", word_data, "Analyse.docx", use_container_width=True)
+        c1, c2 = st.columns(2)
+        with c1: st.download_button("📥 PDF", create_pdf_adobe_ready(res['analyse'], res['antwort'], res['widerspruch']), "Analyse.pdf", use_container_width=True)
+        with c2: st.download_button("📥 Word", create_word_complete(res['analyse'], res['antwort'], res['widerspruch']), "Analyse.docx", use_container_width=True)
     else:
-        st.info("Bitte laden Sie links ein Dokument hoch und starten Sie die Analyse.")
+        st.info("Bitte Dokument hochladen und Analyse starten.")
