@@ -2,129 +2,103 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import base64
-from datetime import datetime, timedelta
 
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
 # --- 2. CUSTOM CSS (FARBIGE PAKETE & BUTTON-INTEGRATION) ---
 st.markdown("""
-    <style>
-    .pkg-box { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
-    .pkg-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; color: #1E3A8A; }
-    .pkg-price { font-size: 1.5rem; font-weight: bold; color: #1E3A8A; }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
+    .paket-card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 10px; text-align: center; }
+    .price-tag { font-size: 24px; font-weight: bold; color: #1E3A8A; }
+</style>
+""", unsafe_allow_html=True)
 
 # --- 3. EXPORT FUNKTIONEN ---
 def create_excel_pro(data):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df = pd.DataFrame(data)
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
+        df.to_excel(writer, index=False, sheet_name='Detaillierte_Analyse')
+        worksheet = writer.sheets['Detaillierte_Analyse']
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 100)
+            worksheet.set_column(i, i, 100) 
     return output.getvalue()
 
-# --- 4. TOP-BAR: RECHTLICHES (MIT EXAKTEN TEXTEN & ABSTÄNDEN) ---
-t1, t2, t3, t4 = st.columns(4)
+def get_pdf_display_fixed(uploaded_file):
+    base64_pdf = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+    pdf_display = f'''
+    <div style="text-align:center;">
+        <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="600px">
+            <embed src="data:application/pdf;base64,{base64_pdf}" type="application/pdf" />
+        </object>
+        <br><a href="data:application/pdf;base64,{base64_pdf}" download="dokument.pdf">PDF-Vorschau wird blockiert? Hier klicken zum Herunterladen</a>
+    </div>
+    '''
+    st.markdown(pdf_display, unsafe_allow_html=True)
 
+# --- 4. TOP-BAR: RECHTLICHES (NEBENEINANDER) ---
+t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
-        st.markdown("""
-**Amtsschimmel-Killer**
-
-**Betreiberin:**
-
-Elisabeth Reinecke
-
+        st.text("""Amtsschimmel-Killer
+Betreiberin: Elisabeth Reinecke
 Ringelsweide 9
 40223 Düsseldorf
 
-<br>
-
-**Kontakt:**
+Kontakt:
 Telefon: +49 211 15821329
 E-Mail: amtsschimmel-killer@proton.me
 Web: amtsschimmel-killer.streamlit.app
 
-<br>
-
-**Haftung:**
-Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
-        """, unsafe_allow_html=True)
+Haftung:
+Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.""")
 
 with t2:
     with st.expander("🛡️ Datenschutz"):
-        st.markdown("""
-**1. Datenschutz auf einen Blick**
+        st.text("""1. Datenschutz auf einen Blick
 Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
 
-<br>
-
-**2. Datenerfassung & Hosting**
+2. Datenerfassung & Hosting
 Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
 
-<br>
-
-**3. Dokumentenverarbeitung**
+3. Dokumentenverarbeitung
 Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
 
-<br>
-
-**4. Zahlungsabwicklung (Stripe)**
+4. Zahlungsabwicklung (Stripe)
 Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
 
-<br>
-
-**5. Ihre Rechte**
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
-        """, unsafe_allow_html=True)
+5. Ihre Rechte
+Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.""")
 
 with t3:
     with st.expander("❓ FAQ"):
-        st.markdown("""
-**Ist das ein Abonnement?**
+        st.text("""Ist das ein Abonnement?
 Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
-<br>
-
-**Wie sicher sind meine Dokumente?**
+Wie sicher sind meine Dokumente?
 Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
 
-<br>
-
-**Ersetzt die App eine Rechtsberatung?**
+Ersetzt die App eine Rechtsberatung?
 Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
 
-<br>
-
-**Was passiert, wenn der Scan fehlschlägt?**
+Was passiert, wenn der Scan fehlschlägt?
 Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
 
-<br>
-
-**Wie erreiche ich Elisabeth Reinecke?**
-Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
-        """, unsafe_allow_html=True)
+Wie erreiche ich Elisabeth Reinecke?
+Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.""")
 
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.markdown("""
-**Fristverlängerung:**
+        st.text("""Fristverlängerung:
 Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
 
-<br><br>
-
-**Widerspruch einlegen (Fristwahrend):**
+Widerspruch einlegen (Fristwahrend):
 Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
 
-<br><br>
-
-**Akteneinsicht einfordern:**
-Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]
-        """, unsafe_allow_html=True)
+Akteneinsicht einfordern:
+Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]""")
 
 st.divider()
 
@@ -138,38 +112,28 @@ with col_left:
         st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
-
+    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية"], label_visibility="collapsed")
+    
     st.write("")
     
-    # PAKETE MIT BRANDING & STRIPE CODES
-    with st.container():
-        st.markdown('<div class="pkg-box"><div class="pkg-title">Amtsschimmel-Killer: Analyse</div><div class="pkg-price">3,99 €</div>(1 Dokument)</div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
+    # Paket 1
+    st.markdown('<div class="paket-card"><p><b>Basis-Check</b><br>1 Scan</p><p class="price-tag">3,99 €</p></div>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
 
-    with st.container():
-        st.markdown('<div class="pkg-box" style="background-color: #ebf5fb;"><div class="pkg-title">Amtsschimmel-Killer: Spar-Paket</div><div class="pkg-price">9,99 €</div>(3 Dokumente)</div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
+    # Paket 2
+    st.markdown('<div class="paket-card"><p><b>Standard-Paket</b><br>3 Scans</p><p class="price-tag">9,99 €</p></div>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
 
-    with st.container():
-        st.markdown('<div class="pkg-box" style="background-color: #fef9e7;"><div class="pkg-title">Amtsschimmel-Killer: Sorglos</div><div class="pkg-price">19,99 €</div>(10 Dokumente)</div>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
+    # Paket 3
+    st.markdown('<div class="paket-card"><p><b>Pro-Flat</b><br>10 Scans</p><p class="price-tag">19,99 €</p></div>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com")
 
 with col_mid:
-    st.subheader("1. Dokument hochladen")
-    uploaded_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
-    
-    # AUTOMATISCHE VORSCHAU (Nur Bilder, PDF als Bestätigung um Chrome-Fehler zu vermeiden)
-    if uploaded_file is not None:
-        st.write("---")
-        if uploaded_file.type == "application/pdf":
-            st.success("✅ PDF erfolgreich geladen. Bereit zur Analyse.")
-        else:
-            st.image(uploaded_file, caption="Dokumenten-Vorschau", use_container_width=True)
-        
-        if st.button("Analyse starten ✨", use_container_width=True):
-            st.info("Verbindung zur KI wird aufgebaut...")
+    st.subheader("📄 Dokumenten-Upload")
+    uploaded_file = st.file_uploader("Brief hochladen (PDF oder Bild)", type=["pdf", "jpg", "jpeg", "png"])
+    if uploaded_file:
+        get_pdf_display_fixed(uploaded_file)
 
 with col_right:
-    st.subheader("2. Analyse-Ergebnis")
-    st.info("Warten auf Upload und Paketauswahl.")
+    st.subheader("🔍 Analyse & Antwort")
+    st.info("Laden Sie ein Dokument hoch, um die Analyse zu starten.")
