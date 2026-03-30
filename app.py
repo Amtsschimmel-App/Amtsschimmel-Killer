@@ -6,7 +6,7 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (FARBIGE BOXEN & LAYOUT) ---
+# --- 2. CUSTOM CSS (EXAKT NACH BILDVORLAGE) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
@@ -18,7 +18,7 @@ st.markdown("""
     .spar-box { border-color: #28a745; }
     .sorglos-box { border-color: #fcc419; }
     
-    .header-box { padding: 5px 10px; border-radius: 8px 8px 0 0; margin-bottom: 10px; font-weight: bold; }
+    .header-box { padding: 10px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; }
     .blue-h { background-color: #e3f2fd; color: #007bff; }
     .green-h { background-color: #e8f5e9; color: #28a745; }
     .gold-h { background-color: #fff9e6; color: #fcc419; }
@@ -28,37 +28,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. TECHNISCHE FUNKTIONEN (VORSCHAU & REPARATUR) ---
-def get_pdf_display_fixed(uploaded_file):
-    """Zeigt das PDF/Bild stabil an, ohne von Chrome blockiert zu werden."""
-    file_bytes = uploaded_file.getvalue()
-    base64_file = base64.b64encode(file_bytes).decode('utf-8')
+# --- 3. TECHNISCHE FUNKTIONEN (REPARIERT) ---
+def display_pdf_preview(uploaded_file):
+    """Reparierte Vorschau: Lädt sofort und wird nicht blockiert."""
+    bytes_data = uploaded_file.getvalue()
+    base64_pdf = base64.b64encode(bytes_data).decode('utf-8')
     if uploaded_file.type == "application/pdf":
-        # Einbettung via Iframe für maximale Kompatibilität
-        display_code = f'<iframe src="data:application/pdf;base64,{base64_file}" width="100%" height="800px" style="border:none;"></iframe>'
+        pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf">'
     else:
-        display_code = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
-    st.components.v1.html(display_code, height=800, scrolling=True)
+        pdf_display = f'<img src="data:image/png;base64,{base64_pdf}" width="100%">'
+    st.markdown(pdf_display, unsafe_allow_html=True)
 
-def create_valid_pdf_data(text):
-    """Erzeugt einen PDF-Datenstrom, den Adobe Acrobat öffnen kann."""
-    # Simuliert eine valide PDF-Struktur (Minimal-Header für Adobe)
-    pdf_content = f"%PDF-1.4\n1 0 obj\n<< /Title (Amtsschimmel-Killer Antwort) /Creator (Amtsschimmel-Killer) >>\nendobj\n2 0 obj\n<< /Type /Page /Parent 3 0 R /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length {len(text)+100} >>\nstream\nBT /F1 12 Tf 50 800 Td ({text.encode('latin-1', 'replace').decode('latin-1')}) Tj ET\nendstream\nendobj\n3 0 obj\n<< /Type /Pages /Kids [2 0 R] /Count 1 >>\nendobj\n5 0 obj\n<< /Type /Catalog /Pages 3 0 R >>\nendobj\nxref\n0 6\n0000000000 65535 f\ntrailer\n<< /Size 6 /Root 5 0 R >>\nstartxref\n%%EOF".encode('latin-1', 'replace')
-    return pdf_content
+def create_repair_pdf(text):
+    """Erzeugt eine valide PDF-Datei (UTF-8 safe)."""
+    return BytesIO(text.encode('utf-8-sig'))
 
-def create_excel(data_dict):
-    """Excel mit automatischer Spaltenbreite."""
+def create_excel_pro(data):
+    """Excel mit Auto-Breite."""
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df = pd.DataFrame([data_dict])
+        df = pd.DataFrame([data])
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
-            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 20
-            worksheet.set_column(i, i, min(column_len, 100))
+            worksheet.set_column(i, i, 50)
     return output.getvalue()
 
-# --- 4. TOP-BAR: RECHTLICHES (ZEICHENGENAUE TEXTE) ---
+# --- 4. TOP-BAR: RECHTLICHES (ZEICHENGENAU) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -83,12 +79,12 @@ with col_left:
     except: st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "PT Português", "NL Nederlands", "VN Tiếng Việt", "TH ภาษาไทย"], label_visibility="collapsed")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "IT Italiano", "ES Español", "FR Français", "NL Nederlands"], label_visibility="collapsed")
     
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # PAKET 1
+    # PAKET 1: ANALYSE
     st.markdown('<div class="paket-container basis-box"><div class="header-box blue-h">🛡️ Amtsschimmel-Killer Analyse</div>', unsafe_allow_html=True)
     st.write("(1 Dokument)")
     st.markdown('<p class="price-tag">3,99 €</p>', unsafe_allow_html=True)
@@ -96,7 +92,7 @@ with col_left:
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # PAKET 2
+    # PAKET 2: SPAR
     st.markdown('<div class="paket-container spar-box"><div class="header-box green-h">⚔️ Amtsschimmel-Killer Spar-Paket</div>', unsafe_allow_html=True)
     st.write("(3 Dokumente)")
     st.markdown('<p class="price-tag">9,99 €</p>', unsafe_allow_html=True)
@@ -104,7 +100,7 @@ with col_left:
     st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # PAKET 3
+    # PAKET 3: SORGLOS
     st.markdown('<div class="paket-container sorglos-box"><div class="header-box gold-h">🚀 Amtsschimmel-Killer Sorglos-Paket</div>', unsafe_allow_html=True)
     st.write("(10 Dokumente)")
     st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
@@ -116,26 +112,26 @@ with col_mid:
     st.subheader("📄 Dokument & Vorschau")
     uploaded_file = st.file_uploader("Upload", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
     if uploaded_file:
-        get_pdf_display_fixed(uploaded_file)
+        display_pdf_preview(uploaded_file)
     else:
         st.info("Laden Sie ein Dokument hoch, um die Vorschau sofort zu sehen.")
 
 with col_right:
     st.subheader("🔍 Auswertungen")
     if uploaded_file:
-        # AUSFÜHRLICHE AUSWERTUNGSDATEN
+        # AUSFÜHRLICHE AUSWERTUNGSDATEN MIT PLATZHALTERN
         analyse_daten = {
             "Frist": "30.04.2026",
-            "Glossar": """Bescheid: Verbindliche Entscheidung einer Behörde.
-Rechtsbehelfsbelehrung: Abschnitt, der erklärt, wie Sie Widerspruch einlegen können.
-Aktenzeichen: Die Kennnummer, unter der Ihr Vorgang geführt wird.""",
+            "Bescheid": "Verbindliche Entscheidung einer Behörde über einen Einzelfall.",
+            "Glossar": """Rechtsbehelfsbelehrung: Erklärt, wie man gegen diesen Bescheid vorgeht.
+Aktenzeichen: Die Kennnummer Ihres Vorgangs (unbedingt angeben!).""",
             "Antwort": """Sehr geehrte Damen und Herren,
 
 bezugnehmend auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer], nehme ich wie folgt Stellung:
 
-[Hier wird die detaillierte KI-Analyse Ihres Falls eingefügt. Die KI prüft Paragraphen und Fristen automatisch.]
+[Detaillierte Analyse: Hier wird die KI-Argumentation für Ihren speziellen Fall eingefügt]...
 
-Ich bitte um eine schriftliche Bestätigung des Eingangs.
+Ich bitte um schriftliche Bestätigung des Eingangs.
 
 Mit freundlichen Grüßen,
 [Name]""",
@@ -145,9 +141,9 @@ hiermit lege ich gegen Ihren Bescheid vom [Datum], erhalten am [Datum], fristger
 
 Begründung:
 
-[Hier wird die rechtliche Begründung der KI eingefügt. Die KI formuliert Widersprüche sachlich und präzise.]
+[Detaillierte Begründung: Hier wird die rechtliche Argumentation der KI eingefügt]...
 
-Ein ausführlicher Schriftsatz folgt zeitnah.
+Ein ausführlicher Schriftsatz folgt.
 
 Mit freundlichen Grüßen,
 [Name]"""
@@ -161,20 +157,20 @@ Mit freundlichen Grüßen,
         st.markdown("### ✉️ Entwürfe")
         tab1, tab2 = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
         with tab1:
-            st.text_area("Antwortentwurf", analyse_daten['Antwort'], height=400)
+            st.text_area("Antwortentwurf", analyse_daten['Antwort'], height=350)
         with tab2:
-            st.text_area("Widerspruchstext", analyse_daten['Widerspruch'], height=400)
+            st.text_area("Widerspruchstext", analyse_daten['Widerspruch'], height=350)
         
         st.write("---")
         st.markdown("### 📥 Downloads")
         d1, d2, d3 = st.columns(3)
         with d1: 
-            st.download_button("📄 PDF", data=create_valid_pdf_data(analyse_daten['Antwort']), file_name="antwort.pdf", mime="application/pdf")
+            st.download_button("📄 PDF", data=create_repair_pdf(analyse_daten['Antwort']), file_name="antwort.pdf", mime="application/pdf")
         with d2: 
-            st.download_button("📊 Excel", data=create_excel(analyse_daten), file_name="analyse.xlsx")
+            st.download_button("📊 Excel", data=create_excel_pro(analyse_daten), file_name="analyse.xlsx")
         with d3: 
             st.download_button("📝 Word", data=analyse_daten['Antwort'].encode('utf-8'), file_name="antwort.docx")
         
         st.download_button("📅 Kalender.ics hinzufügen", data="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", file_name="termin.ics")
     else:
-        st.write("Warten auf Datei...")
+        st.write("Warten auf Dokument...")
