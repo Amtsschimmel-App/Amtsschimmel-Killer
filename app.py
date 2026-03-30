@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from io import BytesIO
@@ -8,11 +7,11 @@ from datetime import datetime, timedelta
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (LOGO & PAKET-STYLING) ---
+# --- 2. CUSTOM CSS (FARBIGE PAKETE & BUTTON-INTEGRATION) ---
 st.markdown("""
     <style>
     .pkg-box { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
-    .pkg-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+    .pkg-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; color: #1E3A8A; }
     .pkg-price { font-size: 1.5rem; font-weight: bold; color: #1E3A8A; }
     </style>
     """, unsafe_allow_html=True)
@@ -139,41 +138,38 @@ with col_left:
         st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية"], label_visibility="collapsed")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
 
     st.write("")
     
     # PAKETE MIT BRANDING & STRIPE CODES
     with st.container():
-        st.markdown('<div class="pkg-box">📄 <span class="pkg-title">Amtsschimmel-Killer: Basis</span><br><span class="pkg-price">3,99 €</span><br>1 Analyse</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-box"><div class="pkg-title">Amtsschimmel-Killer: Analyse</div><div class="pkg-price">3,99 €</div>(1 Dokument)</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02", use_container_width=True)
 
     with st.container():
-        st.markdown('<div class="pkg-box" style="background-color: #ebf5fb;">🥈 <span class="pkg-title">Amtsschimmel-Killer: Spar-Paket</span><br><span class="pkg-price">9,99 €</span><br>3 Analysen</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-box" style="background-color: #ebf5fb;"><div class="pkg-title">Amtsschimmel-Killer: Spar-Paket</div><div class="pkg-price">9,99 €</div>(3 Dokumente)</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03", use_container_width=True)
 
     with st.container():
-        st.markdown('<div class="pkg-box" style="background-color: #fef9e7;">🥇 <span class="pkg-title">Amtsschimmel-Killer: Sorglos</span><br><span class="pkg-price">19,99 €</span><br>10 Analysen</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-box" style="background-color: #fef9e7;"><div class="pkg-title">Amtsschimmel-Killer: Sorglos</div><div class="pkg-price">19,99 €</div>(10 Dokumente)</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
 
 with col_mid:
     st.subheader("1. Dokument hochladen")
-    uploaded_file = st.file_uploader("Datei wählen (PDF oder Bild)", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
-    # --- NEU: AUTOMATISCHE VORSCHAU ---
+    # AUTOMATISCHE VORSCHAU (Nur Bilder, PDF als Bestätigung um Chrome-Fehler zu vermeiden)
     if uploaded_file is not None:
         st.write("---")
-        st.markdown("### 🖼️ Dokumentenvorschau")
         if uploaded_file.type == "application/pdf":
-            base64_pdf = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
+            st.success("✅ PDF erfolgreich geladen. Bereit zur Analyse.")
         else:
-            st.image(uploaded_file, use_container_width=True)
+            st.image(uploaded_file, caption="Dokumenten-Vorschau", use_container_width=True)
         
         if st.button("Analyse starten ✨", use_container_width=True):
-            st.info("KI-Analyse wird gestartet...")
+            st.info("Verbindung zur KI wird aufgebaut...")
 
 with col_right:
     st.subheader("2. Analyse-Ergebnis")
-    st.info("Bitte laden Sie links ein Dokument hoch und wählen Sie ein Paket.")
+    st.info("Warten auf Upload und Paketauswahl.")
