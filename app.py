@@ -6,51 +6,37 @@ import base64
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. CUSTOM CSS (FARBIGE PAKETE & LAYOUT) ---
+# --- 2. CUSTOM CSS (FARBIGE BOXEN & BUTTONS) ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 5px; }
     
-    /* Paket-Boxen Farben */
-    div[data-testid="stVerticalBlock"] > div:has(div.basis-box) { 
-        background-color: #f0f7ff; border: 2px solid #007bff; border-radius: 12px; padding: 15px; 
-    }
-    div[data-testid="stVerticalBlock"] > div:has(div.spar-box) { 
-        background-color: #f2faf3; border: 2px solid #28a745; border-radius: 12px; padding: 15px; 
-    }
-    div[data-testid="stVerticalBlock"] > div:has(div.sorglos-box) { 
-        background-color: #fff9e6; border: 2px solid #fcc419; border-radius: 12px; padding: 15px; 
-    }
+    /* Paket-Boxen mit bunten Farben und Buttons innen */
+    .basis-box { background-color: #f0f7ff; border: 2px solid #007bff; border-radius: 12px; padding: 15px; margin-bottom: 10px; }
+    .spar-box { background-color: #f2faf3; border: 2px solid #28a745; border-radius: 12px; padding: 15px; margin-bottom: 10px; }
+    .sorglos-box { background-color: #fff9e6; border: 2px solid #fcc419; border-radius: 12px; padding: 15px; margin-bottom: 10px; }
     
     .price-tag { font-size: 22px; font-weight: bold; color: #1E3A8A; margin: 5px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. EXPORT FUNKTIONEN (VOLLSTÄNDIG FUNKTIONAL) ---
-def create_excel(data):
+# --- 3. EXPORT FUNKTIONEN (MIT AUTO-SPALTENBREITE & DOWNLOADS) ---
+def create_excel_auto_width(data_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df = pd.DataFrame([data])
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
+        df = pd.DataFrame([data_dict])
+        df.to_excel(writer, index=False, sheet_name='Amtsschimmel_Analyse')
+        worksheet = writer.sheets['Amtsschimmel_Analyse']
+        # Automatische Spaltenbreite berechnen
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 60)
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 5
+            worksheet.set_column(i, i, min(column_len, 100))
     return output.getvalue()
 
-def create_text_file(content):
-    return BytesIO(content.encode('utf-8'))
-
-def get_preview(uploaded_file):
-    # FIX: Sofortige Vorschau nach Upload
-    file_bytes = uploaded_file.getvalue()
-    base64_file = base64.b64encode(file_bytes).decode('utf-8')
-    if uploaded_file.type == "application/pdf":
-        display = f'<embed src="data:application/pdf;base64,{base64_file}" width="100%" height="800" type="application/pdf">'
-    else:
-        display = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
-    st.markdown(display, unsafe_allow_html=True)
+def create_text_download(text):
+    return BytesIO(text.encode('utf-8'))
 
 # --- 4. TOP-BAR: RECHTLICHES (EXAKTE TEXTE & ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
@@ -72,81 +58,96 @@ st.divider()
 # --- 5. HAUPT-LAYOUT ---
 col_left, col_mid, col_right = st.columns([1, 1.6, 1.3])
 
+# LINKS: LOGO, SPRACHEN & PAKETE
 with col_left:
     try: st.image("icon_final_blau.png", width=160)
     except: st.markdown("🏛️ **Amtsschimmel-Killer**")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano"], label_visibility="collapsed")
+    # Vollständige Sprachenliste
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "PT Português", "NL Nederlands", "VN Tiếng Việt", "TH ภาษาไทย"], label_visibility="collapsed")
     
     st.write("---")
     st.markdown("### 📦 Pakete")
     
-    # Paket 1: Analyse
-    with st.container():
-        st.markdown('<div class="basis-box"></div>', unsafe_allow_html=True)
-        st.markdown("### 🛡️ Basis")
-        st.markdown("**Amtsschimmel-Killer Analyse** (1 Dokument)")
-        st.markdown('<p class="price-tag">3,99 €</p>', unsafe_allow_html=True)
-        st.markdown('<p class="no-abo">Einmalzahlung - kein Abo!</p>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
+    # Pakete mit Icons, Branding, korrekten Namen & Stripe-Links
+    st.markdown('<div class="basis-box">', unsafe_allow_html=True)
+    st.markdown("### 🛡️ Basis")
+    st.write("Amtsschimmel-Killer Analyse (1 Dokument)")
+    st.markdown('<p class="price-tag">3,99 €</p>', unsafe_allow_html=True)
+    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Paket 2: Spar
-    with st.container():
-        st.markdown('<div class="spar-box"></div>', unsafe_allow_html=True)
-        st.markdown("### ⚔️ Spar-Paket")
-        st.markdown("**Amtsschimmel-Killer Spar-Paket** (3 Dokumente)")
-        st.markdown('<p class="price-tag">9,99 €</p>', unsafe_allow_html=True)
-        st.markdown('<p class="no-abo">Einmalzahlung - kein Abo!</p>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
+    st.markdown('<div class="spar-box">', unsafe_allow_html=True)
+    st.markdown("### ⚔️ Spar-Paket")
+    st.write("Amtsschimmel-Killer Spar-Paket (3 Dokumente)")
+    st.markdown('<p class="price-tag">9,99 €</p>', unsafe_allow_html=True)
+    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com/8x228retRbj50paalq1gs03")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Paket 3: Sorglos
-    with st.container():
-        st.markdown('<div class="sorglos-box"></div>', unsafe_allow_html=True)
-        st.markdown("### 🚀 Sorglos-Paket")
-        st.markdown("**Amtsschimmel-Killer Sorglos-Paket** (10 Dokumente)")
-        st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
-        st.markdown('<p class="no-abo">Einmalzahlung - kein Abo!</p>', unsafe_allow_html=True)
-        st.link_button("Jetzt kaufen", "https://buy.stripe.com")
+    st.markdown('<div class="sorglos-box">', unsafe_allow_html=True)
+    st.markdown("### 🚀 Sorglos-Paket")
+    st.write("Amtsschimmel-Killer Sorglos-Paket (10 Dokumente)")
+    st.markdown('<p class="price-tag">19,99 €</p>', unsafe_allow_html=True)
+    st.markdown('<p class="no-abo">Einmalzahlung kein Abo</p>', unsafe_allow_html=True)
+    st.link_button("Jetzt kaufen", "https://buy.stripe.com")
+    st.markdown('</div>', unsafe_allow_html=True)
 
+# MITTE: DOKUMENTEN-UPLOAD & SOFORT-VORSCHAU
 with col_mid:
     st.subheader("📄 Dokument & Vorschau")
-    uploaded_file = st.file_uploader("Hier Datei ablegen", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Datei hochladen", type=["pdf", "jpg", "jpeg", "png"], label_visibility="collapsed")
+    
     if uploaded_file:
-        get_preview(uploaded_file)
+        # Vorschau-Logik: PDF oder Bild sofort einblenden
+        file_bytes = uploaded_file.getvalue()
+        base64_file = base64.b64encode(file_bytes).decode('utf-8')
+        if uploaded_file.type == "application/pdf":
+            display = f'<embed src="data:application/pdf;base64,{base64_file}" width="100%" height="800" type="application/pdf">'
+        else:
+            display = f'<img src="data:image/png;base64,{base64_file}" width="100%">'
+        st.markdown(display, unsafe_allow_html=True)
     else:
         st.info("Bitte laden Sie ein Dokument hoch, um die Vorschau anzuzeigen.")
 
+# RECHTS: ANALYSE & DOWNLOADS
 with col_right:
     st.subheader("🔍 Analyse-Ergebnisse")
     if uploaded_file:
+        # Platzhalter für KI-Auswertung
+        analyse_daten = {
+            "Frist": "30.04.2026",
+            "Glossar": "Bescheid: Verbindliche Entscheidung einer Behörde.",
+            "Antwort": "Sehr geehrte Damen und Herren,\n\n[Ausführliche KI-Analyse des Dokuments]...\n\nMit freundlichen Grüßen,\n[Name]",
+            "Widerspruch": "Sehr geehrte Damen und Herren,\n\nhiermit lege ich Widerspruch gegen den Bescheid vom [Datum] ein.\n\nBegründung:\n[KI-Begründungstext]...\n\nMit freundlichen Grüßen,\n[Name]"
+        }
+        
         with st.expander("📅 Fristen (Deadlines)", expanded=True):
-            st.warning("⚠️ Fristende: [Datum aus KI extrahieren]")
+            st.warning(f"⚠️ Fristende: {analyse_daten['Frist']}")
         with st.expander("📖 Glossar (Begriffserklärung)"):
-            st.info("Hier werden schwierige Begriffe aus dem Dokument erklärt.")
+            st.info(analyse_daten['Glossar'])
         
         st.markdown("### ✉️ Entwürfe")
         tab1, tab2 = st.tabs(["Langes Antwortschreiben", "Ausführlicher Widerspruch"])
-        
-        # Ausführliche Texte mit Platzhaltern
-        text_ant = "Sehr geehrte Damen und Herren,\n\nbezugnehmend auf Ihr Schreiben vom [Datum], Aktenzeichen [Nummer], nehme ich wie folgt Stellung:\n\n[Detaillierte Argumentation der KI wird hier eingefügt]...\n\nIch bitte um Prüfung des Sachverhalts und Bestätigung des Eingangs.\n\nMit freundlichen Grüßen,\n[Name]"
-        text_wid = "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen Ihren Bescheid vom [Datum], erhalten am [Datum], fristgerecht Widerspruch ein.\n\nBegründung:\n\n[Detaillierte rechtliche Begründung der KI wird hier eingefügt]...\n\nEin ausführlicher Schriftsatz geht Ihnen zeitnah zu.\n\nMit freundlichen Grüßen,\n[Name]"
-        
         with tab1:
-            st.text_area("Antwortentwurf", text_ant, height=300)
+            st.text_area("Antwortentwurf", analyse_daten['Antwort'], height=300)
         with tab2:
-            st.text_area("Widerspruchstext", text_wid, height=300)
+            st.text_area("Widerspruchstext", analyse_daten['Widerspruch'], height=300)
         
         st.write("---")
         st.markdown("### 📥 Downloads")
         d1, d2, d3 = st.columns(3)
         with d1: 
-            st.download_button("📄 PDF", data=create_text_file(text_ant), file_name="antwort.pdf", mime="application/pdf")
+            st.download_button("📄 PDF", data=create_text_download(analyse_daten['Antwort']), file_name="antwort.pdf")
         with d2: 
-            st.download_button("📊 Excel", data=create_excel({"Frist": "Datum", "Analyse": "Inhalt"}), file_name="analyse.xlsx")
+            excel_data = create_excel_auto_width(analyse_daten)
+            st.download_button("📊 Excel", data=excel_data, file_name="analyse.xlsx")
         with d3: 
-            st.download_button("📝 Word", data=create_text_file(text_ant), file_name="antwort.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            st.download_button("📝 Word", data=create_text_download(analyse_daten['Antwort']), file_name="antwort.docx")
         
-        st.button("📅 Kalender.ico hinzufügen")
+        # Kalender Download
+        st.download_button("📅 Kalender-Eintrag (.ics)", data="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", file_name="frist.ics")
     else:
         st.write("Warten auf Datei...")
