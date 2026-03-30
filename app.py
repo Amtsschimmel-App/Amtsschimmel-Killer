@@ -52,7 +52,7 @@ def create_excel_pro(ana, ant, wid):
         worksheet = writer.sheets['Ergebnis']
         wrap = writer.book.add_format({'text_wrap': True, 'valign': 'top', 'border': 1})
         worksheet.set_column(0, 0, 20, wrap)
-        worksheet.set_column(1, 1, 120, wrap) # Hier ist die gewünschte breite Spalte
+        worksheet.set_column(1, 1, 120, wrap)
     return output.getvalue()
 
 def create_word_complete(ana, ant, wid):
@@ -73,106 +73,20 @@ def perform_ocr_preview(uploaded_file):
         return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     except: return "OCR fehlgeschlagen."
 
-# --- 4. TOP-BAR: RECHTLICHES (MIT GROSSEN ABSTÄNDEN & VOLLEN TEXTEN) ---
+# --- 4. TOP-BAR: RECHTLICHES ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
-        st.markdown("""
-**Amtsschimmel-Killer**
-
-**Betreiberin:** Elisabeth Reinecke  
-Ringelsweide 9  
-40223 Düsseldorf  
-
-<br>
-
-**Kontakt:**  
-Telefon: +49 211 15821329  
-E-Mail: amtsschimmel-killer@proton.me  
-Web: amtsschimmel-killer.streamlit.app  
-
-<br>
-
-**Haftung:**  
-Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
-        """, unsafe_allow_html=True)
-
+        st.markdown("""**Amtsschimmel-Killer**<br><br>**Betreiberin:** Elisabeth Reinecke<br>Ringelsweide 9<br>40223 Düsseldorf<br><br>**Kontakt:**<br>Telefon: +49 211 15821329<br>E-Mail: amtsschimmel-killer@proton.me<br>Web: amtsschimmel-killer.streamlit.app<br><br>**Haftung:**<br>Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.""", unsafe_allow_html=True)
 with t2:
     with st.expander("🛡️ Datenschutz"):
-        st.markdown("""
-**Datenschutz:**
-
-**1. Datenschutz auf einen Blick**  
-Wir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).
-
-<br>
-
-**2. Datenerfassung & Hosting**  
-Diese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.
-
-<br>
-
-**3. Dokumentenverarbeitung**  
-Ihre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.
-
-<br>
-
-**4. Zahlungsabwicklung (Stripe)**  
-Bei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.
-
-<br>
-
-**5. Ihre Rechte**  
-Sie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.
-        """, unsafe_allow_html=True)
-
+        st.markdown("""**Datenschutz:**<br><br>**1. Datenschutz auf einen Blick**<br>Wir behandeln Ihre personenbezogenen Daten vertraulich...<br><br>**2. Datenerfassung & Hosting**<br>Diese App wird auf Streamlit Cloud gehostet...<br><br>**3. Dokumentenverarbeitung**<br>Übertragung an OpenAI (USA)...<br><br>**4. Stripe**<br>Zahlungsabwicklung über Stripe...<br><br>**5. Rechte**<br>Auskunft, Löschung und Sperrung...""", unsafe_allow_html=True)
 with t3:
     with st.expander("❓ FAQ"):
-        st.markdown("""
-**FAQ**
-
-**Ist das ein Abonnement?**  
-Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
-
-<br>
-
-**Wie sicher sind meine Dokumente?**  
-Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.
-
-<br>
-
-**Ersetzt die App eine Rechtsberatung?**  
-Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.
-
-<br>
-
-**Was passiert, wenn der Scan fehlschlägt?**  
-Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.
-
-<br>
-
-**Wie erreiche ich Elisabeth Reinecke?**  
-Nutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.
-        """, unsafe_allow_html=True)
-
+        st.markdown("""**FAQ**<br><br>**Abo?** Nein, Einmalzahlung.<br><br>**Sicherheit?** Keine dauerhafte Speicherung.<br><br>**Rechtsberatung?** Nein, nur Formulierungshilfe.""", unsafe_allow_html=True)
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.markdown("""
-**Vorlagen:**
-
-**Fristverlängerung:**  
-Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]
-
-<br><br>
-
-**Widerspruch einlegen (Fristwahrend):**  
-Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]
-
-<br><br>
-
-**Akteneinsicht einfordern:**  
-Sehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]
-        """, unsafe_allow_html=True)
+        st.markdown("""**Vorlagen:**<br><br>**Fristverlängerung:** [Text...]<br><br>**Widerspruch:** [Text...]<br><br>**Akteneinsicht:** [Text...]""", unsafe_allow_html=True)
 
 st.divider()
 
@@ -183,28 +97,23 @@ with col_left:
     st.markdown("### 🏛️ Amtsschimmel-Killer")
     st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     
-    st.write("")
     with st.container(border=True):
-        st.markdown('<div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pkg-icon">📄</div>**Analyse (1 Dokument)**<div class="pkg-price">3,99 €</div><div class="pkg-footer">EINMALZAHLUNG</div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
 
     with st.container(border=True):
-        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #ebf5fb; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥈</div>**Spar-Paket (3 Dokumente)**<div class="pkg-price">9,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with st.container(border=True):
-        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div><div class="pkg-footer">EINMALZAHLUNG • KEIN ABO</div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: #fef9e7; padding: 10px; border-radius: 10px;"><div class="pkg-icon">🥇</div>**Sorglos-Paket (10 Dokumente)**<div class="pkg-price">19,99 €</div></div>', unsafe_allow_html=True)
         st.link_button("Jetzt kaufen", "https://buy.stripe.com", use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
 with col_mid:
     st.subheader("1. Brief hochladen")
     up_file = st.file_uploader("Datei wählen", type=['pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
-    
     if up_file:
-        # Automatisches Vorschaubild direkt nach Upload
-        if up_file.type.startswith("image"): st.image(up_file, caption="Ihr Dokument", use_container_width=True)
+        if up_file.type.startswith("image"): st.image(up_file, caption="Vorschau", use_container_width=True)
         if st.button("Analyse starten ✨", use_container_width=True):
             with st.spinner("Amtsschimmel wird vertrieben..."):
                 txt = perform_ocr_preview(up_file)
@@ -214,21 +123,17 @@ with col_right:
     st.subheader("2. Ergebnisse")
     if 'res' in st.session_state:
         r = st.session_state['res']
-        
-        # KALENDER ERSCHEINT ERST JETZT NACH DER ANALYSE
         st.markdown("### 📅 Frist-Checker")
-        erhalt = st.date_input("Wann kam der Brief offiziell an?", datetime.now())
-        frist_calc = erhalt + timedelta(days=30)
-        st.info(f"Ihre Frist endet voraussichtlich am: **{frist_calc.strftime('%d.%m.%Y')}**")
+        erhalt = st.date_input("Wann kam der Brief an?", datetime.now())
+        st.info(f"Fristende: **{(erhalt + timedelta(days=30)).strftime('%d.%m.%Y')}**")
         
-        st.write("---")
         t1, t2, t3 = st.tabs(["Analyse", "Antwortbrief", "Widerspruch"])
         with t1: st.write(r['analyse'])
-        with t2: st.text_area("Entwurf:", r['antwort'], height=350)
-        with t3: st.text_area("Entwurf:", r['widerspruch'], height=350)
+        with t2: st.text_area("Entwurf Antwort:", r['antwort'], height=300)
+        with t3: st.text_area("Entwurf Widerspruch:", r['widerspruch'], height=300)
         
         st.divider()
         st.download_button("📥 Excel Download", create_excel_pro(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.xlsx", use_container_width=True)
-        st.download_button("📥 Word Download", create_word_complete(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.docx", use_container_width=True)
+        st.download_button("📥 Word Dokument", create_word_complete(r['analyse'], r['antwort'], r['widerspruch']), "Analyse.docx", use_container_width=True)
     else:
         st.info("Bitte Dokument hochladen und Analyse starten.")
