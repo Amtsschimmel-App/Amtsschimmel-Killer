@@ -38,7 +38,6 @@ def get_ai_analysis(text):
             ],
             response_format={ "type": "json_object" }
         )
-        # Fix: Korrekter Zugriff auf choices[0]
         data = json.loads(response.choices[0].message.content)
         for key in ['analyse', 'antwort', 'widerspruch']:
             data[key] = data[key].replace('\\n', '\n')
@@ -90,25 +89,32 @@ def perform_ocr_preview(uploaded_file):
         return pytesseract.image_to_string(Image.open(uploaded_file), lang='deu')
     except: return "Vorschau nicht möglich."
 
-# --- 4. TOP-BAR: RECHTLICHES (MIT EXAKTEN ABSTÄNDEN) ---
+# --- 4. TOP-BAR: RECHTLICHES (VIEL ABSTAND IM IMPRESSUM) ---
 t1, t2, t3, t4 = st.columns(4)
 
 with t1:
     with st.expander("⚖️ Impressum"):
         st.markdown("""
-Amtsschimmel-Killer
-Betreiberin: Elisabeth Reinecke
-Ringelsweide 9
-40223 Düsseldorf
+### Amtsschimmel-Killer
 
-Kontakt:
-Telefon: +49 211 15821329
-E-Mail: amtsschimmel-killer@proton.me
-Web: amtsschimmel-killer.streamlit.app
+**Betreiberin:**  
+Elisabeth Reinecke  
+Ringelsweide 9  
+40223 Düsseldorf  
 
-Haftung:
-Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.
-        """)
+<br>
+
+**Kontakt:**  
+Telefon: +49 211 15821329  
+E-Mail: amtsschimmel-killer@proton.me  
+Web: amtsschimmel-killer.streamlit.app  
+
+<br>
+
+**Haftung:**  
+Inhalte nach § 5 TMG.  
+Keine Haftung für KI-generierte Texte.
+        """, unsafe_allow_html=True)
 
 with t2:
     with st.expander("🛡️ Datenschutz"):
@@ -172,7 +178,7 @@ with col_left:
     except: st.markdown("### 🏛️ Amtsschimmel-Killer")
     
     st.markdown("### 🌐 Sprachen")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
+    st.selectbox("Sprache wählen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "FR Français", "IT Italiano", "ES Español", "NL Nederlands", "RO Română", "GR Ελληνικά", "CN 中文", "VN Tiếng Việt"], label_visibility="collapsed")
     st.write("")
     
     with st.container(border=True):
@@ -199,24 +205,25 @@ with col_mid:
     if uploaded_file:
         with st.spinner("Lese Dokument..."):
             ocr_text = perform_ocr_preview(uploaded_file)
+        st.markdown("**Erkannter Inhalt:**")
         st.text_area("OCR-Vorschau:", ocr_text, height=450)
 
-# RECHTE SPALTE: KI & DOWNLOADS
+# RECHTE SPALTE: KI & DOWNLOADS (KALENDER FIXED)
 with col_right:
     st.markdown("### 🔍 Analyse & Antwort")
     if uploaded_file:
         with st.spinner("KI arbeitet..."):
             res = get_ai_analysis(ocr_text)
         
-        # FRIST-ANZEIGE MIT KALENDER-ICON 📅
+        # Das Kalender-Icon 📅 ist jetzt fest in der Fehlermeldungs-Box integriert
         st.error(f"📅 FRIST ERKANNT: {res.get('frist', 'Nicht erkannt')}")
         st.info(res.get('analyse'))
         
         tab_ans, tab_wid, tab_dl = st.tabs(["✍️ Antwort", "⚖️ Widerspruch", "📥 Downloads"])
         with tab_ans: 
-            st.text_area("Vorschlag Antwort:", res.get('antwort'), height=280, key="txt_ans")
+            st.text_area("Ihr Antwortentwurf:", res.get('antwort'), height=280, key="txt_ans")
         with tab_wid: 
-            st.text_area("Vorschlag Widerspruch:", res.get('widerspruch'), height=280, key="txt_wid")
+            st.text_area("Ihr Widerspruchsentwurf:", res.get('widerspruch'), height=280, key="txt_wid")
         with tab_dl:
             st.markdown("#### Ergebnisse sichern")
             st.download_button("📊 Excel-Bericht", create_excel_pro(res['analyse'], res['antwort'], res['widerspruch']), "Analyse.xlsx")
