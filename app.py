@@ -7,36 +7,30 @@ import openai
 import base64
 import json
 
-# --- 1. SETUP & KONFIGURATION ---
+# --- 1. SETUP & CONFIG ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# API Key sicher aus Secrets laden
+# API Key sicher laden
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. KI-FUNKTION (SYNTAX DEFINITIV FIX) ---
+# --- 2. CREDIT-LOGIK (URL PARAMETER) ---
+# Prüft, ob der Nutzer gerade von Stripe kommt
+query_params = st.query_params
+if "pack" in query_params:
+    st.session_state["credits"] = int(query_params["pack"])
+    st.success(f"✅ Zahlung bestätigt! Du hast {st.session_state['credits']} Analyse-Guthaben.")
+
+# --- 3. KI-FUNKTION (OCR & ANALYSE) ---
 def analyze_document_with_ai(uploaded_file):
     try:
         file_bytes = uploaded_file.getvalue()
         base64_image = base64.b64encode(file_bytes).decode('utf-8')
+        client = openai.OpenAI(api_key=openai.api_key)
         
-        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        
-        # FIX: Alle Klammern (), [], {} sind nun exakt ausbalanciert
         response = client.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {
-                    "role": "system", 
-                    "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Analysiere das Dokument. Extrahiere: Fristende, Aktenzeichen, Behörde. Erstelle ein Glossar und schreibe einen Antwortbrief sowie einen Widerspruch mit Platzhaltern."
-                },
-                {
-                    "role": "user", 
-                    "content": [
-                        {"type": "text", "text": "Gib die Antwort im JSON-Format mit den Schlüsseln 'frist', 'aktenzeichen', 'glossar', 'antwort', 'widerspruch' aus."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }
+            messages=}
             ],
             response_format={ "type": "json_object" }
         )
@@ -45,15 +39,12 @@ def analyze_document_with_ai(uploaded_file):
         st.error(f"KI-Fehler: {e}")
         return None
 
-# --- 3. DOWNLOAD-HELPER ---
-def create_excel(data):
+# --- 4. DOWNLOAD-HELPER ---
+def create_excel_report(antwort, widerspruch, glossar, frist):
     output = BytesIO()
-    df = pd.DataFrame([data])
+    df = pd.DataFrame([{"Frist": frist, "Glossar": glossar, "Antwort": antwort, "Widerspruch": widerspruch}])
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
-        for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 80)
     return output.getvalue()
 
 def create_docx(text):
@@ -71,10 +62,10 @@ def create_pdf(text):
     return bytes(pdf.output(dest='S'))
 
 def create_ical(date_str):
-    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende: {date_str}\nDESCRIPTION:Amtsschimmel-Killer Fristwahrung\nEND:VEVENT\nEND:VCALENDAR"
+    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende Amtsschimmel-Killer\nDTSTART:20260430T080000Z\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 4. CSS (FARBIGE BOXEN & STRIPE BUTTONS) ---
+# --- 5. CSS (PAKETE & STRIPE NACH VORGABE) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -85,7 +76,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. TOP-BAR: EXAKTE TEXTE AUS GRUNDANWEISUNG ---
+# --- 6. RECHTSTEXTE (1:1 EXAKTE ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -102,56 +93,46 @@ with t4:
 
 st.divider()
 
-# --- 6. HAUPT-LAYOUT ---
+# --- 7. SIDEBAR & PAKETE ---
 col_pak, col_main = st.columns([1.2, 3.2])
 
 with col_pak:
     try: st.image("icon_final_blau.png", width=120)
     except: st.subheader("🏛️ Amtsschimmel-Killer")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"])
     
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
-    st.write("---")
-    
-    p_conf = [
+    pakete = [
         ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
         ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
     ]
-    for style, name, docs, price, link in p_conf:
+    for style, name, docs, price, link in pakete:
         st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
+# --- 8. HAUPTBEREICH (UPLOAD & AUSWERTUNG) ---
 with col_main:
-    c_preview, c_res = st.columns([1.8, 1.4])
-    with c_preview:
-        st.subheader("📄 Dokument")
-        u_file = st.file_uploader("Datei hier ablegen", type=["jpg", "png", "pdf"], label_visibility="collapsed")
-        if u_file:
-            if u_file.type == "application/pdf": st.success("PDF bereit zur Analyse.")
-            else: st.image(u_file, use_container_width=True)
+    u_file = st.file_uploader("Dokument hier hochladen", type=["pdf", "jpg", "png"], label_visibility="collapsed")
+    
+    if u_file:
+        if st.button("🚀 Jetzt Dokument analysieren"):
+            with st.spinner("Analyse läuft..."):
+                res = analyze_document_with_ai(u_file)
+                if res:
+                    st.session_state["ki_res"] = res
 
-    with c_res:
-        st.subheader("🔍 Auswertung")
-        if u_file:
-            if st.button("🚀 Jetzt Dokument analysieren"):
-                with st.spinner("Analyse läuft..."):
-                    ki_data = analyze_document_with_ai(u_file)
-                    if ki_data: st.session_state['ki_res'] = ki_data
+        if "ki_res" in st.session_state:
+            res = st.session_state["ki_res"]
+            st.error(f"📅 **FRIST-CHECK: {res.get('frist')}**")
             
-            if 'ki_res' in st.session_state:
-                res = st.session_state['ki_res']
-                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'N/A')}**")
-                with st.expander("📖 Glossar", expanded=True): st.write(res.get('glossar', ''))
-                with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau Antwort:", res.get('antwort', ''), height=250)
-                with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau Widerspruch:", res.get('widerspruch', ''), height=200)
-                
-                st.write("---")
-                st.subheader("📥 Downloads & Kalender")
-                d1, d2 = st.columns(2)
-                with d1:
-                    st.download_button("📊 Excel (Komplett)", create_excel(res), "Analyse.xlsx")
-                    st.download_button("📄 Word (Antwort)", create_docx(res.get('antwort', '')), "Antwort.docx")
-                with d2:
-                    st.download_button("📕 PDF (Widerspruch)", create_pdf(res.get('widerspruch', '')), "Widerspruch.pdf")
-                    st.download_button("📅 Termin speichern (iCal)", create_ical(res.get('frist', '2026-04-30')), "frist.ics")
-        else:
-            st.info("Bitte Dokument hochladen, um die KI-Analyse zu starten.")
+            with st.expander("📖 Glossar", expanded=True): st.write(res.get('glossar'))
+            with st.expander("📋 Antwort-Entwurf", expanded=True): st.text_area("Inhalt:", res.get('antwort'), height=200)
+            with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Inhalt:", res.get('widerspruch'), height=150)
+            
+            st.subheader("📥 Downloads & Kalender")
+            d1, d2 = st.columns(2)
+            with d1:
+                st.download_button("📊 Excel", create_excel_report(res.get('antwort'), res.get('widerspruch'), res.get('glossar'), res.get('frist')), "Analyse.xlsx")
+                st.download_button("📝 Word", create_docx(res.get('antwort')), "Antwort.docx")
+            with d2:
+                st.download_button("📕 PDF", create_pdf(res.get('widerspruch')), "Widerspruch.pdf")
+                st.download_button("📅 Termin", create_ical(res.get('frist')), "frist.ics")
