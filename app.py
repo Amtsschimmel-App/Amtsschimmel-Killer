@@ -6,59 +6,41 @@ from fpdf import FPDF
 from docx import Document
 import openai
 
-# --- 1. SETUP ---
+# --- 1. SETUP & DESIGN ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# CSS für Paket-Boxen & Design
 st.markdown("""
 <style>
-    .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
-    .blue-box { border-color: #007bff; }
-    .green-box { border-color: #28a745; }
-    .gold-box { border-color: #fcc419; }
+    .paket-box { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
+    .blue-box { border-color: #007bff; background-color: #f0f7ff; }
+    .green-box { border-color: #28a745; background-color: #f3fff5; }
+    .gold-box { border-color: #fcc419; background-color: #fffdf0; }
     .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
-    .st-button-link {
+    .stripe-button {
         display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important;
         text-decoration: none; border-radius: 8px; font-weight: bold; width: 100%; text-align: center;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DOWNLOAD-LOGIK (STABIL & BYTES) ---
-def create_excel_report(frist, glossar, antwort, widerspruch):
-    output = BytesIO()
-    df = pd.DataFrame([{"Fristende": frist, "Glossar": glossar, "Antwort": antwort, "Widerspruch": widerspruch}])
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        writer.sheets['Analyse'].set_column(0, 3, 80)
-    return output.getvalue()
+# --- 2. DOWNLOAD-FUNKTIONEN ---
+def create_excel(frist, glossar, antwort, widerspruch):
+    out = BytesIO()
+    df = pd.DataFrame([{"Frist": frist, "Glossar": glossar, "Antwort": antwort, "Widerspruch": widerspruch}])
+    with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False)
+        writer.sheets['Sheet1'].set_column(0, 3, 70)
+    return out.getvalue()
 
-def create_pdf_bytes(text):
+def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     pdf.multi_cell(0, 10, text.encode('latin-1', 'replace').decode('latin-1'))
     return bytes(pdf.output(dest='S'))
 
-# --- 3. KI-FUNKTION (OPENAI VISION) ---
-def analyze_document(image_bytes):
-    client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    base64_image = base64.b64encode(image_bytes).decode('utf-8')
-    
-    prompt = """Analysiere diesen Brief. 
-    1. Erstelle ein kurzes Glossar der 3 wichtigsten Fachbegriffe.
-    2. Extrahiere das Fristende (Datum).
-    3. Schreibe einen Antwortentwurf und einen Widerspruch. Ersetze Platzhalter wie [Name], [Datum] oder [Aktenzeichen] direkt durch die Infos aus dem Brief.
-    Antworte im Format: FRIST: [Datum] | GLOSSAR: | ANTWORT: | WIDERSPRUCH:"""
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=}]
-    )
-    return response.choices[0].message.content
-
-# --- 4. RECHTSTEXTE (EXAKT) ---
+# --- 3. RECHTSTEXTE (EXAKT MIT ABSTÄNDEN) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -75,42 +57,53 @@ with t4:
 
 st.divider()
 
-# --- 5. LAYOUT ---
-col_sidebar, col_doc, col_eval = st.columns([1, 1.5, 1.5])
+# --- 4. HAUPTBEREICH (3 SPALTEN) ---
+col_side, col_doc, col_res = st.columns([1, 1.5, 1.5])
 
-with col_sidebar:
+with col_side:
     st.image("icon_final_blau.png", width=120)
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     
-    st.markdown(f'<div class="paket-container blue-box">🛡️ <b>Amtsschimmel-Killer Analyse</b><br>(1 Dokument)<div class="price-tag">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="paket-container green-box">⚔️ <b>Amtsschimmel-Killer Spar-Paket</b><br>(3 Dokumente) <div class="price-tag">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="paket-container gold-box">🚀 <b>Amtsschimmel-Killer Sorglos-Paket</b><br>(10 Dokumente)<div class="price-tag">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/28EcN50D1bj52xi8di1gs041" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
+    # Pakete
+    st.markdown('<div class="paket-box blue-box">🛡️ <b>Amtsschimmel-Killer Analyse</b><br>(1 Dokument)<div class="price-tag">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" class="stripe-button">Jetzt kaufen</a></div>', unsafe_allow_html=True)
+    st.markdown('<div class="paket-box green-box">⚔️ <b>Amtsschimmel-Killer Spar-Paket</b><br>(3 Dokumente)<div class="price-tag">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" class="stripe-button">Jetzt kaufen</a></div>', unsafe_allow_html=True)
+    st.markdown('<div class="paket-box gold-box">🚀 <b>Amtsschimmel-Killer Sorglos-Paket</b><br>(10 Dokumente)<div class="price-tag">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/28EcN50D1bj52xi8di1gs041" class="stripe-button">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
 with col_doc:
     st.subheader("📄 Dokument")
-    u_file = st.file_uploader("Upload", type=["png", "jpg", "jpeg"], key="up")
+    u_file = st.file_uploader("Datei hochladen", type=["png", "jpg", "jpeg"], key="up")
     if u_file: st.image(u_file, use_container_width=True)
 
-with col_eval:
+with col_res:
     st.subheader("🔍 Auswertung")
     if u_file:
-        with st.spinner("KI analysiert..."):
-            res = analyze_document(u_file.getvalue())
-            # Simple Parser für KI-Antwort
-            f_val = res.split("FRIST:")[1].split("|")[0].strip()
-            g_val = res.split("GLOSSAR:")[1].split("|")[0].strip()
-            a_val = res.split("ANTWORT:")[1].split("|")[0].strip()
-            w_val = res.split("WIDERSPRUCH:")[1].strip()
-
-            st.error(f"📅 **FRIST-CHECK: {f_val}**")
-            with st.expander("📖 Glossar", expanded=True): st.text_area("Analyse", g_val, key="t1")
-            with st.expander("📋 Antwort-Entwurf"): st.text_area("Brief", a_val, height=150, key="t2")
-            with st.expander("⚖️ Widerspruch"): st.text_area("Text", w_val, height=150, key="t3")
-
-            c1, c2 = st.columns(2)
-            with c1:
-                st.download_button("📊 Excel", create_excel_report(f_val, g_val, a_val, w_val), "analyse.xlsx", key="d1")
-                st.download_button("📝 Word", b"docx", "brief.docx", key="d2")
-            with c2:
-                st.download_button("📕 PDF", create_pdf_bytes(w_val), "widerspruch.pdf", key="d3")
-                st.download_button("📅 Termin", b"ics", "frist.ics", key="d4")
+        with st.spinner("Analysiere Dokument..."):
+            try:
+                client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+                b64_img = base64.b64encode(u_file.getvalue()).decode('utf-8')
+                
+                # Der KI-Aufruf mit korrigierter Syntax
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=
+                    }]
+                )
+                raw = response.choices[0].message.content
+                parts = raw.split("###")
+                
+                # Anzeige der Ergebnisse
+                st.error(f"📅 **FRIST: {parts[1] if len(parts)>1 else 'Unbekannt'}**")
+                with st.expander("📖 Glossar", expanded=True): st.write(parts[2] if len(parts)>2 else "Kein Glossar")
+                with st.expander("📋 Antwort"): st.text_area("Entwurf", parts[3] if len(parts)>3 else "Kein Entwurf", height=150, key="a")
+                with st.expander("⚖️ Widerspruch"): st.text_area("Text", parts[4] if len(parts)>4 else "Kein Text", height=150, key="w")
+                
+                # Download-Raster
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.download_button("📊 Excel", create_excel("30.04.2026", "Glossar", "Antwort", "Widerspruch"), "analyse.xlsx", key="d1")
+                    st.download_button("📝 Word", b"docx", "brief.docx", key="d2")
+                with c2:
+                    st.download_button("📕 PDF", create_pdf("Widerspruch"), "widerspruch.pdf", key="d3")
+                    st.download_button("📅 iCal", b"ics", "frist.ics", key="d4")
+            except Exception as e:
+                st.error(f"KI-Fehler: {str(e)}")
