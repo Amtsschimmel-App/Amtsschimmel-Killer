@@ -27,6 +27,7 @@ def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
+    # Sonderzeichen-Fix für PDFs
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, clean_text)
     return bytes(pdf.output(dest='S'))
@@ -52,7 +53,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (EXAKT NACH VORGABE) ---
+# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
