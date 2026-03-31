@@ -14,29 +14,26 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. STRIPE CREDIT-LOGIK (URL PARAMETER) ---
+# --- 2. CREDIT-LOGIK (URL PARAMETER) ---
 if 'credits' not in st.session_state:
     st.session_state['credits'] = 0
 
-# Auslesen der URL-Parameter nach Stripe-Kauf
-# Schema: ?session_id={CHECKOUT_SESSION_ID}&pack=1
+# Auslesen der Stripe-Parameter (Schema: ?session_id={CHECKOUT_SESSION_ID}&pack=X)
 query_params = st.query_params
-if "session_id" in query_params and "pack" in query_params:
+if "pack" in query_params and "session_id" in query_params:
     s_id = query_params["session_id"]
-    # Verhindert Credit-Verdopplung beim Neuladen (Refresh)
     if "processed_session" not in st.session_state or st.session_state["processed_session"] != s_id:
         st.session_state['credits'] += int(query_params["pack"])
         st.session_state["processed_session"] = s_id
         st.success(f"✅ Zahlung erfolgreich! {query_params['pack']} Scan(s) freigeschaltet.")
 
-# --- 3. KI-FUNKTION (FIXIERT:messages=[]) ---
+# --- 3. KI-FUNKTION (KORRIGIERTE SYNTAX) ---
 def analyze_document_with_ai(uploaded_file):
     try:
         file_bytes = uploaded_file.getvalue()
         base64_image = base64.b64encode(file_bytes).decode('utf-8')
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
-        # Syntax-Fix: Alle Klammern exakt ausbalanciert
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=
@@ -49,7 +46,7 @@ def analyze_document_with_ai(uploaded_file):
         st.error(f"KI-Fehler: {e}")
         return None
 
-# --- 4. DOWNLOAD-HELPER (STABIL) ---
+# --- 4. DOWNLOAD-LOGIK (STABIL) ---
 def create_excel_report(antwort, widerspruch, glossar, frist):
     output = BytesIO()
     df = pd.DataFrame([{"Frist": frist, "Glossar": glossar, "Antwort": antwort, "Widerspruch": widerspruch}])
@@ -72,7 +69,7 @@ def create_ical(date_str):
     ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende Amtsschimmel-Killer\nDTSTART:20260430T080000Z\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 5. CSS (BOXEN-DESIGN) ---
+# --- 5. CSS (BOXEN & STRIPE) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -83,7 +80,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 6. RECHTSTEXTE (TOP BAR) ---
+# --- 6. RECHTSTEXTE (EXAKTE ÜBERNAHME ELISABETH REINECKE) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -100,7 +97,7 @@ with t4:
 
 st.divider()
 
-# --- 7. SIDEBAR (LOGO, SPRACHE, PAKETE) ---
+# --- 7. HAUPT-LAYOUT ---
 col_pak, col_main = st.columns([1.2, 3.2])
 
 with col_pak:
@@ -108,32 +105,31 @@ with col_pak:
     except: st.subheader("🏛️ Amtsschimmel-Killer")
     
     st.write(f"### 🎫 Guthaben: {st.session_state['credits']} Scans")
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="main_lang")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang_main")
     st.write("---")
     
     pakete = [
-        ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
-        ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
-        ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
+        ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://stripe.com"),
+        ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://stripe.com"),
+        ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://stripe.com")
     ]
     for style, name, docs, price, link in pakete:
         st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
-# --- 8. HAUPTBEREICH (ANALYSATOR) ---
 with col_main:
-    u_file = st.file_uploader("Dokument hier ablegen", type=["pdf", "jpg", "png"], label_visibility="collapsed")
+    u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"], label_visibility="collapsed")
     
     if u_file:
         if st.session_state['credits'] > 0:
             if st.button("🚀 Jetzt Dokument analysieren"):
                 with st.spinner("Amtsschimmel wird vertrieben..."):
-                    res = analyze_document_with_ai(u_file)
-                    if res:
-                        st.session_state['ki_data'] = res
+                    ki_res = analyze_document_with_ai(u_file)
+                    if ki_res:
+                        st.session_state['ki_data'] = ki_res
                         st.session_state['credits'] -= 1
                         st.rerun()
         else:
-            st.warning("⚠️ Bitte kaufe ein Guthaben-Paket, um die Analyse zu starten.")
+            st.warning("⚠️ Bitte kaufe ein Paket, um Scans freizuschalten.")
 
         if 'ki_data' in st.session_state:
             res = st.session_state['ki_data']
