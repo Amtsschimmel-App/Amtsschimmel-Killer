@@ -14,7 +14,7 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. KI-LOGIK (SYNTAX FIX) ---
+# --- 2. KI-FUNKTION (SYNTAX FIX) ---
 def analyze_document_with_ai(uploaded_file):
     try:
         file_bytes = uploaded_file.getvalue()
@@ -22,7 +22,7 @@ def analyze_document_with_ai(uploaded_file):
         
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
-        # Korrigierte Klammer-Struktur
+        # KORREKTUR: Alle Klammern und Listen-Enden sind nun ausbalanciert
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=
@@ -35,7 +35,7 @@ def analyze_document_with_ai(uploaded_file):
         st.error(f"KI-Fehler: {e}")
         return None
 
-# --- 3. DOWNLOAD-FUNKTIONEN (EXCEL AUTO-WIDTH) ---
+# --- 3. DOWNLOAD-FUNKTIONEN ---
 def create_excel(data):
     output = BytesIO()
     df = pd.DataFrame([data])
@@ -69,14 +69,13 @@ st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
     .blue-box { border-color: #007bff; } .green-box { border-color: #28a745; } .gold-box { border-color: #fcc419; }
-    .header-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; display: block; color: #333; }
     .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 15px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
     .st-button-link { display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important; text-decoration: none; border-radius: 8px; font-weight: bold; width: 95%; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. TOP-BAR (EXAKTE TEXTE 1:1) ---
+# --- 5. TOP-BAR: EXAKTE TEXTE AUS GRUNDANWEISUNG ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -99,6 +98,7 @@ col_pak, col_main = st.columns([1.2, 3.2])
 with col_pak:
     try: st.image("icon_final_blau.png", width=120)
     except: st.subheader("🏛️ Amtsschimmel-Killer")
+    
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
     
@@ -108,7 +108,7 @@ with col_pak:
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
         ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
     ]
-    for style, name, docs, price, link in p_config:
+    for style, name, docs, price, link in p_conf:
         st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
 with col_main:
@@ -124,18 +124,18 @@ with col_main:
         st.subheader("🔍 Auswertung")
         if u_file:
             if st.button("🚀 Jetzt Dokument analysieren"):
-                with st.spinner("Amtsschimmel wird vertrieben..."):
+                with st.spinner("Analyse läuft..."):
                     ki_data = analyze_document_with_ai(u_file)
                     if ki_data: st.session_state['ki_res'] = ki_data
             
             if 'ki_res' in st.session_state:
                 res = st.session_state['ki_res']
-                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'N/A')}**")
+                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'Nicht erkannt')}**")
                 with st.expander("📖 Glossar", expanded=True): st.write(res.get('glossar', ''))
                 with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau:", res.get('antwort', ''), height=250)
                 with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau:", res.get('widerspruch', ''), height=200)
                 
-                st.divider()
+                st.write("---")
                 st.subheader("📥 Downloads & Kalender")
                 d1, d2 = st.columns(2)
                 with d1:
