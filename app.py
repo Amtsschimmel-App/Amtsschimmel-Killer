@@ -76,7 +76,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. TOP-BAR (EXAKTE TEXTE AUS GRUNDANWEISUNG) ---
+# --- 5. TOP-BAR: EXAKTE TEXTE AUS GRUNDANWEISUNG ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
