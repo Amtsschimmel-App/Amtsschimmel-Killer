@@ -115,7 +115,7 @@ with col_main:
                     base_image = base64.b64encode(u_file.read()).decode('utf-8')
                     
                     try:
-                        # --- OPENAI AUFRUF (SYNTAX KORRIGIERT) ---
+                        # --- OPENAI AUFRUF (SYNTAX DEFINITIV KORRIGIERT) ---
                         response = openai.chat.completions.create(
                             model="gpt-4o",
                             messages=[
@@ -140,6 +140,6 @@ with col_main:
                 
                 st.write("---")
                 st.subheader("📥 Downloads & Kalender")
-                st.download_button("📂 Als PDF", create_pdf(st.session_state.result), "Antwort.pdf")
-                st.download_button("📂 Als DOCX", create_docx(st.session_state.result), "Antwort.docx")
-                st.download_button("📅 Termin (iCal)", create_ical(), "Frist.ics")
+                st.download_button("📂 Als PDF (Entwurf)", create_pdf(st.session_state.result), "Antwort_Amtsschimmel.pdf")
+                st.download_button("📂 Als DOCX (Entwurf)", create_docx(st.session_state.result), "Antwort_Amtsschimmel.docx")
+                st.download_button("📅 Termin (iCal)", create_ical(), "Frist_Erinnerung.ics")
