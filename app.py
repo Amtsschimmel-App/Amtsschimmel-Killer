@@ -10,19 +10,19 @@ import json
 # --- 1. SETUP & KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# API Key Check
+# API Key sicher laden
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. KI-FUNKTION (ECHTE TEXTERKENNUNG & ANALYSE) ---
+# --- 2. KI-LOGIK (SYNTAX FIX) ---
 def analyze_document_with_ai(uploaded_file):
     try:
-        # Bild für KI vorbereiten
         file_bytes = uploaded_file.getvalue()
         base64_image = base64.b64encode(file_bytes).decode('utf-8')
         
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
+        # Korrigierte Klammer-Struktur
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=
@@ -30,18 +30,18 @@ def analyze_document_with_ai(uploaded_file):
             ],
             response_format={ "type": "json_object" }
         )
-        return json.loads(response.choices[0].message.content)
+        return json.loads(response.choices.message.content)
     except Exception as e:
-        st.error(f"KI-Fehler: Bitte stellen Sie sicher, dass der API-Key korrekt hinterlegt ist. Detail: {e}")
+        st.error(f"KI-Fehler: {e}")
         return None
 
-# --- 3. DOWNLOAD-HELPER ---
+# --- 3. DOWNLOAD-FUNKTIONEN (EXCEL AUTO-WIDTH) ---
 def create_excel(data):
     output = BytesIO()
     df = pd.DataFrame([data])
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='KI_Analyse')
-        worksheet = writer.sheets['KI_Analyse']
+        df.to_excel(writer, index=False, sheet_name='Analyse')
+        worksheet = writer.sheets['Analyse']
         for i, col in enumerate(df.columns):
             worksheet.set_column(i, i, 80)
     return output.getvalue()
@@ -64,7 +64,7 @@ def create_ical(date_str):
     ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende: {date_str}\nDESCRIPTION:Amtsschimmel-Killer Fristwahrung\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 4. UI: CSS & LAYOUT ---
+# --- 4. CSS (FARBIGE BOXEN & BUTTONS) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -76,7 +76,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. TOP-BAR: EXAKTE TEXTE (1:1) ---
+# --- 5. TOP-BAR (EXAKTE TEXTE 1:1) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -99,7 +99,6 @@ col_pak, col_main = st.columns([1.2, 3.2])
 with col_pak:
     try: st.image("icon_final_blau.png", width=120)
     except: st.subheader("🏛️ Amtsschimmel-Killer")
-    
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
     
@@ -109,12 +108,11 @@ with col_pak:
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
         ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
     ]
-    for style, name, docs, price, link in p_conf:
+    for style, name, docs, price, link in p_config:
         st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
 with col_main:
     c_preview, c_res = st.columns([1.8, 1.4])
-    
     with c_preview:
         st.subheader("📄 Dokument")
         u_file = st.file_uploader("Datei hier ablegen", type=["jpg", "png", "pdf"], label_visibility="collapsed")
@@ -126,19 +124,18 @@ with col_main:
         st.subheader("🔍 Auswertung")
         if u_file:
             if st.button("🚀 Jetzt Dokument analysieren"):
-                with st.spinner("KI analysiert das Dokument..."):
+                with st.spinner("Amtsschimmel wird vertrieben..."):
                     ki_data = analyze_document_with_ai(u_file)
                     if ki_data: st.session_state['ki_res'] = ki_data
             
             if 'ki_res' in st.session_state:
                 res = st.session_state['ki_res']
-                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'Nicht erkannt')}**")
-                
+                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'N/A')}**")
                 with st.expander("📖 Glossar", expanded=True): st.write(res.get('glossar', ''))
                 with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau:", res.get('antwort', ''), height=250)
                 with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau:", res.get('widerspruch', ''), height=200)
                 
-                st.write("---")
+                st.divider()
                 st.subheader("📥 Downloads & Kalender")
                 d1, d2 = st.columns(2)
                 with d1:
