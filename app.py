@@ -4,27 +4,10 @@ from io import BytesIO
 from fpdf import FPDF
 from docx import Document
 
-# --- 1. SETUP & BRANDING ---
+# --- 1. SETUP ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# CSS für das exakte Layout (Boxen, Farben, Stripe-Buttons)
-st.markdown("""
-<style>
-    .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
-    .blue-box { border-color: #007bff; }
-    .green-box { border-color: #28a745; }
-    .gold-box { border-color: #fcc419; }
-    .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
-    .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
-    .st-button-link {
-        display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important;
-        text-decoration: none; border-radius: 8px; font-weight: bold; width: 100%; text-align: center;
-    }
-    [data-testid="column"] { padding: 0 10px; }
-</style>
-""", unsafe_allow_html=True)
-
-# --- 2. DOWNLOAD-HELPER (EXCEL MIT SPALTEN-FIX & BYTES) ---
+# --- 2. DOWNLOAD-LOGIK (MAXIMALE STABILITÄT & AUTOMATISCHE SPALTENBREITE) ---
 def create_excel_report(frist, glossar, antwort, widerspruch):
     output = BytesIO()
     df = pd.DataFrame([{
@@ -36,7 +19,7 @@ def create_excel_report(frist, glossar, antwort, widerspruch):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Analyse-Bericht')
         worksheet = writer.sheets['Analyse-Bericht']
-        # Automatische Spaltenanpassung (Breite 80)
+        # Automatische Spaltenanpassung auf Breite 80
         for i, col in enumerate(df.columns):
             worksheet.set_column(i, i, 80)
     return output.getvalue()
@@ -55,7 +38,27 @@ def create_docx_bytes(text):
     for line in text.split('\n'): doc.add_paragraph(line)
     out = BytesIO(); doc.save(out); return out.getvalue()
 
-# --- 3. RECHTSTEXTE (EXAKT NACH GRUNDANWEISUNG) ---
+def create_ical():
+    ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende Amtsschimmel-Killer\nDTSTART:20260430T090000Z\nEND:20260430T100000Z\nEND:VEVENT\nEND:VCALENDAR"
+    return ics.encode('utf-8')
+
+# --- 3. CSS (BUNTE PAKET-BOXEN & STRIPE) ---
+st.markdown("""
+<style>
+    .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
+    .blue-box { border-color: #007bff; }
+    .green-box { border-color: #28a745; }
+    .gold-box { border-color: #fcc419; }
+    .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 15px 0; }
+    .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
+    .st-button-link {
+        display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important;
+        text-decoration: none; border-radius: 8px; font-weight: bold; width: 100%; text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 4. RECHTSTEXTE (EXAKTE ÜBERNAHME MIT ABSTÄNDEN) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -72,21 +75,18 @@ with t4:
 
 st.divider()
 
-# --- 4. 3-SPALTEN LAYOUT (NACH SCREENSHOT) ---
+# --- 5. HAUPT-LAYOUT (3-SPALTEN) ---
 col_sidebar, col_doc, col_eval = st.columns([1, 1.5, 1.5])
 
 with col_sidebar:
-    st.subheader("🏛️ Amtsschimmel-Killer")
+    st.image("icon_final_blau.png", width=120)
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
+    st.write("---")
     
-    # Pakete mit Icons & Stripe-Links
-    p_data = [
-        ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
-        ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
-        ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
-    ]
-    for style, name, docs, price, link in p_data:
-        st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
+    # Pakete mit Stripe-Codes
+    st.markdown(f'<div class="paket-container blue-box">🛡️ <b>Amtsschimmel-Killer Analyse</b><br>(1 Dokument)<div class="price-tag">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-container green-box">⚔️ <b>Amtsschimmel-Killer Spar-Paket</b><br>(3 Dokumente)<div class="price-tag">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="paket-container gold-box">🚀 <b>Amtsschimmel-Killer Sorglos-Paket</b><br>(10 Dokumente)<div class="price-tag">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="https://buy.stripe.com/28EcN50D1bj52xi8di1gs041" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
 with col_doc:
     st.subheader("📄 Dokument")
@@ -94,7 +94,7 @@ with col_doc:
     if u_file:
         if u_file.type == "application/pdf":
             st.info("PDF geladen.")
-            st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf", key="dl_orig")
+            st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf", key="btn_pdf_o")
         else: st.image(u_file, use_container_width=True)
 
 with col_eval:
@@ -102,17 +102,17 @@ with col_eval:
     if u_file:
         st.error("📅 **FRIST-CHECK: 30.04.2026**")
         
-        # Platzhalter-Texte wie gewünscht
-        glo_val = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Behördliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
-        ant_val = "[VORNAME NACHNAME]\n[STRASSE]\n[PLZ ORT]\n\nAn: [BEHÖRDE]\n\nSehr geehrte Damen und Herren,\nbezüglich Ihres Schreibens..."
-        wid_val = "Sehr geehrte Damen und Herren,\ngegen den Bescheid vom [DATUM] lege ich hiermit WIDERSPRUCH ein.\nBegründung folgt."
+        # Platzhalter-Inhalte für Glossar, Antwort & Widerspruch
+        glo_val = "Rechtsbehelfsbelehrung: Anleitung zum Widerspruch.\nVerwaltungsakt: Behördliche Entscheidung."
+        ant_val = "[VORNAME NACHNAME]\n[STRASSE]\n[PLZ ORT]\n\nSehr geehrte Damen und Herren,\nbezüglich Ihres Schreibens..."
+        wid_val = "Sehr geehrte Damen und Herren,\ngegen Ihren Bescheid vom [DATUM] lege ich hiermit WIDERSPRUCH ein."
 
         with st.expander("📖 Glossar", expanded=True):
-            glo_txt = st.text_area("Fachbegriffe", glo_val, height=100, key="ta_glo")
+            glo_txt = st.text_area("Analyse", glo_val, height=100, key="ta_glo")
         with st.expander("📋 Antwort-Entwurf"):
-            ant_txt = st.text_area("Dein Brief", ant_val, height=150, key="ta_ant")
+            ant_txt = st.text_area("Brief", ant_val, height=150, key="ta_ant")
         with st.expander("⚖️ Widerspruch"):
-            wid_txt = st.text_area("Formulierungshilfe", wid_val, height=150, key="ta_wid")
+            wid_txt = st.text_area("Widerspruch", wid_val, height=150, key="ta_wid")
 
         st.markdown("### 📥 Download-Zentrum (2x2)")
         d1, d2 = st.columns(2)
@@ -121,4 +121,4 @@ with col_eval:
             st.download_button("📝 Word (Briefe)", create_docx_bytes(ant_txt), "briefe.docx", key="dl_doc")
         with d2:
             st.download_button("📕 PDF (Widerspruch)", create_pdf_bytes(wid_txt), "widerspruch.pdf", key="dl_pdf")
-            st.download_button("📅 Termin (iCal)", b"Dummy", "frist.ics", key="dl_ical")
+            st.download_button("📅 Termin (iCal)", create_ical(), "frist.ics", key="dl_ics")
