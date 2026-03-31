@@ -22,7 +22,7 @@ def analyze_document_with_ai(uploaded_file):
         
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
-        # KORREKTUR: Alle Klammern und Listen-Enden sind nun ausbalanciert
+        # KORREKTUR: Alle Klammern in messages sind nun exakt ausbalanciert
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=
@@ -64,7 +64,7 @@ def create_ical(date_str):
     ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende: {date_str}\nDESCRIPTION:Amtsschimmel-Killer Fristwahrung\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 4. UI: CSS (FARBIGE BOXEN & BUTTONS) ---
+# --- 4. CSS (FARBIGE BOXEN & BUTTONS) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -124,13 +124,13 @@ with col_main:
         st.subheader("🔍 Auswertung")
         if u_file:
             if st.button("🚀 Jetzt Dokument analysieren"):
-                with st.spinner("Analyse läuft..."):
+                with st.spinner("Amtsschimmel wird vertrieben..."):
                     ki_data = analyze_document_with_ai(u_file)
                     if ki_data: st.session_state['ki_res'] = ki_data
             
             if 'ki_res' in st.session_state:
                 res = st.session_state['ki_res']
-                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'Nicht erkannt')}**")
+                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'N/A')}**")
                 with st.expander("📖 Glossar", expanded=True): st.write(res.get('glossar', ''))
                 with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau:", res.get('antwort', ''), height=250)
                 with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau:", res.get('widerspruch', ''), height=200)
