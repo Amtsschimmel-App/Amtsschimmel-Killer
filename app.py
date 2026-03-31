@@ -6,14 +6,14 @@ from docx import Document
 import openai
 import base64
 
-# --- 1. SETUP ---
+# --- 1. SETUP & KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
 # OpenAI API Key aus den Secrets laden
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. DOWNLOAD-LOGIK ---
+# --- 2. DOWNLOAD-LOGIK (STABIL) ---
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
@@ -53,7 +53,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME NACH VORGABE) ---
+# --- 4. RECHTSTEXTE (EXAKTE 1:1 ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -66,7 +66,7 @@ with t3:
         st.text("Ist das ein Abonnement?\nNein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.\n\nWie sicher sind meine Dokumente?\nIhre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.\n\nErsetzt die App eine Rechtsberatung?\nNein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.")
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]\n\nWiderspruch einlegen (Fristwahrend):\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]\n\nAkteneinsicht einfordern:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]\n\nWiderspruch einlegen:\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt.")
 
 st.divider()
 
@@ -116,13 +116,13 @@ with col_main:
                     base_image = base64.b64encode(u_file.read()).decode('utf-8')
                     
                     try:
-                        # KORREKTE OPENAI-STRUKTUR
+                        # --- KORREKTUR DER OPENAI-STRUKTUR (ZEILE 129 FIX) ---
                         response = openai.chat.completions.create(
                             model="gpt-4o",
                             messages=[
                                 {
                                     "role": "system",
-                                    "content": "Du bist der Amtsschimmel-Killer. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."
+                                    "content": "Du bist der Amtsschimmel-Killer. Analysiere den Brief. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."
                                 },
                                 {
                                     "role": "user",
@@ -141,6 +141,6 @@ with col_main:
                 
                 st.write("---")
                 st.subheader("📥 Downloads & Kalender")
-                st.download_button("📂 Als PDF (Entwurf)", create_pdf(st.session_state.result), "Antwort_Amtsschimmel.pdf")
-                st.download_button("📂 Als DOCX (Entwurf)", create_docx(st.session_state.result), "Antwort_Amtsschimmel.docx")
-                st.download_button("📅 Termin (iCal)", create_ical(), "Frist_Erinnerung.ics")
+                st.download_button("📂 Als PDF", create_pdf(st.session_state.result), "Antwort.pdf")
+                st.download_button("📂 Als DOCX", create_docx(st.session_state.result), "Antwort.docx")
+                st.download_button("📅 Termin (iCal)", create_ical(), "Frist.ics")
