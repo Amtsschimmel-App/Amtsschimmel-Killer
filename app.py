@@ -3,26 +3,17 @@ import pandas as pd
 from io import BytesIO
 from fpdf import FPDF
 from docx import Document
+import openai
+import base64
 
-# --- 1. SETUP ---
+# --- 1. SETUP & KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. DOWNLOAD-LOGIK (MAXIMALE STABILITÄT) ---
-def create_excel_report(antwort, widerspruch, glossar):
-    output = BytesIO()
-    df = pd.DataFrame([{
-        "Frist": "30.04.2026",
-        "Glossar": glossar,
-        "Antwortentwurf": antwort,
-        "Widerspruchsentwurf": widerspruch
-    }])
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
-        for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 80)
-    return output.getvalue()
+# OpenAI API Key (aus Streamlit Secrets)
+if "OPENAI_API_KEY" in st.secrets:
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
 
+# --- 2. DOWNLOAD-LOGIK ---
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
@@ -31,18 +22,15 @@ def create_docx(text):
     out = BytesIO(); doc.save(out); return out.getvalue()
 
 def create_pdf(text):
-    # Fix für AttributeError: fpdf Ausgabe als Byte-String
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    # Sonderzeichen-Fix
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, clean_text)
-    # WICHTIG: Rückgabe als Bytes direkt für download_button
     return bytes(pdf.output(dest='S'))
 
-def create_ical():
-    ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T080000Z\nDTEND:20260430T090000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
+def create_ical(date_str="20260430"):
+    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:{date_str}T080000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
 # --- 3. CSS (PAKETE & STRIPE) ---
@@ -62,7 +50,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
+# --- 4. RECHTSTEXTE (EXAKT NACH VORGABE) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -104,76 +92,34 @@ with col_main:
         u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"])
         if u_file:
             if u_file.type == "application/pdf":
-                st.info("PDF geladen. Vorschau per Download-Button:")
+                st.info("PDF geladen.")
                 st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf")
             else: st.image(u_file, use_container_width=True)
 
     with c_res:
         st.subheader("🔍 Auswertung")
         if u_file:
-            st.error("📅 **FRIST-CHECK: 30.04.2026**")
-            
-            with st.expander("📖 Glossar", expanded=True):
-                glossar_text = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
-                st.text(glossar_text)
+            if st.button("Jetzt Dokument killen"):
+                with st.spinner('KI analysiert den Amtsschimmel...'):
+                    # Bild für OpenAI kodieren
+                    base64_image = base64.b64encode(u_file.read()).decode('utf-8')
+                    
+                    response = openai.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Analysiere den Brief. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."},
+                            {"role": "user", "content":}
+                        ]
+                    )
+                    st.session_state.result = response.choices[0].message.content
 
-            # --- VOLLSTÄNDIGE TEXTE MIT PLATZHALTERN ---
-            antwort_voll = """[VORNAME NACHNAME]
-[STRASSE HAUSNUMMER]
-[PLZ ORT]
-
-An: [NAME DER BEHÖRDE]
-[STRASSE NR]
-[PLZ ORT]
-
-Datum: [HEUTIGES DATUM]
-
-Betreff: Antwort auf Ihr Schreiben vom [DATUM DES SCHREIBENS]
-Aktenzeichen: [AKTENZEICHEN EINTRAGEN]
-
-Sehr geehrte Damen und Herren,
-
-in der oben genannten Angelegenheit nehme ich Bezug auf Ihr Schreiben. Nach Prüfung des Sachverhalts teile ich Ihnen folgendes mit:
-
-Ich bitte um Bestätigung des Eingangs dieses Schreibens.
-
-Mit freundlichen Grüßen,
-
-[UNTERSCHRIFT]"""
-            
-            widerspruch_voll = """[VORNAME NACHNAME]
-[STRASSE HAUSNUMMER]
-[PLZ ORT]
-
-An: [NAME DER BEHÖRDE]
-
-WIDERSPRUCH
-Gegen den Bescheid vom [DATUM], erhalten am [DATUM].
-
-Sehr geehrte Damen und Herren,
-
-hiermit lege ich gegen den oben genannten Bescheid fristwahrend Widerspruch ein. 
-
-Eine ausführliche Begründung folgt in einem separaten Schreiben nach erfolgter Akteneinsicht.
-
-Mit freundlichen Grüßen,
-
-[UNTERSCHRIFT]"""
-
-            with st.expander("✉️ Antwort-Entwurf", expanded=True):
-                st.text_area("Inhalt:", antwort_voll, height=200)
-            
-            with st.expander("⚖️ Widerspruch", expanded=True):
-                st.text_area("Inhalt:", widerspruch_voll, height=150)
-
-            # --- ZENTRALER DOWNLOADBEREICH ---
-            st.write("---")
-            st.subheader("📥 Downloads & Kalender")
-            d1, d2 = st.columns(2)
-            with d1:
-                st.download_button("📊 Excel (Komplett)", create_excel_report(antwort_voll, widerspruch_voll, glossar_text), "Analyse.xlsx")
-                st.download_button("📄 Word (Alle Briefe)", create_docx(antwort_voll + "\n\n---\n\n" + widerspruch_voll), "Entwuerfe.docx")
-            with d2:
-                st.download_button("📕 PDF (Widerspruch)", create_pdf(widerspruch_voll), "Widerspruch.pdf")
-                st.download_button("📅 Termin speichern (iCal)", create_ical(), "frist.ics")
-        else: st.info("Bitte Dokument hochladen.")
+            if 'result' in st.session_state:
+                st.error("📅 **ANALYSE ERFOLGREICH**")
+                with st.expander("📖 Glossar & Details", expanded=True):
+                    st.write(st.session_state.result)
+                
+                st.write("---")
+                st.subheader("📥 Downloads & Kalender")
+                st.download_button("📂 Als PDF (Entwurf)", create_pdf(st.session_state.result), "Antwort.pdf")
+                st.download_button("📂 Als DOCX (Entwurf)", create_docx(st.session_state.result), "Antwort.docx")
+                st.download_button("📅 Termin (iCal)", create_ical(), "Frist.ics")
