@@ -9,11 +9,11 @@ import base64
 # --- 1. SETUP ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# OpenAI API Key (Sicher hinterlegt in st.secrets)
+# OpenAI API Key aus den Secrets laden
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. DOWNLOAD-LOGIK (MAXIMALE STABILITÄT) ---
+# --- 2. DOWNLOAD-LOGIK ---
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
@@ -27,7 +27,7 @@ def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    # Sonderzeichen-Fix für latin-1
+    # Sonderzeichen-Fix
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, clean_text)
     return bytes(pdf.output(dest='S'))
@@ -36,7 +36,7 @@ def create_ical():
     ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T080000Z\nDTEND:20260430T090000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 3. CSS (PAKETE & STRIPE) ---
+# --- 3. CSS (PAKETE & STRIPE-BOXEN) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -79,21 +79,13 @@ with col_pak:
     
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
-    
     p_conf = [
         ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
         ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://stripe.com")
     ]
     for style, name, docs, price, link in p_conf:
-        st.markdown(f'''
-        <div class="paket-container {style}">
-            <span class="header-text">{name}</span>
-            <span>{docs}</span>
-            <div class="price-tag">{price} €</div>
-            <div class="no-abo">Einmalzahlung kein Abo</div>
-            <a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a>
-        </div>''', unsafe_allow_html=True)
+        st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
 with col_main:
     c_preview, c_res = st.columns([1.8, 1.4])
@@ -103,7 +95,7 @@ with col_main:
         u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png", "jpeg"])
         if u_file:
             if u_file.type == "application/pdf":
-                st.info("PDF geladen. Vorschau per Download-Button:")
+                st.info("PDF geladen.")
                 st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf")
             else: st.image(u_file, use_container_width=True)
 
@@ -112,35 +104,37 @@ with col_main:
         if u_file:
             if st.button("Jetzt Dokument killen"):
                 with st.spinner('KI analysiert den Amtsschimmel...'):
+                    # Datei einlesen und kodieren
                     u_file.seek(0)
                     base64_image = base64.b64encode(u_file.read()).decode('utf-8')
                     
                     try:
-                        # --- OPENAI AUFRUF (FIXED SYNTAX) ---
+                        # --- OPENAI AUFRUF (ZEILE FÜR ZEILE KORRIGIERT) ---
                         response = openai.chat.completions.create(
                             model="gpt-4o",
                             messages=[
                                 {
-                                    "role": "system",
-                                    "content": "Du bist der Amtsschimmel-Killer. Analysiere Behördenbriefe. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."
+                                    "role": "system", 
+                                    "content": "Du bist der Amtsschimmel-Killer. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."
                                 },
                                 {
-                                    "role": "user",
+                                    "role": "user", 
                                     "content":
                                 }
                             ]
                         )
-                        st.session_state.resultat = response.choices.message.content
+                        st.session_state.resultat_ki = response.choices.message.content
                     except Exception as e:
                         st.error(f"Fehler bei der Analyse: {e}")
 
-            if 'resultat' in st.session_state:
+            if 'resultat_ki' in st.session_state:
                 st.error("📅 **FRIST-CHECK: ANALYSIERT**")
-                with st.expander("📖 Glossar & Analyse", expanded=True):
-                    st.write(st.session_state.resultat)
                 
+                with st.expander("📖 Glossar & Analyse", expanded=True):
+                    st.write(st.session_state.resultat_ki)
+
                 st.write("---")
                 st.subheader("📥 Downloads & Kalender")
-                st.download_button("📂 Als PDF (Entwurf)", create_pdf(st.session_state.resultat), "Antwort_Amtsschimmel.pdf")
-                st.download_button("📂 Als DOCX (Entwurf)", create_docx(st.session_state.resultat), "Antwort_Amtsschimmel.docx")
+                st.download_button("📂 Als PDF (Entwurf)", create_pdf(st.session_state.resultat_ki), "Antwort_Amtsschimmel.pdf")
+                st.download_button("📂 Als DOCX (Entwurf)", create_docx(st.session_state.resultat_ki), "Antwort_Amtsschimmel.docx")
                 st.download_button("📅 Termin (iCal)", create_ical(), "Frist_Erinnerung.ics")
