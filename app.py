@@ -42,7 +42,7 @@ def create_ical():
     ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T080000Z\nDTEND:20260430T090000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 3. CSS (PAKETE & STRIPE) ---
+# --- 3. CSS (PAKETE & STRIPE NACH VORGABE) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -58,7 +58,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME NACH VORGABE) ---
+# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -100,7 +100,7 @@ with col_main:
         u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"], label_visibility="collapsed")
         if u_file:
             if u_file.type == "application/pdf":
-                st.info("PDF geladen.")
+                st.info("PDF geladen. Vorschau per Download-Button:")
                 st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf")
             else: st.image(u_file, use_container_width=True)
 
@@ -110,12 +110,12 @@ with col_main:
             st.error("📅 **FRIST-CHECK: 30.04.2026**")
             
             glossar_text = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
-            antwort_text = "Sehr geehrte Damen und Herren,\n\nhier ist Ihr Entwurf..."
-            widerspruch_text = "Hiermit lege ich Widerspruch ein..."
+            antwort_text = "Sehr geehrte Damen und Herren,\n\nhier ist ein Entwurf für Ihr Antwortschreiben..."
+            widerspruch_text = "Sehr geehrte Damen und Herren,\n\nhiermit lege ich Widerspruch ein..."
             
             with st.expander("📖 Glossar", expanded=True):
                 st.text(glossar_text)
 
-            st.download_button("📂 Bericht (Excel)", create_excel_report(antwort_text, widerspruch_text, glossar_text), "Analyse.xlsx")
-            st.download_button("📄 Antwort (Word)", create_docx(antwort_text), "Antwort.docx")
-            st.download_button("📅 Frist speichern", create_ical(), "frist.ics")
+            st.download_button("📂 Gesamt-Bericht (Excel)", create_excel_report(antwort_text, widerspruch_text, glossar_text), "Analyse.xlsx")
+            st.download_button("📄 Antwortschreiben (Word)", create_docx(antwort_text), "Antwort.docx")
+            st.download_button("📅 Frist in Kalender", create_ical(), "frist.ics")
