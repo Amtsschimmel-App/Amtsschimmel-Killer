@@ -7,7 +7,7 @@ from docx import Document
 # --- 1. SETUP ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. DOWNLOAD-LOGIK (MAXIMALE STABILITÄT) ---
+# --- 2. DOWNLOAD-LOGIK (VOLLSTÄNDIG) ---
 def create_excel_report(antwort, widerspruch, glossar):
     output = BytesIO()
     df = pd.DataFrame([{
@@ -26,8 +26,7 @@ def create_excel_report(antwort, widerspruch, glossar):
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
-    for line in text.split('\n'):
-        doc.add_paragraph(line)
+    for line in text.split('\n'): doc.add_paragraph(line)
     out = BytesIO(); doc.save(out); return out.getvalue()
 
 def create_pdf(text):
@@ -42,19 +41,14 @@ def create_ical():
     ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T080000Z\nDTEND:20260430T090000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 3. CSS (PAKETE & STRIPE NACH VORGABE) ---
+# --- 3. CSS (PAKETE & STRIPE) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
-    .blue-box { border-color: #007bff; }
-    .green-box { border-color: #28a745; }
-    .gold-box { border-color: #fcc419; }
+    .blue-box { border-color: #007bff; } .green-box { border-color: #28a745; } .gold-box { border-color: #fcc419; }
     .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 15px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
-    .st-button-link {
-        display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important;
-        text-decoration: none; border-radius: 8px; font-weight: bold; width: 95%; text-align: center;
-    }
+    .st-button-link { display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important; text-decoration: none; border-radius: 8px; font-weight: bold; width: 95%; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,29 +87,33 @@ with col_pak:
         st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
 with col_main:
-    c_preview, c_res = st.columns([1.8, 1.4])
-    
-    with c_preview:
-        st.subheader("📄 Dokument")
-        u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"], label_visibility="collapsed")
-        if u_file:
-            if u_file.type == "application/pdf":
-                st.info("PDF geladen. Vorschau per Download-Button:")
-                st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf")
-            else: st.image(u_file, use_container_width=True)
+    u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"], label_visibility="collapsed")
+    if u_file:
+        st.error("📅 **FRIST-CHECK: 30.04.2026**")
+        
+        # --- DATEN-DUMMIES FÜR DIE ANZEIGE ---
+        glossar_text = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
+        antwort_voll = "Sehr geehrte Damen und Herren,\n\nin der Angelegenheit [Aktenzeichen] nehme ich Bezug auf Ihr Schreiben..."
+        widerspruch_voll = "Sehr geehrte Damen und Herren,\n\nhiermit lege ich gegen den Bescheid vom [Datum] Widerspruch ein..."
 
-    with c_res:
-        st.subheader("🔍 Auswertung")
-        if u_file:
-            st.error("📅 **FRIST-CHECK: 30.04.2026**")
-            
-            glossar_text = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
-            antwort_text = "Sehr geehrte Damen und Herren,\n\nhier ist ein Entwurf für Ihr Antwortschreiben..."
-            widerspruch_text = "Sehr geehrte Damen und Herren,\n\nhiermit lege ich Widerspruch ein..."
-            
-            with st.expander("📖 Glossar", expanded=True):
-                st.text(glossar_text)
+        with st.expander("📖 Glossar", expanded=True):
+            st.text(glossar_text)
 
-            st.download_button("📂 Gesamt-Bericht (Excel)", create_excel_report(antwort_text, widerspruch_text, glossar_text), "Analyse.xlsx")
-            st.download_button("📄 Antwortschreiben (Word)", create_docx(antwort_text), "Antwort.docx")
-            st.download_button("📅 Frist in Kalender", create_ical(), "frist.ics")
+        # --- CODE AUS DEINEM SCREENSHOT ---
+        with st.expander("📋 Antwort-Entwurf", expanded=True):
+            st.text_area("Inhalt:", antwort_voll, height=200)
+
+        with st.expander("⚖️ Widerspruch", expanded=True):
+            st.text_area("Inhalt:", widerspruch_voll, height=150)
+
+        st.write("---")
+        st.subheader("📥 Downloads & Kalender")
+        d1, d2 = st.columns(2)
+        with d1:
+            st.download_button("📊 Excel (Komplett)", create_excel_report(antwort_voll, widerspruch_voll, glossar_text), "Analyse.xlsx")
+            st.download_button("📝 Word (Alle Briefe)", create_docx(antwort_voll + "\n\n" + widerspruch_voll), "Entwürfe.docx")
+        with d2:
+            st.download_button("📕 PDF (Widerspruch)", create_pdf(widerspruch_voll), "Widerspruch.pdf")
+            st.download_button("📅 Termin speichern (iCal)", create_ical(), "frist.ics")
+    else:
+        st.info("Bitte Dokument hochladen.")
