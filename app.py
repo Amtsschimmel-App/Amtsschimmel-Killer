@@ -6,10 +6,10 @@ from docx import Document
 import openai
 import base64
 
-# --- 1. SETUP & KONFIGURATION ---
+# --- 1. SETUP ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# OpenAI API Key (aus Streamlit Secrets)
+# OpenAI API Key aus den Secrets laden
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
@@ -19,7 +19,9 @@ def create_docx(text):
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
     for line in text.split('\n'):
         doc.add_paragraph(line)
-    out = BytesIO(); doc.save(out); return out.getvalue()
+    out = BytesIO()
+    doc.save(out)
+    return out.getvalue()
 
 def create_pdf(text):
     pdf = FPDF()
@@ -29,8 +31,8 @@ def create_pdf(text):
     pdf.multi_cell(0, 10, clean_text)
     return bytes(pdf.output(dest='S'))
 
-def create_ical(date_str="20260430"):
-    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:{date_str}T080000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nEND:VEVENT\nEND:VCALENDAR"
+def create_ical():
+    ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T080000Z\nDTEND:20260430T090000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
 # --- 3. CSS (PAKETE & STRIPE) ---
@@ -50,7 +52,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (EXAKT NACH VORGABE) ---
+# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -104,22 +106,27 @@ with col_main:
                     # Bild für OpenAI kodieren
                     base64_image = base64.b64encode(u_file.read()).decode('utf-8')
                     
-                    response = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Analysiere den Brief. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."},
-                            {"role": "user", "content":}
-                        ]
-                    )
-                    st.session_state.result = response.choices[0].message.content
+                    # --- KORRIGIERTER OPENAI CALL ---
+                    try:
+                        response = openai.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."},
+                                {"role": "user", "content":}
+                            ]
+                        )
+                        st.session_state.result = response.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Fehler bei der Analyse: {e}")
 
             if 'result' in st.session_state:
-                st.error("📅 **ANALYSE ERFOLGREICH**")
-                with st.expander("📖 Glossar & Details", expanded=True):
-                    st.write(st.session_state.result)
+                st.error("📅 **FRIST-CHECK: ANALYSIERT**")
                 
+                with st.expander("📖 Glossar", expanded=True):
+                    st.text(st.session_state.result)
+
                 st.write("---")
                 st.subheader("📥 Downloads & Kalender")
-                st.download_button("📂 Als PDF (Entwurf)", create_pdf(st.session_state.result), "Antwort.pdf")
-                st.download_button("📂 Als DOCX (Entwurf)", create_docx(st.session_state.result), "Antwort.docx")
-                st.download_button("📅 Termin (iCal)", create_ical(), "Frist.ics")
+                st.download_button("📂 Als PDF (Entwurf)", create_pdf(st.session_state.result), "Antwort_Amtsschimmel.pdf")
+                st.download_button("📂 Als DOCX (Entwurf)", create_docx(st.session_state.result), "Antwort_Amtsschimmel.docx")
+                st.download_button("📅 Termin (iCal)", create_ical(), "Frist_Erinnerung.ics")
