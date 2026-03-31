@@ -14,7 +14,7 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. KI-FUNKTION (SYNTAX FIX) ---
+# --- 2. KI-FUNKTION (SYNTAX DEFINITIV FIX) ---
 def analyze_document_with_ai(uploaded_file):
     try:
         file_bytes = uploaded_file.getvalue()
@@ -22,7 +22,7 @@ def analyze_document_with_ai(uploaded_file):
         
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
-        # KORREKTUR: Alle Klammern in messages sind nun exakt ausbalanciert
+        # FIX: Alle Klammern (), [], {} sind nun exakt ausbalanciert
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=
@@ -35,7 +35,7 @@ def analyze_document_with_ai(uploaded_file):
         st.error(f"KI-Fehler: {e}")
         return None
 
-# --- 3. DOWNLOAD-FUNKTIONEN ---
+# --- 3. DOWNLOAD-HELPER ---
 def create_excel(data):
     output = BytesIO()
     df = pd.DataFrame([data])
@@ -64,7 +64,7 @@ def create_ical(date_str):
     ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende: {date_str}\nDESCRIPTION:Amtsschimmel-Killer Fristwahrung\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 4. CSS (FARBIGE BOXEN & BUTTONS) ---
+# --- 4. CSS (FARBIGE BOXEN & STRIPE BUTTONS) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -102,7 +102,6 @@ with col_pak:
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
     
-    # Pakete mit Stripe-Links
     p_conf = [
         ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
@@ -124,7 +123,7 @@ with col_main:
         st.subheader("🔍 Auswertung")
         if u_file:
             if st.button("🚀 Jetzt Dokument analysieren"):
-                with st.spinner("Amtsschimmel wird vertrieben..."):
+                with st.spinner("Analyse läuft..."):
                     ki_data = analyze_document_with_ai(u_file)
                     if ki_data: st.session_state['ki_res'] = ki_data
             
@@ -132,8 +131,8 @@ with col_main:
                 res = st.session_state['ki_res']
                 st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'N/A')}**")
                 with st.expander("📖 Glossar", expanded=True): st.write(res.get('glossar', ''))
-                with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau:", res.get('antwort', ''), height=250)
-                with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau:", res.get('widerspruch', ''), height=200)
+                with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau Antwort:", res.get('antwort', ''), height=250)
+                with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau Widerspruch:", res.get('widerspruch', ''), height=200)
                 
                 st.write("---")
                 st.subheader("📥 Downloads & Kalender")
