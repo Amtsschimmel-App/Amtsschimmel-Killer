@@ -13,16 +13,16 @@ st.markdown("""
     .blue { border-color: #007bff; background-color: #f0f7ff; }
     .green { border-color: #28a745; background-color: #f1f9f1; }
     .gold { border-color: #fcc419; background-color: #fffdf5; }
-    .price { font-size: 22px; font-weight: bold; color: #1E3A8A; }
-    .no-abo { font-size: 12px; color: #d32f2f; font-weight: bold; }
+    .price-tag { font-size: 24px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
+    .no-abo { font-size: 13px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
     .buy-btn {
-        display: inline-block; padding: 10px; background-color: #1E3A8A; color: white !important;
-        text-decoration: none; border-radius: 5px; font-weight: bold; width: 100%; margin-top: 10px;
+        display: inline-block; padding: 12px; background-color: #1E3A8A; color: white !important;
+        text-decoration: none; border-radius: 8px; font-weight: bold; width: 100%; text-align: center;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LOGIK FÜR CREDITS ---
+# --- 2. CREDIT-ZÄHLER LOGIK (URL PARAMETER) ---
 if 'credits' not in st.session_state:
     st.session_state.credits = 0
 
@@ -33,60 +33,84 @@ if "pack" in params:
     elif params["pack"] == "10": st.session_state.credits += 10
     st.query_params.clear()
 
-# --- 3. SEITENSTRUKTUR ---
-col_sidebar, col_content = st.columns([1, 3])
-
-with col_sidebar:
-    st.image("https://placeholder.com", width=150) # Dein Logo hier
-    st.selectbox("Sprache / Language", ["Deutsch", "English", "Türkçe", "Polski", "عربي", "Español", "Français", "Italiano"], key="lang")
+# --- 3. LAYOUT: SEITENLEISTE (PAKETE & SPRACHE) ---
+with st.sidebar:
+    st.header("🏛️ Amtsschimmel-Killer")
+    # Platzhalter für Logo beibehalten
+    st.image("https://placeholder.com", width=150) 
     
-    st.write(f"**Guthaben: {st.session_state.credits} Scans**")
+    st.selectbox("Sprache / Language", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "AR العربية"], key="lang")
     st.write("---")
+    st.metric("Dein Guthaben", f"{st.session_state.credits} Scans")
     
-    # Pakete in Boxen
-    st.markdown("""
-    <div class="paket-box blue">
-        <strong>🛡️ Amtsschimmel-Killer Analyse</strong><br>(1 Dokument)
-        <div class="price">3,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>
-        <a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" class="buy-btn">Jetzt kaufen</a>
-    </div>
-    <div class="paket-box green">
-        <strong>⚔️ Amtsschimmel-Killer Spar-Paket</strong><br>(3 Dokumente)
-        <div class="price">9,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>
-        <a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" class="buy-btn">Jetzt kaufen</a>
-    </div>
-    <div class="paket-box gold">
-        <strong>🚀 Amtsschimmel-Killer Sorglos-Paket</strong><br>(10 Dokumente)
-        <div class="price">19,99 €</div><div class="no-abo">Einmalzahlung kein Abo</div>
-        <a href="https://stripe.com" class="buy-btn">Jetzt kaufen</a>
-    </div>
-    """, unsafe_allow_html=True)
+    # Paket 1
+    st.markdown(f'''<div class="paket-box blue">
+        <strong>Amtsschimmel-Killer Analyse</strong><br>(1 Dokument)
+        <div class="price-tag">3,99 €</div>
+        <div class="no-abo">Einmalzahlung kein Abo</div>
+        <a href="https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02" target="_blank" class="buy-btn">Jetzt kaufen</a>
+    </div>''', unsafe_allow_html=True)
 
-with col_content:
-    st.title("Amtsschimmel-Killer ⚖️")
-    
+    # Paket 3
+    st.markdown(f'''<div class="paket-box green">
+        <strong>Amtsschimmel-Killer Spar-Paket</strong><br>(3 Dokumente)
+        <div class="price-tag">9,99 €</div>
+        <div class="no-abo">Einmalzahlung kein Abo</div>
+        <a href="https://buy.stripe.com/8x228retRbj50paalq1gs03" target="_blank" class="buy-btn">Jetzt kaufen</a>
+    </div>''', unsafe_allow_html=True)
+
+    # Paket 10
+    st.markdown(f'''<div class="paket-box gold">
+        <strong>Amtsschimmel-Killer Sorglos-Paket</strong><br>(10 Dokumente)
+        <div class="price-tag">19,99 €</div>
+        <div class="no-abo">Einmalzahlung kein Abo</div>
+        <a href="https://stripe.com" target="_blank" class="buy-btn">Jetzt kaufen</a>
+    </div>''', unsafe_allow_html=True)
+
+# --- 4. HAUPTBEREICH (ANALYSE & RECHTSINFOS) ---
+col_main, col_info = st.columns([2, 1.2])
+
+with col_main:
+    st.title("Dokumenten-Check")
     if st.session_state.credits > 0:
-        u_file = st.file_uploader("Dokument hochladen (PDF, JPG, PNG)", type=["pdf", "jpg", "png"])
-        if u_file:
-            st.success("Dokument bereit zur Analyse.")
-            if st.button("Analyse starten"):
-                st.info("KI wertet aus...")
+        u_file = st.file_uploader("Brief hier hochladen (PDF, JPG, PNG)", type=["pdf", "jpg", "png"])
+        if u_file and st.button("Analyse starten"):
+            st.info("KI-Analyse wird ausgeführt...")
     else:
-        st.warning("Bitte wähle links ein Paket aus, um Scans freizuschalten.")
+        st.warning("Bitte wähle ein Paket in der Seitenleiste aus, um Guthaben aufzuladen.")
 
-    st.write("---")
-    # Rechtstexte & Vorlagen
-    tabs = st.tabs(["📋 Vorlagen", "❓ FAQ", "⚖️ Impressum", "🛡️ Datenschutz"])
+    st.divider()
     
-    with tabs[0]:
-        st.markdown("**Fristverlängerung:**\n`Sehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]`")
-        st.markdown("**Widerspruch:**\n`Sehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]`")
+    st.subheader("📝 Vorlagen")
+    st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]")
+    st.text("Widerspruch einlegen (Fristwahrend):\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]")
+    st.text("Akteneinsicht einfordern:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
 
-    with tabs[1]:
-        st.write("**Ist das ein Abo?** Nein. Einmalzahlung. **Sicherheit?** Verschlüsselt & keine Speicherung. **Rechtsberatung?** Nein, nur Hilfe.")
+with col_info:
+    with st.expander("❓ FAQ", expanded=True):
+        st.write("""**Ist das ein Abonnement?**
+Nein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.
 
-    with tabs[2]:
-        st.text("Amtsschimmel-Killer\nBetreiberin: Elisabeth Reinecke\nRingelsweide 9, 40223 Düsseldorf\nE-Mail: amtsschimmel-killer@proton.me")
+**Wie sicher sind meine Dokumente?**
+Ihre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert.
 
-    with tabs[3]:
-        st.write("Wir behandeln Ihre Daten vertraulich (DSGVO). Verarbeitung via OpenAI (USA). Keine dauerhafte Speicherung.")
+**Ersetzt die App eine Rechtsberatung?**
+Nein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis.
+
+**Was passiert, wenn der Scan fehlschlägt?**
+Ein Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat.""")
+
+    with st.expander("⚖️ Impressum"):
+        st.write("""Amtsschimmel-Killer
+Betreiberin: Elisabeth Reinecke
+Ringelsweide 9, 40223 Düsseldorf
+Kontakt: Telefon: +49 211 15821329
+E-Mail: amtsschimmel-killer@proton.me
+Haftung: Inhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.""")
+
+    with st.expander("🛡️ Datenschutz"):
+        st.write("""1. Datenschutz auf einen Blick: Wir behandeln Ihre Daten vertraulich (DSGVO).
+2. Hosting: Streamlit Cloud. Logfiles werden nicht von uns genutzt.
+3. Dokumentenverarbeitung: Verschlüsselte Übertragung an OpenAI (USA). Keine Speicherung.
+4. Stripe: Abrechnungsdaten werden bei Stripe erhoben.
+5. Ihre Rechte: Auskunft & Löschung unter amtsschimmel-killer@proton.me.""")
