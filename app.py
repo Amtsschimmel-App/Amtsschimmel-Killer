@@ -103,7 +103,7 @@ with col_main:
         if u_file:
             if st.button("Jetzt Dokument killen"):
                 with st.spinner('KI analysiert den Amtsschimmel...'):
-                    # Bild für OpenAI kodieren
+                    # Datei kodieren
                     u_file.seek(0)
                     base64_image = base64.b64encode(u_file.read()).decode('utf-8')
                     
