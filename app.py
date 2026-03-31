@@ -8,39 +8,47 @@ import base64
 # --- 1. SETUP ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. DOWNLOAD-LOGIK (STABILISIERT) ---
-def create_ical():
-    # Erstellt eine Standard iCal Datei für den 30.04.2026
-    ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T090000Z\nDTEND:20260430T100000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruchsfrist einhalten!\nEND:VEVENT\nEND:VCALENDAR"
-    return ics.encode('utf-8')
+# --- 2. DOWNLOAD-LOGIK (HOCHKOMPATIBEL) ---
+def create_excel_report(antwort, widerspruch, glossar):
+    output = BytesIO()
+    df = pd.DataFrame([{
+        "Frist": "30.04.2026",
+        "Glossar": glossar,
+        "Antwortentwurf": antwort,
+        "Widerspruchsentwurf": widerspruch
+    }])
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Analyse')
+        worksheet = writer.sheets['Analyse']
+        for i, col in enumerate(df.columns):
+            worksheet.set_column(i, i, 80) # Automatische Breite simulieren
+    return output.getvalue()
 
-def create_full_docx(title, text):
+def create_docx(text):
     doc = Document()
-    doc.add_heading(title, 0)
+    doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
     for line in text.split('\n'):
         doc.add_paragraph(line)
     out = BytesIO(); doc.save(out); return out.getvalue()
 
-def create_safe_pdf(text):
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        # Fix für Encoding-Fehler
-        clean_text = text.encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 10, clean_text)
-        return pdf.output(dest='S').encode('latin-1')
-    except Exception as e:
-        return f"Fehler bei PDF-Erstellung: {e}".encode('utf-8')
+def create_pdf(text):
+    # Sicherer PDF-Export für Streamlit Cloud
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 10, clean_text)
+    return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. CSS ---
+# --- 3. CSS (PAKETE & STRIPE) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
     .blue-box { border-color: #007bff; }
     .green-box { border-color: #28a745; }
     .gold-box { border-color: #fcc419; }
-    .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
+    .header-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; display: block; color: #333; }
+    .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 15px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
     .st-button-link {
         display: inline-block; padding: 12px 20px; background-color: #1E3A8A; color: white !important;
@@ -49,7 +57,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. TOP-BAR (EXAKTE TEXTE 1:1) ---
+# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -62,11 +70,11 @@ with t3:
         st.text("Ist das ein Abonnement?\nNein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.\n\nWie sicher sind meine Dokumente?\nIhre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.\n\nErsetzt die App eine Rechtsberatung?\nNein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.\n\nWas passiert, wenn der Scan fehlschlägt?\nEin Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.\n\nWie erreiche ich Elisabeth Reinecke?\nNutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]\n\nWiderspruch einlegen (Fristwahrend)\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]\n\nAkteneinsicht einfordern:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung...\n\nWiderspruch einlegen (Fristwahrend)\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum]...\n\nAkteneinsicht einfordern:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts beantrage ich Akteneinsicht.")
 
 st.divider()
 
-# --- 5. LAYOUT ---
+# --- 5. HAUPT-LAYOUT ---
 col_pak, col_main = st.columns([1.2, 3.2])
 
 with col_pak:
@@ -88,33 +96,42 @@ with col_main:
     
     with c_preview:
         st.subheader("📄 Dokument")
-        u_file = st.file_uploader("Upload", type=["pdf", "jpg", "png"])
+        u_file = st.file_uploader("Datei hochladen", type=["pdf", "jpg", "png"])
         if u_file:
             if u_file.type == "application/pdf":
-                st.info("Vorschau für PDF (Smartphone-Sicher):")
-                # PDF Icon als Vorschaubild Ersatz
+                st.info("PDF geladen (Smartphone-Sicher).")
                 st.markdown("<h1>📄</h1>", unsafe_allow_html=True)
-                st.download_button("📥 Original PDF anzeigen/laden", u_file, file_name="beleg.pdf")
+                st.download_button("📥 PDF anzeigen/laden", u_file, file_name="upload.pdf")
             else: st.image(u_file, use_container_width=True)
 
     with c_res:
         st.subheader("🔍 Auswertung")
         if u_file:
             st.error("📅 **FRIST-CHECK: 30.04.2026**")
-            st.download_button("📅 Termin in Kalender speichern (iCal)", create_ical(), "frist.ics")
             
             with st.expander("📖 Ausgiebiges Glossar", expanded=True):
-                st.markdown("**Rechtsbehelfsbelehrung:** Erklärt den Weg des Widerspruchs.\n\n**Verwaltungsakt:** Amtliche Entscheidung.\n\n**Ermessen:** Handlungsspielraum der Behörde.")
+                glossar_full = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
+                st.markdown(glossar_full)
 
-            antwort_text = "[VORNAME NACHNAME]\n[STRASSE]\n[PLZ ORT]\n\nAn: [BEHÖRDE]\n\nBetreff: Antwort auf Schreiben vom [DATUM]\nAktenzeichen: [AKTENZEICHEN]\n\nSehr geehrte Damen und Herren,\n\nin der Sache [AKTENZEICHEN] nehme ich Bezug auf Ihr Schreiben...\n\n\n\nMit freundlichen Grüßen,\n[UNTERSCHRIFT]"
+            # --- TEXTE ---
+            antwort_voll = "[NAME]\n[STRASSE]\n[PLZ ORT]\n\nAn: [BEHÖRDE]\n\nBetreff: Antwort auf Ihr Schreiben\nAktenzeichen: [AKTENZEICHEN]\n\nSehr geehrte Damen und Herren,\n\nin der Angelegenheit [AKTENZEICHEN] nehme ich Bezug auf Ihr Schreiben vom [DATUM].\n\n[HIER KOMMT DIE BEGRÜNDUNG DER KI HIN]\n\nIch bitte um Bestätigung.\n\nMit freundlichen Grüßen,\n[UNTERSCHRIFT]"
             
-            widerspruch_text = "[VORNAME NACHNAME]\n[STRASSE]\n\nAn: [BEHÖRDE]\n\nWIDERSPRUCH\n\nSehr geehrte Damen und Herren,\n\ngegen Ihren Bescheid vom [DATUM], erhalten am [DATUM], lege ich hiermit WIDERSPRUCH ein.\n\nEine Begründung folgt separat.\n\nMit freundlichen Grüßen,\n[UNTERSCHRIFT]"
+            widerspruch_voll = "[NAME]\n[STRASSE]\n[PLZ ORT]\n\nAn: [BEHÖRDE]\n\nWIDERSPRUCH\n\nSehr geehrte Damen und Herren,\n\ngegen Ihren Bescheid vom [DATUM], erhalten am [DATUM], lege ich hiermit fristwahrend WIDERSPRUCH ein.\n\nEine Begründung erfolgt nach Akteneinsicht.\n\nMit freundlichen Grüßen,\n[UNTERSCHRIFT]"
 
             with st.expander("✉️ Antwort-Entwurf", expanded=True):
-                st.text_area("Vorschau:", antwort_text, height=150)
-                st.download_button("📄 Word (.docx)", create_full_docx("Antwortbrief", antwort_text), "Antwort.docx")
+                st.text_area("Inhalt:", antwort_voll, height=150)
             
             with st.expander("⚖️ Widerspruch", expanded=True):
-                st.text_area("Vorschau Widerspruch:", widerspruch_text, height=150)
-                st.download_button("📕 Widerspruch als PDF", create_safe_pdf(widerspruch_text), "Widerspruch.pdf")
+                st.text_area("Inhalt:", widerspruch_voll, height=150)
+
+            # --- ZENTRALE DOWNLOADS UNTEN ---
+            st.write("---")
+            st.subheader("📥 Downloads")
+            d1, d2, d3 = st.columns(3)
+            with d1:
+                st.download_button("📊 Excel (Komplett)", create_excel_report(antwort_voll, widerspruch_voll, glossar_full), "Analyse.xlsx")
+            with d2:
+                st.download_button("📄 Word (Entwürfe)", create_docx(antwort_voll + "\n\n---\n\n" + widerspruch_voll), "Briefe.docx")
+            with d3:
+                st.download_button("📕 PDF (Widerspruch)", create_pdf(widerspruch_voll), "Widerspruch.pdf")
         else: st.info("Bitte Dokument hochladen.")
