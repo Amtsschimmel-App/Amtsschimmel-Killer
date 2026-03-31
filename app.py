@@ -13,7 +13,7 @@ st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="�
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. DOWNLOAD-LOGIK ---
+# --- 2. DOWNLOAD-LOGIK (STABIL) ---
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
@@ -52,7 +52,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
+# --- 4. RECHTSTEXTE (EXAKTE 1:1 ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -103,16 +103,23 @@ with col_main:
         if u_file:
             if st.button("Jetzt Dokument killen"):
                 with st.spinner('KI analysiert den Amtsschimmel...'):
-                    # Datei kodieren
+                    # Datei einlesen und für OpenAI kodieren
                     u_file.seek(0)
                     base64_image = base64.b64encode(u_file.read()).decode('utf-8')
                     
                     try:
+                        # OpenAI Aufruf mit korrekter Dictionary-Struktur
                         response = openai.chat.completions.create(
                             model="gpt-4o",
                             messages=[
-                                {"role": "system", "content": "Du bist der Amtsschimmel-Killer. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."},
-                                {"role": "user", "content":}
+                                {
+                                    "role": "system", 
+                                    "content": "Du bist der Amtsschimmel-Killer. Behalte Platzhalter [VORNAME NACHNAME] etc. strikt bei."
+                                },
+                                {
+                                    "role": "user", 
+                                    "content":
+                                }
                             ]
                         )
                         st.session_state.result = response.choices.message.content
