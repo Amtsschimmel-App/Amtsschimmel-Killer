@@ -10,10 +10,11 @@ import json
 # --- 1. SETUP & KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
+# API Key aus Secrets laden
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- 2. KI-FUNKTION (AUTOMATISCHE TEXTERKENNUNG) ---
+# --- 2. KI-TEXETERKENNUNG FUNKTION ---
 def analyze_document_with_ai(uploaded_file):
     try:
         file_bytes = uploaded_file.getvalue()
@@ -23,9 +24,9 @@ def analyze_document_with_ai(uploaded_file):
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Analysiere das Bild/PDF und gib ein JSON zurück: { 'zusammenfassung': '', 'frist': 'DD.MM.YYYY', 'glossar': '', 'antwortentwurf': '', 'widerspruchsentwurf': '' }"},
+                {"role": "system", "content": "Du bist ein Experte für deutsches Verwaltungsrecht. Gib ein JSON zurück: { 'frist': 'DD.MM.YYYY', 'glossar': '', 'antwortentwurf': '', 'widerspruchsentwurf': '' }"},
                 {"role": "user", "content": [
-                    {"type": "text", "text": "Lies dieses Dokument und erstelle die Analyse sowie Entwürfe:"},
+                    {"type": "text", "text": "Analysiere dieses Dokument:"},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                 ]}
             ],
@@ -36,7 +37,7 @@ def analyze_document_with_ai(uploaded_file):
         st.error(f"KI-Fehler: {e}")
         return None
 
-# --- 3. DOWNLOAD-HELPER ---
+# --- 3. DOWNLOAD-LOGIK (STABIL) ---
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
@@ -44,21 +45,26 @@ def create_docx(text):
     out = BytesIO(); doc.save(out); return out.getvalue()
 
 def create_ical(date_str):
-    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende: {date_str}\nDESCRIPTION:Amtsschimmel-Killer Fristwahrung\nEND:VEVENT\nEND:VCALENDAR"
+    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Fristwahrung\nDTSTART:{date_str.replace('.','')}\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 4. CSS (PAKETE NACH GRUNDANWEISUNG) ---
+# --- 4. CSS (PAKETE & STRIPE) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
-    .blue-box { border-color: #007bff; } .green-box { border-color: #28a745; } .gold-box { border-color: #fcc419; }
+    .blue-box { border-color: #007bff; }
+    .green-box { border-color: #28a745; }
+    .gold-box { border-color: #fcc419; }
     .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 15px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
-    .st-button-link { display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important; text-decoration: none; border-radius: 8px; font-weight: bold; width: 95%; text-align: center; }
+    .st-button-link {
+        display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important;
+        text-decoration: none; border-radius: 8px; font-weight: bold; width: 95%; text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. RECHTSTEXTE (EXAKTE KOPIE) ---
+# --- 5. RECHTSTEXTE (EXAKTE ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -84,7 +90,6 @@ with col_pak:
     
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
-    
     p_conf = [
         ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
@@ -99,7 +104,7 @@ with col_main:
         st.subheader("📄 Dokument")
         u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"], label_visibility="collapsed")
         if u_file:
-            if u_file.type == "application/pdf": st.info("PDF bereit zur Analyse.")
+            if u_file.type == "application/pdf": st.info("PDF bereit.")
             else: st.image(u_file, use_container_width=True)
 
     with c_res:
@@ -110,9 +115,6 @@ with col_main:
                 if ki_data:
                     st.error(f"📅 **FRIST-CHECK: {ki_data.get('frist')}**")
                     with st.expander("📖 Glossar", expanded=True):
-                        st.write(ki_data.get('glossar'))
-                    
-                    st.text_area("Antwortentwurf", ki_data.get('antwortentwurf'), height=200)
-                    
-                    st.download_button("📄 Antwort (.docx)", create_docx(ki_data.get('antwortentwurf')), "Antwort.docx")
-                    st.download_button("📅 Frist in Kalender", create_ical(ki_data.get('frist')), "frist.ics")
+                        st.text(ki_data.get('glossar'))
+                    st.download_button("📄 Antwortschreiben (Word)", create_docx(ki_data.get('antwortentwurf')), "Antwort.docx")
+                    st.download_button("📅 Frist speichern", create_ical(ki_data.get('frist')), "frist.ics")
