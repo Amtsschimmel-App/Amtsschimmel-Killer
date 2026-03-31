@@ -5,41 +5,43 @@ from fpdf import FPDF
 from docx import Document
 import openai
 import base64
+import json
 
-# --- 1. SETUP & API-CHECK ---
+# --- 1. SETUP & KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# API Key sicher aus den Secrets laden
+# API Key Check
 if "OPENAI_API_KEY" in st.secrets:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
-else:
-    st.warning("Bitte OpenAI API Key in den Streamlit Secrets hinterlegen.")
 
-# --- 2. KI-LOGIK (TEXERKENNUNG & ANALYSE) ---
-def analyze_document(uploaded_file):
+# --- 2. KI-FUNKTION (ECHTE TEXTERKENNUNG & ANALYSE) ---
+def analyze_document_with_ai(uploaded_file):
     try:
-        # Datei für die KI vorbereiten
-        base64_image = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+        # Bild für KI vorbereiten
+        file_bytes = uploaded_file.getvalue()
+        base64_image = base64.b64encode(file_bytes).decode('utf-8')
         
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        
+        response = client.chat.completions.create(
             model="gpt-4o",
-            messages=,
+            messages=
                 }
             ],
             response_format={ "type": "json_object" }
         )
-        import json
         return json.loads(response.choices[0].message.content)
     except Exception as e:
+        st.error(f"KI-Fehler: Bitte stellen Sie sicher, dass der API-Key korrekt hinterlegt ist. Detail: {e}")
         return None
 
-# --- 3. DOWNLOAD-FUNKTIONEN ---
-def create_excel_report(data):
+# --- 3. DOWNLOAD-HELPER ---
+def create_excel(data):
     output = BytesIO()
     df = pd.DataFrame([data])
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='KI-Analyse')
-        worksheet = writer.sheets['KI-Analyse']
+        df.to_excel(writer, index=False, sheet_name='KI_Analyse')
+        worksheet = writer.sheets['KI_Analyse']
         for i, col in enumerate(df.columns):
             worksheet.set_column(i, i, 80)
     return output.getvalue()
@@ -47,8 +49,7 @@ def create_excel_report(data):
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
-    for line in text.split('\n'):
-        doc.add_paragraph(line)
+    for line in text.split('\n'): doc.add_paragraph(line)
     out = BytesIO(); doc.save(out); return out.getvalue()
 
 def create_pdf(text):
@@ -63,7 +64,7 @@ def create_ical(date_str):
     ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Fristende: {date_str}\nDESCRIPTION:Amtsschimmel-Killer Fristwahrung\nEND:VEVENT\nEND:VCALENDAR"
     return ics.encode('utf-8')
 
-# --- 4. CSS & RECHTSTEXTE (1:1 KOPIE) ---
+# --- 4. UI: CSS & LAYOUT ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -75,6 +76,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- 5. TOP-BAR: EXAKTE TEXTE (1:1) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -91,14 +93,17 @@ with t4:
 
 st.divider()
 
-# --- 5. HAUPT-LAYOUT ---
+# --- 6. HAUPT-LAYOUT ---
 col_pak, col_main = st.columns([1.2, 3.2])
 
 with col_pak:
     try: st.image("icon_final_blau.png", width=120)
     except: st.subheader("🏛️ Amtsschimmel-Killer")
+    
     st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
+    
+    # Pakete mit Stripe-Links
     p_conf = [
         ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
@@ -109,38 +114,38 @@ with col_pak:
 
 with col_main:
     c_preview, c_res = st.columns([1.8, 1.4])
+    
     with c_preview:
         st.subheader("📄 Dokument")
-        u_file = st.file_uploader("Datei hier ablegen", type=["jpg", "png", "pdf"])
+        u_file = st.file_uploader("Datei hier ablegen", type=["jpg", "png", "pdf"], label_visibility="collapsed")
         if u_file:
-            if u_file.type == "application/pdf":
-                st.info("PDF erkannt. (OCR startet nach Klick auf Analyse)")
-            else:
-                st.image(u_file, use_container_width=True)
+            if u_file.type == "application/pdf": st.success("PDF bereit zur Analyse.")
+            else: st.image(u_file, use_container_width=True)
 
     with c_res:
         st.subheader("🔍 Auswertung")
         if u_file:
             if st.button("🚀 Jetzt Dokument analysieren"):
-                with st.spinner("Amtsschimmel wird vertrieben..."):
-                    result = analyze_document(u_file)
-                    if result:
-                        st.session_state['ki_res'] = result
+                with st.spinner("KI analysiert das Dokument..."):
+                    ki_data = analyze_document_with_ai(u_file)
+                    if ki_data: st.session_state['ki_res'] = ki_data
             
             if 'ki_res' in st.session_state:
                 res = st.session_state['ki_res']
-                st.error(f"📅 **FRIST-CHECK: {res['frist']}**")
-                with st.expander("📖 Glossar", expanded=True): st.text(res['glossar'])
-                with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau:", res['antwort'], height=200)
-                with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau:", res['widerspruch'], height=150)
+                st.error(f"📅 **FRIST-CHECK: {res.get('frist', 'Nicht erkannt')}**")
                 
-                st.divider()
-                st.subheader("📥 Downloads")
+                with st.expander("📖 Glossar", expanded=True): st.write(res.get('glossar', ''))
+                with st.expander("✉️ Antwort-Entwurf", expanded=True): st.text_area("Vorschau:", res.get('antwort', ''), height=250)
+                with st.expander("⚖️ Widerspruch", expanded=True): st.text_area("Vorschau:", res.get('widerspruch', ''), height=200)
+                
+                st.write("---")
+                st.subheader("📥 Downloads & Kalender")
                 d1, d2 = st.columns(2)
                 with d1:
-                    st.download_button("📊 Excel (Komplett)", create_excel_report(res), "Analyse.xlsx")
-                    st.download_button("📄 Word (Antwort)", create_docx(res['antwort']), "Antwort.docx")
+                    st.download_button("📊 Excel (Komplett)", create_excel(res), "Analyse.xlsx")
+                    st.download_button("📄 Word (Antwort)", create_docx(res.get('antwort', '')), "Antwort.docx")
                 with d2:
-                    st.download_button("📕 PDF (Widerspruch)", create_pdf(res['widerspruch']), "Widerspruch.pdf")
-                    st.download_button("📅 Termin (iCal)", create_ical(res['frist']), "frist.ics")
-        else: st.info("Bitte Dokument hochladen.")
+                    st.download_button("📕 PDF (Widerspruch)", create_pdf(res.get('widerspruch', '')), "Widerspruch.pdf")
+                    st.download_button("📅 Termin speichern (iCal)", create_ical(res.get('frist', '2026-04-30')), "frist.ics")
+        else:
+            st.info("Bitte Dokument hochladen, um die KI-Analyse zu starten.")
