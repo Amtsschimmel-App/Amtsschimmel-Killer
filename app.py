@@ -4,15 +4,55 @@ from io import BytesIO
 from fpdf import FPDF
 from docx import Document
 
-# --- 1. SETUP & DESIGN ---
+# --- 1. SETUP ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
+# --- 2. DOWNLOAD-LOGIK (MAXIMALE STABILITÄT) ---
+def create_excel_report(antwort, widerspruch, glossar):
+    output = BytesIO()
+    df = pd.DataFrame([{
+        "Frist": "30.04.2026",
+        "Glossar": glossar,
+        "Antwortentwurf": antwort,
+        "Widerspruchsentwurf": widerspruch
+    }])
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Analyse')
+        worksheet = writer.sheets['Analyse']
+        for i, col in enumerate(df.columns):
+            worksheet.set_column(i, i, 80)
+    return output.getvalue()
+
+def create_docx(text):
+    doc = Document()
+    doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
+    for line in text.split('\n'):
+        doc.add_paragraph(line)
+    out = BytesIO(); doc.save(out); return out.getvalue()
+
+def create_pdf(text):
+    # Fix für AttributeError: fpdf Ausgabe als Byte-String
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    # Sonderzeichen-Fix
+    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 10, clean_text)
+    # WICHTIG: Rückgabe als Bytes direkt für download_button
+    return bytes(pdf.output(dest='S'))
+
+def create_ical():
+    ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T080000Z\nDTEND:20260430T090000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
+    return ics.encode('utf-8')
+
+# --- 3. CSS (PAKETE & STRIPE) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
     .blue-box { border-color: #007bff; }
     .green-box { border-color: #28a745; }
     .gold-box { border-color: #fcc419; }
+    .header-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; display: block; color: #333; }
     .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 15px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
     .st-button-link {
@@ -22,18 +62,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. HILFSFUNKTIONEN (DOWNLOADS) ---
-def create_pdf(text):
-    pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
-    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
-    pdf.multi_cell(0, 10, clean_text)
-    return bytes(pdf.output(dest='S'))
-
-def create_ical():
-    ics = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:20260430T080000Z\nDTEND:20260430T090000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
-    return ics.encode('utf-8')
-
-# --- 3. RECHTSTEXTE (EXAKTE ABSTÄNDE) ---
+# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -50,45 +79,101 @@ with t4:
 
 st.divider()
 
-# --- 4. HAUPT-LAYOUT (3 SPALTEN WIE AUF BILD) ---
-col_pak, col_upload, col_result = st.columns([1.1, 1.8, 1.3])
+# --- 5. HAUPT-LAYOUT ---
+col_pak, col_main = st.columns([1.2, 3.2])
 
 with col_pak:
     try: st.image("icon_final_blau.png", width=120)
     except: st.subheader("🏛️ Amtsschimmel-Killer")
     
-    st.selectbox("Sämtliche Sprachen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
+    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
-    
     p_conf = [
         ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
-        ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://stripe.com")
+        ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
     ]
     for style, name, docs, price, link in p_conf:
         st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
 
-with col_upload:
-    st.subheader("📄 Dokument")
-    u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"])
-    if u_file:
-        if u_file.type == "application/pdf": st.info("PDF geladen.")
-        else: st.image(u_file, use_container_width=True)
+with col_main:
+    c_preview, c_res = st.columns([1.8, 1.4])
+    
+    with c_preview:
+        st.subheader("📄 Dokument")
+        u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"])
+        if u_file:
+            if u_file.type == "application/pdf":
+                st.info("PDF geladen. Vorschau per Download-Button:")
+                st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf")
+            else: st.image(u_file, use_container_width=True)
 
-with col_result:
-    st.subheader("🔍 Auswertung")
-    if u_file:
-        st.error("📅 **FRIST-CHECK: 30.04.2026**")
-        with st.expander("📖 Glossar", expanded=True):
-            st.text("Verwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum.")
-        
-        st.write("---")
-        st.subheader("📥 Downloads")
-        st.download_button("📄 PDF Export", create_pdf("Analyse für Elisabeth Reinecke"), "Amtsschimmel_Analyse.pdf", use_container_width=True)
-        st.download_button("📅 Termin (iCal)", create_ical(), "Frist.ics", use_container_width=True)
-    else:
-        st.info("Bitte Dokument hochladen.")
+    with c_res:
+        st.subheader("🔍 Auswertung")
+        if u_file:
+            st.error("📅 **FRIST-CHECK: 30.04.2026**")
+            
+            with st.expander("📖 Glossar", expanded=True):
+                glossar_text = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
+                st.text(glossar_text)
 
-# Admin Check via URL
-if st.query_params.get("admin") == "GeheimAmt2024!":
-    st.sidebar.success("Admin-Modus Aktiv")
+            # --- VOLLSTÄNDIGE TEXTE MIT PLATZHALTERN ---
+            antwort_voll = """[VORNAME NACHNAME]
+[STRASSE HAUSNUMMER]
+[PLZ ORT]
+
+An: [NAME DER BEHÖRDE]
+[STRASSE NR]
+[PLZ ORT]
+
+Datum: [HEUTIGES DATUM]
+
+Betreff: Antwort auf Ihr Schreiben vom [DATUM DES SCHREIBENS]
+Aktenzeichen: [AKTENZEICHEN EINTRAGEN]
+
+Sehr geehrte Damen und Herren,
+
+in der oben genannten Angelegenheit nehme ich Bezug auf Ihr Schreiben. Nach Prüfung des Sachverhalts teile ich Ihnen folgendes mit:
+
+Ich bitte um Bestätigung des Eingangs dieses Schreibens.
+
+Mit freundlichen Grüßen,
+
+[UNTERSCHRIFT]"""
+            
+            widerspruch_voll = """[VORNAME NACHNAME]
+[STRASSE HAUSNUMMER]
+[PLZ ORT]
+
+An: [NAME DER BEHÖRDE]
+
+WIDERSPRUCH
+Gegen den Bescheid vom [DATUM], erhalten am [DATUM].
+
+Sehr geehrte Damen und Herren,
+
+hiermit lege ich gegen den oben genannten Bescheid fristwahrend Widerspruch ein. 
+
+Eine ausführliche Begründung folgt in einem separaten Schreiben nach erfolgter Akteneinsicht.
+
+Mit freundlichen Grüßen,
+
+[UNTERSCHRIFT]"""
+
+            with st.expander("✉️ Antwort-Entwurf", expanded=True):
+                st.text_area("Inhalt:", antwort_voll, height=200)
+            
+            with st.expander("⚖️ Widerspruch", expanded=True):
+                st.text_area("Inhalt:", widerspruch_voll, height=150)
+
+            # --- ZENTRALER DOWNLOADBEREICH ---
+            st.write("---")
+            st.subheader("📥 Downloads & Kalender")
+            d1, d2 = st.columns(2)
+            with d1:
+                st.download_button("📊 Excel (Komplett)", create_excel_report(antwort_voll, widerspruch_voll, glossar_text), "Analyse.xlsx")
+                st.download_button("📄 Word (Alle Briefe)", create_docx(antwort_voll + "\n\n---\n\n" + widerspruch_voll), "Entwuerfe.docx")
+            with d2:
+                st.download_button("📕 PDF (Widerspruch)", create_pdf(widerspruch_voll), "Widerspruch.pdf")
+                st.download_button("📅 Termin speichern (iCal)", create_ical(), "frist.ics")
+        else: st.info("Bitte Dokument hochladen.")
