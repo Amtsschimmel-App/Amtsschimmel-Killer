@@ -8,37 +8,22 @@ from docx import Document
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
 # --- 2. DOWNLOAD-LOGIK (MAXIMALE STABILITÄT) ---
-def create_excel_report(antwort, widerspruch, glossar):
-    output = BytesIO()
-    df = pd.DataFrame([{
-        "Frist": "30.04.2026",
-        "Glossar": glossar,
-        "Antwortentwurf": antwort,
-        "Widerspruchsentwurf": widerspruch
-    }])
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Analyse')
-        worksheet = writer.sheets['Analyse']
-        for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 80)
-    return output.getvalue()
-
 def create_docx(text):
     doc = Document()
     doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
     for line in text.split('\n'):
         doc.add_paragraph(line)
-    out = BytesIO(); doc.save(out); return out.getvalue()
+    out = BytesIO()
+    doc.save(out)
+    return out.getvalue()
 
 def create_pdf(text):
-    # Fix für AttributeError: fpdf Ausgabe als Byte-String
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    # Sonderzeichen-Fix
+    # Sonderzeichen-Fix für latin-1
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, clean_text)
-    # WICHTIG: Rückgabe als Bytes direkt für download_button
     return bytes(pdf.output(dest='S'))
 
 def create_ical():
@@ -52,30 +37,29 @@ st.markdown("""
     .blue-box { border-color: #007bff; }
     .green-box { border-color: #28a745; }
     .gold-box { border-color: #fcc419; }
-    .header-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; display: block; color: #333; }
     .price-tag { font-size: 28px; font-weight: bold; color: #1E3A8A; margin: 15px 0; }
     .no-abo { font-size: 14px; color: #d32f2f; font-weight: bold; margin-bottom: 15px; }
     .st-button-link {
         display: inline-block; padding: 12px 20px; background-color: #1E3A8A !important; color: white !important;
-        text-decoration: none; border-radius: 8px; font-weight: bold; width: 95%; text-align: center;
+        text-decoration: none; border-radius: 8px; font-weight: bold; width: 90%; text-align: center;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
+# --- 4. RECHTSTEXTE (OBEN ZUSAMMENGEKLAPPT) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
-        st.text("Amtsschimmel-Killer\n\nBetreiberin:\n\nElisabeth Reinecke\n\nRingelsweide 9\n40223 Düsseldorf\n\nKontakt:\nTelefon: +49 211 15821329\nE-Mail: amtsschimmel-killer@proton.me\nWeb: amtsschimmel-killer.streamlit.app\n\nHaftung:\nInhalte nach § 5 TMG. Keine Haftung für KI-generierte Texte.")
+        st.text("Amtsschimmel-Killer\n\nBetreiberin:\nElisabeth Reinecke\nRingelsweide 9\n40223 Düsseldorf\n\nKontakt:\n+49 211 15821329\namtsschimmel-killer@proton.me")
 with t2:
     with st.expander("🛡️ Datenschutz"):
-        st.text("1. Datenschutz auf einen Blick\nWir behandeln Ihre personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften (DSGVO).\n\n2. Datenerfassung & Hosting\nDiese App wird auf Streamlit Cloud gehostet. Beim Besuch werden Logfiles (IP-Adresse, Browser) automatisch vom Hoster erfasst. Wir nutzen diese Daten nicht.\n\n3. Dokumentenverarbeitung\nIhre hochgeladenen Briefe werden per TLS-verschlüsselter Schnittstelle an OpenAI (USA) zur Analyse übertragen. Wir speichern keine Briefe auf unseren Servern. Die Verarbeitung dient rein dem Zweck, Ihnen einen Antwortentwurf zu erstellen.\n\n4. Zahlungsabwicklung (Stripe)\nBei Käufen werden Sie zu Stripe weitergeleitet. Stripe erhebt die erforderlichen Daten zur Abrechnung. Wir erhalten lediglich eine Bestätigung über die erfolgreiche Zahlung.\n\n5. Ihre Rechte\nSie haben das Recht auf Auskunft, Löschung und Sperrung Ihrer Daten. Kontaktieren Sie uns unter amtsschimmel-killer@proton.me.")
+        st.text("1. DSGVO konform.\n2. Hosting: Streamlit Cloud.\n3. Keine Speicherung von Briefen.\n4. TLS-Verschlüsselung zu OpenAI.\n5. Stripe für Zahlungen.")
 with t3:
     with st.expander("❓ FAQ"):
-        st.text("Ist das ein Abonnement?\nNein. Wir hassen Abos genauso wie Amtsschimmel. Jede Zahlung ist eine Einmalzahlung für eine feste Anzahl an Scans. Es gibt keine automatische Verlängerung.\n\nWie sicher sind meine Dokumente?\nIhre Dokumente werden verschlüsselt an die KI (OpenAI) übertragen, dort nur kurzzeitig im Arbeitsspeicher verarbeitet und niemals dauerhaft auf unseren Servern gespeichert. Nach der Analyse werden die Daten gelöscht.\n\nErsetzt die App eine Rechtsberatung?\nNein. Wir bieten eine Formulierungshilfe und Unterstützung beim Textverständnis. Für verbindliche Rechtsberatung wenden Sie sich bitte an einen Rechtsanwalt.\n\nWas passiert, wenn der Scan fehlschlägt?\nEin Scan wird erst berechnet, wenn die KI den Text erfolgreich verarbeitet hat. Sollte ein Upload technisch scheitern (z.B. wegen eines unscharfen Fotos), wird kein Guthaben abgezogen.\n\nWie erreiche ich Elisabeth Reinecke?\nNutzen Sie einfach die E-Mail amtsschimmel-killer@proton.me oder die Telefonnummer im Impressum.")
+        st.text("Kein Abo! Einmalzahlung.\nSichere Dokumentenverarbeitung.\nKeine Rechtsberatung.\nSupport: amtsschimmel-killer@proton.me")
 with t4:
     with st.expander("📝 Vorlagen"):
-        st.text("Fristverlängerung:\nSehr geehrte Damen und Herren, in der Angelegenheit [Aktenzeichen] bitte ich um Verlängerung der gesetzten Frist bis zum [Datum], da mir noch notwendige Unterlagen fehlen. Mit freundlichen Grüßen, [Name]\n\nWiderspruch einlegen (Fristwahrend)\nSehr geehrte Damen und Herren, gegen Ihren Bescheid vom [Datum], erhalten am [Datum], lege ich hiermit Widerspruch ein. Eine detaillierte Begründung folgt in einem separaten Schreiben. Mit freundlichen Grüßen, [Name]\n\nAkteneinsicht einfordern:\nSehr geehrte Damen und Herren, zur Prüfung des Sachverhalts [Aktenzeichen] beantrage ich hiermit gemäß § 25 SGB X bzw. § 29 VwVfG Akteneinsicht. Mit freundlichen Grüßen, [Name]")
+        st.text("Fristverlängerung\nWiderspruch\nAkteneinsicht")
 
 st.divider()
 
@@ -83,15 +67,15 @@ st.divider()
 col_pak, col_main = st.columns([1.2, 3.2])
 
 with col_pak:
-    try: st.image("icon_final_blau.png", width=120)
-    except: st.subheader("🏛️ Amtsschimmel-Killer")
-    
-    st.selectbox("Sprache", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
+    st.subheader("🏛️ Amtsschimmel-Killer")
+    st.selectbox("Sämtliche Sprachen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "AR العربية"], key="lang")
     st.write("---")
+    
+    # Pakete mit exakten Stripe-Links
     p_conf = [
         ("blue-box", "🛡️ Amtsschimmel-Killer Analyse", "(1 Dokument)", "3,99", "https://buy.stripe.com/eVqcN53Pd5YLgo8alq1gs02"),
         ("green-box", "⚔️ Amtsschimmel-Killer Spar-Paket", "(3 Dokumente)", "9,99", "https://buy.stripe.com/8x228retRbj50paalq1gs03"),
-        ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://buy.stripe.com/28EcN50D1bj52xi8di1gs041")
+        ("gold-box", "🚀 Amtsschimmel-Killer Sorglos-Paket", "(10 Dokumente)", "19,99", "https://stripe.com")
     ]
     for style, name, docs, price, link in p_conf:
         st.markdown(f'<div class="paket-container {style}"><span style="font-weight:bold">{name}</span><br>{docs}<div class="price-tag">{price} €</div><div class="no-abo">Einmalzahlung kein Abo</div><a href="{link}" target="_blank" class="st-button-link">Jetzt kaufen</a></div>', unsafe_allow_html=True)
@@ -101,11 +85,10 @@ with col_main:
     
     with c_preview:
         st.subheader("📄 Dokument")
-        u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png"])
+        u_file = st.file_uploader("Brief hier hochladen", type=["pdf", "jpg", "png"])
         if u_file:
             if u_file.type == "application/pdf":
-                st.info("PDF geladen. Vorschau per Download-Button:")
-                st.download_button("📥 Original PDF öffnen", u_file, file_name="upload.pdf")
+                st.info("PDF geladen.")
             else: st.image(u_file, use_container_width=True)
 
     with c_res:
@@ -114,66 +97,18 @@ with col_main:
             st.error("📅 **FRIST-CHECK: 30.04.2026**")
             
             with st.expander("📖 Glossar", expanded=True):
-                glossar_text = "Rechtsbehelfsbelehrung: Erklärt den Weg des Widerspruchs.\nVerwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
-                st.text(glossar_text)
+                st.text("Verwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum.")
 
-            # --- VOLLSTÄNDIGE TEXTE MIT PLATZHALTERN ---
-            antwort_voll = """[VORNAME NACHNAME]
-[STRASSE HAUSNUMMER]
-[PLZ ORT]
-
-An: [NAME DER BEHÖRDE]
-[STRASSE NR]
-[PLZ ORT]
-
-Datum: [HEUTIGES DATUM]
-
-Betreff: Antwort auf Ihr Schreiben vom [DATUM DES SCHREIBENS]
-Aktenzeichen: [AKTENZEICHEN EINTRAGEN]
-
-Sehr geehrte Damen und Herren,
-
-in der oben genannten Angelegenheit nehme ich Bezug auf Ihr Schreiben. Nach Prüfung des Sachverhalts teile ich Ihnen folgendes mit:
-
-Ich bitte um Bestätigung des Eingangs dieses Schreibens.
-
-Mit freundlichen Grüßen,
-
-[UNTERSCHRIFT]"""
+            # Beispieltexte für Export
+            beispiel_text = "Sehr geehrte Damen und Herren,\nhiermit lege ich Widerspruch ein..."
             
-            widerspruch_voll = """[VORNAME NACHNAME]
-[STRASSE HAUSNUMMER]
-[PLZ ORT]
-
-An: [NAME DER BEHÖRDE]
-
-WIDERSPRUCH
-Gegen den Bescheid vom [DATUM], erhalten am [DATUM].
-
-Sehr geehrte Damen und Herren,
-
-hiermit lege ich gegen den oben genannten Bescheid fristwahrend Widerspruch ein. 
-
-Eine ausführliche Begründung folgt in einem separaten Schreiben nach erfolgter Akteneinsicht.
-
-Mit freundlichen Grüßen,
-
-[UNTERSCHRIFT]"""
-
-            with st.expander("✉️ Antwort-Entwurf", expanded=True):
-                st.text_area("Inhalt:", antwort_voll, height=200)
-            
-            with st.expander("⚖️ Widerspruch", expanded=True):
-                st.text_area("Inhalt:", widerspruch_voll, height=150)
-
-            # --- ZENTRALER DOWNLOADBEREICH ---
             st.write("---")
-            st.subheader("📥 Downloads & Kalender")
-            d1, d2 = st.columns(2)
-            with d1:
-                st.download_button("📊 Excel (Komplett)", create_excel_report(antwort_voll, widerspruch_voll, glossar_text), "Analyse.xlsx")
-                st.download_button("📄 Word (Alle Briefe)", create_docx(antwort_voll + "\n\n---\n\n" + widerspruch_voll), "Entwuerfe.docx")
-            with d2:
-                st.download_button("📕 PDF (Widerspruch)", create_pdf(widerspruch_voll), "Widerspruch.pdf")
-                st.download_button("📅 Termin speichern (iCal)", create_ical(), "frist.ics")
-        else: st.info("Bitte Dokument hochladen.")
+            st.subheader("📥 Downloads")
+            st.download_button("📄 PDF Export", create_pdf(beispiel_text), "Amtsschimmel_Killer.pdf", "application/pdf", use_container_width=True)
+            st.download_button("📝 Word Export", create_docx(beispiel_text), "Amtsschimmel_Killer.docx", use_container_width=True)
+            st.download_button("📅 Termin (iCal)", create_ical(), "Frist.ics", "text/calendar", use_container_width=True)
+        else:
+            st.info("Laden Sie ein Dokument hoch oder wählen Sie ein Paket.")
+
+if __name__ == "__main__":
+    main()
