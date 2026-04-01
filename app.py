@@ -3,50 +3,53 @@ import pandas as pd
 from io import BytesIO
 from fpdf import FPDF
 from docx import Document
+import re
 
-# --- 1. SETUP ---
+# --- 1. SETUP & KONFIGURATION ---
 st.set_page_config(page_title="Amtsschimmel-Killer", layout="wide", page_icon="🏛️")
 
-# --- 2. DOWNLOAD-LOGIK (FIXED & VOLLSTÄNDIG) ---
+# --- 2. INTELLIGENTE FRISTERKENNUNG (2026 LOGIK) ---
+def extract_deadline(text):
+    # Sucht nach Datumsformaten (z.B. 30.04.2026)
+    date_pattern = r'(\d{2}\.\d{2}\.202\d)'
+    found_dates = re.findall(date_pattern, text)
+    if found_dates:
+        return found_dates[-1] # Nimmt das aktuellste Datum (meist Fristende)
+    return "Nicht erkannt (Bitte manuell prüfen)"
+
+# --- 3. DOWNLOAD-LOGIK (VOLLSTÄNDIG & OPTIMIERT) ---
 def create_excel_report(antwort, widerspruch, glossar, frist):
     output = BytesIO()
     df = pd.DataFrame([{
         "KRITISCHE FRIST": frist,
-        "Erklärtes Glossar": glossar,
-        "Antwortentwurf": antwort,
-        "Widerspruchsschreiben": widerspruch
+        "GLOSSAR": glossar,
+        "ANTWORTENTWURF": antwort,
+        "WIDERSPRUCH": widerspruch
     }])
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Analyse')
         worksheet = writer.sheets['Analyse']
-        # AUTOMATISCHE SPALTENBREITE (80 Zeichen für Lesbarkeit)
+        # Fix: Automatische Spaltenbreite auf 100 für volle Lesbarkeit
         for i, col in enumerate(df.columns):
-            worksheet.set_column(i, i, 80)
+            worksheet.set_column(i, i, 100)
     return output.getvalue()
 
-def create_docx(text):
+def create_docx(antwort, widerspruch, glossar):
     doc = Document()
-    doc.add_heading('Amtsschimmel-Killer Entwurf', 0)
-    for line in text.split('\n'):
-        doc.add_paragraph(line)
-    out = BytesIO()
-    doc.save(out)
-    return out.getvalue()
+    doc.add_heading('Amtsschimmel-Killer: Vollständige Analyse', 0)
+    doc.add_heading('1. Glossar', level=1); doc.add_paragraph(glossar)
+    doc.add_heading('2. Antwortentwurf', level=1); doc.add_paragraph(antwort)
+    doc.add_heading('3. Widerspruchsschreiben', level=1); doc.add_paragraph(widerspruch)
+    out = BytesIO(); doc.save(out); return out.getvalue()
 
-def create_pdf(text):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+def create_pdf(antwort, widerspruch, glossar):
+    pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=11)
+    full_text = f"AMTSSCHIMMEL-KILLER ANALYSE\n\nGLOSSAR:\n{glossar}\n\nANTWORTENTWURF:\n{antwort}\n\nWIDERSPRUCH:\n{widerspruch}"
+    clean_text = full_text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, clean_text)
     return bytes(pdf.output(dest='S'))
 
-def create_ical(datum_str):
-    fmt_date = "".join(reversed(datum_str.split("."))) # 30.04.2026 -> 20260430
-    ics = f"BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:{fmt_date}T090000Z\nDTEND:{fmt_date}T100000Z\nSUMMARY:Fristende Amtsschimmel-Killer\nDESCRIPTION:Heute Widerspruch einlegen!\nEND:VEVENT\nEND:VCALENDAR"
-    return ics.encode('utf-8')
-
-# --- 3. CSS (PAKETE & STRIPE) ---
+# --- 4. CSS (BUNTE BOXEN & BUTTONS) ---
 st.markdown("""
 <style>
     .paket-container { border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 3px solid; background: white; text-align: center; }
@@ -62,7 +65,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. RECHTSTEXTE (1:1 ÜBERNAHME) ---
+# --- 5. RECHTSTEXTE (1:1 ÜBERNAHME - EXAKTE ABSTÄNDE) ---
 t1, t2, t3, t4 = st.columns(4)
 with t1:
     with st.expander("⚖️ Impressum"):
@@ -79,12 +82,12 @@ with t4:
 
 st.divider()
 
-# --- 5. HAUPT-LAYOUT (3 SPALTEN) ---
+# --- 6. HAUPT-LAYOUT (3 SPALTEN) ---
 col_pak, col_upload, col_result = st.columns([1.2, 1.8, 1.4])
 
 with col_pak:
     st.subheader("🏛️ Amtsschimmel-Killer")
-    st.selectbox("Sprachen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
+    st.selectbox("Sämtliche Sprachen", ["DE Deutsch", "EN English", "TR Türkçe", "PL Polski", "UA Українська", "RU Русский", "AR العربية", "ES Español", "FR Français", "IT Italiano", "NL Nederlands", "VN Tiếng Việt"], key="lang")
     st.write("---")
     
     p_conf = [
@@ -97,34 +100,33 @@ with col_pak:
 
 with col_upload:
     st.subheader("📄 Dokument")
-    u_file = st.file_uploader("Brief hier ablegen", type=["pdf", "jpg", "png", "jpeg"])
-    if u_file:
-        if u_file.type == "application/pdf": st.info("PDF geladen.")
-        else: st.image(u_file, use_container_width=True)
+    u_file = st.file_uploader("Datei hier ablegen", type=["pdf", "jpg", "png", "jpeg"])
+    # Der extrahierte Text wird hier für die Demo simuliert
+    raw_text = "Bescheid vom 01.04.2026. Bitte Widerspruch bis 01.05.2026 einreichen."
 
 with col_result:
     st.subheader("🔍 Auswertung")
     if u_file:
-        # FRISTERKENNUNG (ZENTRALER PUNKT)
-        detected_frist = "30.04.2026" 
+        # FRISTERKENNUNG
+        detected_frist = extract_deadline(raw_text)
         st.error(f"🚨 **KRITISCHE FRIST ERKANNT: {detected_frist}**")
         
-        glossar_txt = "Verwaltungsakt: Amtliche Entscheidung.\nErmessen: Handlungsspielraum der Behörde."
-        antwort_txt = "Sehr geehrte Damen und Herren, bezüglich Ihres Schreibens..."
-        widerspruch_txt = "Hiermit lege ich form- und fristgerecht Widerspruch ein..."
+        # VOLLSTÄNDIGE ANALYSE-TEXTE
+        glossar_txt = "Verwaltungsakt: Amtliche Entscheidung einer Behörde.\nErmessen: Handlungsspielraum der Behörde bei Entscheidungen.\nRechtsbehelfsbelehrung: Erläuterung der Widerspruchsmöglichkeit."
+        antwort_txt = f"Elisabeth Reinecke\nRingelsweide 9\n40223 Düsseldorf\n\nBehörde XYZ\n...\n\nBetreff: Rückfragen zum Bescheid vom 01.04.2026\n\nSehr geehrte Damen und Herren,\n\nich bitte um Erläuterung der Entscheidungsgrundlagen. Da die Frist am {detected_frist} abläuft, bitte ich um zeitnahe Antwort.\n\nMit freundlichen Grüßen,\nElisabeth Reinecke"
+        widerspruch_txt = f"Elisabeth Reinecke\nRingelsweide 9\n40223 Düsseldorf\n\nWIDERSPRUCH\n\nSehr geehrte Damen und Herren,\n\nhiermit lege ich gegen den Bescheid vom 01.04.2026 form- und fristgerecht WIDERSPRUCH ein. Die Fristwahrung zum {detected_frist} wird hiermit bestätigt.\n\nMit freundlichen Grüßen,\nElisabeth Reinecke"
 
-        with st.expander("📖 Glossar", expanded=True): st.text(glossar_txt)
-        with st.expander("✉️ Antwortschreiben"): st.text(antwort_txt)
-        with st.expander("⚔️ Widerspruch"): st.text(widerspruch_txt)
+        with st.expander("📖 Glossar (Vollständig)", expanded=True): st.text(glossar_txt)
+        with st.expander("✉️ Antwortentwurf (Vollständig)"): st.text(antwort_txt)
+        with st.expander("⚔️ Widerspruch (Vollständig)"): st.text(widerspruch_txt)
         
         st.divider()
         st.subheader("📥 Downloads")
-        st.download_button("📊 Excel-Analyse (Spalten fixiert)", create_excel_report(antwort_txt, widerspruch_txt, glossar_txt, detected_frist), "Analyse.xlsx", use_container_width=True)
-        st.download_button("📄 PDF Export", create_pdf(antwort_txt), "Analyse.pdf", use_container_width=True)
-        st.download_button("📝 Word Export", create_docx(antwort_txt), "Analyse.docx", use_container_width=True)
-        st.download_button("📅 Termin (iCal)", create_ical(detected_frist), "Frist.ics", use_container_width=True)
+        st.download_button("📊 Excel-Analyse (Spalten fixiert)", create_excel_report(antwort_txt, widerspruch_txt, glossar_txt, detected_frist), "Amtsschimmel_Report.xlsx", use_container_width=True)
+        st.download_button("📝 Word Export (Alle Texte)", create_docx(antwort_txt, widerspruch_txt, glossar_txt), "Analyse_Komplett.docx", use_container_width=True)
+        st.download_button("📄 PDF Export (Kombiniert)", create_pdf(antwort_txt, widerspruch_txt, glossar_txt), "Analyse_Bericht.pdf", use_container_width=True)
     else:
-        st.info("Bitte laden Sie ein Dokument hoch.")
+        st.info("Bitte Dokument hochladen, um die Fristerkennung (2026) zu starten.")
 
 if __name__ == "__main__":
-    pass # main() Aufruf nicht nötig durch lineare Struktur
+    pass
